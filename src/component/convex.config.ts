@@ -1,3 +1,6 @@
 import { defineComponent } from "convex/server";
+import authz from "@djpanda/convex-authz/convex.config";
 
-export default defineComponent("tenants");
+const component = defineComponent("tenants");
+component.use(authz);
+export default component;

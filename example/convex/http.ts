@@ -1,20 +1,20 @@
 import { httpRouter } from "convex/server";
-import { registerRoutes } from "@djpanda/convex-tenants";
-import { components } from "./_generated/api";
 
 const http = httpRouter();
 
-// Initialize the component
-
-// Register HTTP routes for the component
-// This will expose a GET endpoint at /comments/last that returns the most recent comment
-registerRoutes(http, components.tenants, {
-  pathPrefix: "/comments",
-});
-
-// You can also register routes at different paths
-// tenants.registerRoutes(http, {
-//   path: "/api/comments/latest",
+// The tenants component can be extended with HTTP routes
+// for handling invitation acceptance links, webhooks, etc.
+//
+// Example:
+// http.route({
+//   path: "/invite/accept",
+//   method: "GET",
+//   handler: httpAction(async (ctx, request) => {
+//     const url = new URL(request.url);
+//     const invitationId = url.searchParams.get("id");
+//     // Redirect to app with invitation ID
+//     return Response.redirect(`/app/invite?id=${invitationId}`);
+//   }),
 // });
 
 export default http;

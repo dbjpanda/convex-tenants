@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { generateSlug } from "./index.js";
+import { generateSlug, toAuthzRole } from "./helpers.js";
 
-describe("client helpers", () => {
+describe("helpers", () => {
   describe("generateSlug", () => {
     it("should convert name to lowercase slug", () => {
       expect(generateSlug("Hello World")).toBe("hello-world");
@@ -35,8 +35,24 @@ describe("client helpers", () => {
       expect(generateSlug("Team 123")).toBe("team-123");
     });
 
+    it("should handle unicode characters by removing them", () => {
+      expect(generateSlug("Hello 世界")).toBe("hello");
+    });
+
     it("should handle empty string", () => {
       expect(generateSlug("")).toBe("");
+    });
+
+    it("should handle string with only special chars", () => {
+      expect(generateSlug("@#$%")).toBe("");
+    });
+  });
+
+  describe("toAuthzRole", () => {
+    it("should prefix tenant roles with org:", () => {
+      expect(toAuthzRole("owner")).toBe("org:owner");
+      expect(toAuthzRole("admin")).toBe("org:admin");
+      expect(toAuthzRole("member")).toBe("org:member");
     });
   });
 });

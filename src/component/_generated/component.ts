@@ -23,32 +23,343 @@ import type { FunctionReference } from "convex/server";
  */
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
-    lib: {
-      add: FunctionReference<
+    mutations: {
+      acceptInvitation: FunctionReference<
         "mutation",
         "internal",
-        { targetId: string; text: string; userId: string },
+        { acceptingUserId: string; invitationId: string },
+        null,
+        Name
+      >;
+      addMember: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          memberUserId: string;
+          organizationId: string;
+          role: "admin" | "member";
+          userId: string;
+        },
+        null,
+        Name
+      >;
+      addTeamMember: FunctionReference<
+        "mutation",
+        "internal",
+        { memberUserId: string; teamId: string; userId: string },
+        null,
+        Name
+      >;
+      cancelInvitation: FunctionReference<
+        "mutation",
+        "internal",
+        { invitationId: string; userId: string },
+        null,
+        Name
+      >;
+      createOrganization: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          logo?: string;
+          metadata?: any;
+          name: string;
+          slug: string;
+          userId: string;
+        },
         string,
         Name
       >;
-      list: FunctionReference<
+      createTeam: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          description?: string;
+          name: string;
+          organizationId: string;
+          userId: string;
+        },
+        string,
+        Name
+      >;
+      deleteOrganization: FunctionReference<
+        "mutation",
+        "internal",
+        { organizationId: string; userId: string },
+        null,
+        Name
+      >;
+      deleteTeam: FunctionReference<
+        "mutation",
+        "internal",
+        { teamId: string; userId: string },
+        null,
+        Name
+      >;
+      inviteMember: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          email: string;
+          expiresAt?: number;
+          organizationId: string;
+          role: "admin" | "member";
+          teamId?: string;
+          userId: string;
+        },
+        { email: string; expiresAt: number; invitationId: string },
+        Name
+      >;
+      leaveOrganization: FunctionReference<
+        "mutation",
+        "internal",
+        { organizationId: string; userId: string },
+        null,
+        Name
+      >;
+      removeMember: FunctionReference<
+        "mutation",
+        "internal",
+        { memberUserId: string; organizationId: string; userId: string },
+        null,
+        Name
+      >;
+      removeTeamMember: FunctionReference<
+        "mutation",
+        "internal",
+        { memberUserId: string; teamId: string; userId: string },
+        null,
+        Name
+      >;
+      resendInvitation: FunctionReference<
+        "mutation",
+        "internal",
+        { invitationId: string; userId: string },
+        { email: string; invitationId: string },
+        Name
+      >;
+      updateMemberRole: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          memberUserId: string;
+          organizationId: string;
+          role: "owner" | "admin" | "member";
+          userId: string;
+        },
+        null,
+        Name
+      >;
+      updateOrganization: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          logo?: null | string;
+          metadata?: any;
+          name?: string;
+          organizationId: string;
+          slug?: string;
+          userId: string;
+        },
+        null,
+        Name
+      >;
+      updateTeam: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          description?: null | string;
+          name?: string;
+          teamId: string;
+          userId: string;
+        },
+        null,
+        Name
+      >;
+    };
+    queries: {
+      checkMemberPermission: FunctionReference<
         "query",
         "internal",
-        { limit?: number; targetId: string },
+        {
+          minRole: "member" | "admin" | "owner";
+          organizationId: string;
+          userId: string;
+        },
+        {
+          currentRole: null | "owner" | "admin" | "member";
+          hasPermission: boolean;
+        },
+        Name
+      >;
+      getInvitation: FunctionReference<
+        "query",
+        "internal",
+        { invitationId: string },
+        null | {
+          _creationTime: number;
+          _id: string;
+          email: string;
+          expiresAt: number;
+          inviterId: string;
+          isExpired: boolean;
+          organizationId: string;
+          role: "admin" | "member";
+          status: "pending" | "accepted" | "cancelled" | "expired";
+          teamId: null | string;
+        },
+        Name
+      >;
+      getMember: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string; userId: string },
+        null | {
+          _creationTime: number;
+          _id: string;
+          organizationId: string;
+          role: "owner" | "admin" | "member";
+          userId: string;
+        },
+        Name
+      >;
+      getOrganization: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string },
+        null | {
+          _creationTime: number;
+          _id: string;
+          logo: null | string;
+          metadata?: any;
+          name: string;
+          ownerId: string;
+          slug: string;
+        },
+        Name
+      >;
+      getOrganizationBySlug: FunctionReference<
+        "query",
+        "internal",
+        { slug: string },
+        null | {
+          _creationTime: number;
+          _id: string;
+          logo: null | string;
+          metadata?: any;
+          name: string;
+          ownerId: string;
+          slug: string;
+        },
+        Name
+      >;
+      getPendingInvitationsForEmail: FunctionReference<
+        "query",
+        "internal",
+        { email: string },
         Array<{
           _creationTime: number;
           _id: string;
-          targetId: string;
-          text: string;
+          email: string;
+          expiresAt: number;
+          inviterId: string;
+          isExpired: boolean;
+          organizationId: string;
+          role: "admin" | "member";
+          teamId: null | string;
+        }>,
+        Name
+      >;
+      getTeam: FunctionReference<
+        "query",
+        "internal",
+        { teamId: string },
+        null | {
+          _creationTime: number;
+          _id: string;
+          description: null | string;
+          name: string;
+          organizationId: string;
+        },
+        Name
+      >;
+      isTeamMember: FunctionReference<
+        "query",
+        "internal",
+        { teamId: string; userId: string },
+        boolean,
+        Name
+      >;
+      listInvitations: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          email: string;
+          expiresAt: number;
+          inviterId: string;
+          isExpired: boolean;
+          organizationId: string;
+          role: "admin" | "member";
+          status: "pending" | "accepted" | "cancelled" | "expired";
+          teamId: null | string;
+        }>,
+        Name
+      >;
+      listOrganizationMembers: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          organizationId: string;
+          role: "owner" | "admin" | "member";
           userId: string;
         }>,
         Name
       >;
-      translate: FunctionReference<
-        "action",
+      listTeamMembers: FunctionReference<
+        "query",
         "internal",
-        { baseUrl: string; commentId: string },
-        string,
+        { teamId: string },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          teamId: string;
+          userId: string;
+        }>,
+        Name
+      >;
+      listTeams: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          description: null | string;
+          name: string;
+          organizationId: string;
+        }>,
+        Name
+      >;
+      listUserOrganizations: FunctionReference<
+        "query",
+        "internal",
+        { userId: string },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          logo: null | string;
+          metadata?: any;
+          name: string;
+          ownerId: string;
+          role: "owner" | "admin" | "member";
+          slug: string;
+        }>,
         Name
       >;
     };

@@ -1,146 +1,384 @@
-# Convex Component Template
+# @djpanda/convex-tenants
 
-This is a Convex component, ready to be published on npm.
+A multi-tenant organization and team management component for [Convex](https://convex.dev) with built-in authorization via `@djpanda/convex-authz`.
 
-To create your own component:
+## Features
 
-1. Write code in src/component for your component. Component-specific tables,
-   queries, mutations, and actions go here.
-1. Write code in src/client for the Class that interfaces with the component.
-   This is the bridge your users will access to get information into and out of
-   your component
-1. Write example usage in example/convex/example.ts.
-1. Delete the text in this readme until `---` and flesh out the README.
-1. Publish to npm with `npm run alpha` or `npm run release`.
-
-To develop your component run a dev process in the example project:
-
-```sh
-npm i
-npm run dev
-```
-
-`npm i` will do the install and an initial build. `npm run dev` will start a
-file watcher to re-build the component, as well as the example project frontend
-and backend, which does codegen and installs the component.
-
-Modify the schema and index files in src/component/ to define your component.
-
-Write a client for using this component in src/client/index.ts.
-
-If you won't be adding frontend code (e.g. React components) to this component
-you can delete "./react" references in package.json and "src/react/" directory.
-If you will be adding frontend code, add a peer dependency on React in
-package.json.
-
-### Component Directory structure
-
-```
-.
-├── README.md           documentation of your component
-├── package.json        component name, version number, other metadata
-├── package-lock.json   Components are like libraries, package-lock.json
-│                       is .gitignored and ignored by consumers.
-├── src
-│   ├── component/
-│   │   ├── _generated/ Files here are generated for the component.
-│   │   ├── convex.config.ts  Name your component here and use other components
-│   │   ├── lib.ts    Define functions here and in new files in this directory
-│   │   └── schema.ts   schema specific to this component
-│   ├── client/
-│   │   └── index.ts    Code that needs to run in the app that uses the
-│   │                   component. Generally the app interacts directly with
-│   │                   the component's exposed API (src/component/*).
-│   └── react/          Code intended to be used on the frontend goes here.
-│       │               Your are free to delete this if this component
-│       │               does not provide code.
-│       └── index.ts
-├── example/            example Convex app that uses this component
-│   └── convex/
-│       ├── _generated/       Files here are generated for the example app.
-│       ├── convex.config.ts  Imports and uses this component
-│       ├── myFunctions.ts    Functions that use the component
-│       └── schema.ts         Example app schema
-└── dist/               Publishing artifacts will be created here.
-```
-
----
-
-# Convex Tenants
-
-[![npm version](https://badge.fury.io/js/@example%2Ftenants.svg)](https://badge.fury.io/js/@example%2Ftenants)
-
-<!-- START: Include on https://convex.dev/components -->
-
-- [ ] What is some compelling syntax as a hook?
-- [ ] Why should you use this component?
-- [ ] Links to docs / other resources?
-
-Found a bug? Feature request?
-[File it here](https://github.com/dbjpanda/convex-tenants/issues).
+- **Organizations**: Create, update, delete organizations with unique slugs
+- **Members**: Add, remove, update member roles (owner, admin, member)
+- **Teams**: Create teams within organizations and manage team membership
+- **Invitations**: Invite users by email with customizable expiration
+- **Built-in Authorization**: Automatic role and permission sync via the authz child component
+- **React Hooks**: Ready-to-use hooks for React applications
+- **UI Components**: Pre-built React components for organization management
 
 ## Installation
 
-Create a `convex.config.ts` file in your app's `convex/` folder and install the
-component by calling `use`:
+```bash
+npm install @djpanda/convex-tenants @djpanda/convex-authz
+```
 
-```ts
-// convex/convex.config.ts
+For React UI components, also install optional peer dependencies:
+
+```bash
+npm install zustand clsx tailwind-merge
+```
+
+## Quick Start
+
+### 1. Configure the component
+
+In your `convex/convex.config.ts`:
+
+```typescript
 import { defineApp } from "convex/server";
-import tenants from "@djpanda/convex-tenants/convex.config.js";
+import tenants from "@djpanda/convex-tenants/convex.config";
 
 const app = defineApp();
 app.use(tenants);
+// Note: authz is automatically included as a child of tenants
 
 export default app;
 ```
 
-## Usage
+### 2. Create your tenants API
 
-```ts
-import { components } from "./_generated/api";
+In your `convex/tenants.ts`:
 
-export const addComment = mutation({
-  args: { text: v.string(), targetId: v.string() },
-  handler: async (ctx, args) => {
-    return await ctx.runMutation(components.tenants.lib.add, {
-      text: args.text,
-      targetId: args.targetId,
-      userId: await getAuthUserId(ctx),
+```typescript
+import { makeTenantsAPI } from "@djpanda/convex-tenants";
+import { components, internal } from "./_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
+
+const api = makeTenantsAPI(components.tenants, {
+  auth: async (ctx) => {
+    return await getAuthUserId(ctx);
+  },
+
+  getUser: async (ctx, userId) => {
+    const user = await ctx.db.get(userId);
+    return user ? { name: user.name, email: user.email } : null;
+  },
+
+  onInvitationCreated: async (ctx, invitation) => {
+    // Send invitation email
+    await ctx.scheduler.runAfter(0, internal.emails.sendInvitation, {
+      email: invitation.email,
+      organizationName: invitation.organizationName,
     });
   },
 });
+
+// Export all tenants functions
+export const listOrganizations = api.listOrganizations;
+export const createOrganization = api.createOrganization;
+export const inviteMember = api.inviteMember;
+// ... export other functions as needed
 ```
 
-See more example usage in [example.ts](./example/convex/example.ts).
+### 3. Use in your React app
 
-### HTTP Routes
+```tsx
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
 
-You can register HTTP routes for the component to expose HTTP endpoints:
+function OrganizationList() {
+  const orgs = useQuery(api.tenants.listOrganizations);
+  const createOrg = useMutation(api.tenants.createOrganization);
 
-```ts
-import { httpRouter } from "convex/server";
-import { registerRoutes } from "@djpanda/convex-tenants";
-import { components } from "./_generated/api";
-
-const http = httpRouter();
-
-registerRoutes(http, components.tenants, {
-  pathPrefix: "/comments",
-});
-
-export default http;
+  return (
+    <div>
+      {orgs?.map((org) => (
+        <div key={org._id}>
+          {org.name} - {org.role}
+        </div>
+      ))}
+      <button onClick={() => createOrg({ name: "New Org" })}>
+        Create Organization
+      </button>
+    </div>
+  );
+}
 ```
 
-This will expose a GET endpoint that returns the most recent comment as JSON.
-The endpoint requires a `targetId` query parameter. See
-[http.ts](./example/convex/http.ts) for a complete example.
+## React UI Components
 
-<!-- END: Include on https://convex.dev/components -->
+The package includes pre-built React components for common tenant management UI patterns. These components are styled with Tailwind CSS and designed to be customizable.
 
-Run the example:
+### Import
 
-```sh
-npm i
-npm run dev
+```tsx
+import {
+  // Components
+  OrganizationSwitcher,
+  InviteMemberDialog,
+  CreateTeamDialog,
+  MembersTable,
+  TeamsGrid,
+  AcceptInvitation,
+  // Hooks
+  useOrganization,
+  useMembers,
+  useInvitations,
+  useTeams,
+  useInvitation,
+  // Store
+  useOrganizationStore,
+  // Utilities
+  cn,
+  generateSlugFromName,
+} from "@djpanda/convex-tenants/react";
 ```
+
+### OrganizationSwitcher
+
+A dropdown component for switching between organizations with the ability to create new ones.
+
+```tsx
+import { OrganizationSwitcher } from "@djpanda/convex-tenants/react";
+import { Building2, Check, ChevronsUpDown, Plus } from "lucide-react";
+
+function Header() {
+  // ... your state and handlers
+
+  return (
+    <OrganizationSwitcher
+      organizations={organizations}
+      currentOrganization={currentOrganization}
+      onSwitchOrganization={handleSwitch}
+      onCreateOrganization={handleCreate}
+      buildingIcon={<Building2 className="h-5 w-5" />}
+      checkIcon={<Check className="h-4 w-4" />}
+      chevronsIcon={<ChevronsUpDown className="h-4 w-4" />}
+      plusIcon={<Plus className="h-4 w-4" />}
+    />
+  );
+}
+```
+
+### InviteMemberDialog
+
+A dialog for inviting new members to an organization.
+
+```tsx
+import { InviteMemberDialog } from "@djpanda/convex-tenants/react";
+import { Mail, Copy, Link } from "lucide-react";
+
+function MembersPage() {
+  return (
+    <InviteMemberDialog
+      organizationName="Acme Inc"
+      teams={teams}
+      onInvite={handleInvite}
+      onToast={(msg, type) => toast(msg)}
+      mailIcon={<Mail className="h-4 w-4" />}
+      copyIcon={<Copy className="h-4 w-4" />}
+      linkIcon={<Link className="h-4 w-4" />}
+    />
+  );
+}
+```
+
+### MembersTable
+
+A table for displaying and managing organization members and invitations.
+
+```tsx
+import { MembersTable } from "@djpanda/convex-tenants/react";
+import { MoreHorizontal, UserMinus, Copy, RefreshCw, XCircle } from "lucide-react";
+
+function MembersPage() {
+  return (
+    <MembersTable
+      members={members}
+      invitations={invitations}
+      teams={teams}
+      isOwner={isOwner}
+      isOwnerOrAdmin={isOwnerOrAdmin}
+      onRemoveMember={handleRemoveMember}
+      onUpdateMemberRole={handleUpdateRole}
+      onAddToTeam={handleAddToTeam}
+      onResendInvitation={handleResend}
+      onCopyInvitationLink={handleCopyLink}
+      onCancelInvitation={handleCancel}
+      moreIcon={<MoreHorizontal className="h-4 w-4" />}
+      userMinusIcon={<UserMinus className="h-4 w-4" />}
+      copyIcon={<Copy className="h-4 w-4" />}
+      refreshIcon={<RefreshCw className="h-4 w-4" />}
+      cancelIcon={<XCircle className="h-4 w-4" />}
+    />
+  );
+}
+```
+
+### TeamsGrid
+
+A grid component for displaying teams in an organization.
+
+```tsx
+import { TeamsGrid, CreateTeamDialog } from "@djpanda/convex-tenants/react";
+import { Users, Trash2, Plus } from "lucide-react";
+
+function TeamsPage() {
+  return (
+    <TeamsGrid
+      teams={teams}
+      isOwnerOrAdmin={isOwnerOrAdmin}
+      onDeleteTeam={handleDeleteTeam}
+      usersIcon={<Users className="h-4 w-4" />}
+      trashIcon={<Trash2 className="h-4 w-4" />}
+      emptyAction={
+        <CreateTeamDialog
+          organizationName="Acme Inc"
+          onCreateTeam={handleCreateTeam}
+          plusIcon={<Plus className="h-4 w-4" />}
+        />
+      }
+    />
+  );
+}
+```
+
+### AcceptInvitation
+
+A page component for accepting organization invitations.
+
+```tsx
+import { AcceptInvitation, useInvitation } from "@djpanda/convex-tenants/react";
+import { Loader2, CheckCircle, XCircle, Building2 } from "lucide-react";
+
+function AcceptInvitationPage({ invitationId }) {
+  const {
+    invitation,
+    organization,
+    isLoading,
+    isAccepting,
+    accepted,
+    error,
+    acceptInvitation,
+  } = useInvitation({
+    invitationId,
+    getInvitationQuery: api.tenants.getInvitation,
+    getOrganizationQuery: api.tenants.getOrganization,
+    acceptInvitationMutation: api.tenants.acceptInvitation,
+  });
+
+  return (
+    <AcceptInvitation
+      invitation={invitation}
+      organizationName={organization?.name}
+      isLoading={isLoading}
+      isAuthenticated={!!currentUser}
+      isAccepting={isAccepting}
+      accepted={accepted}
+      error={error}
+      onAccept={acceptInvitation}
+      onDecline={() => navigate("/")}
+      onNavigateToLogin={() => navigate("/login")}
+      onNavigateHome={() => navigate("/")}
+      loadingIcon={<Loader2 className="h-8 w-8 animate-spin" />}
+      checkIcon={<CheckCircle className="h-6 w-6" />}
+      errorIcon={<XCircle className="h-6 w-6" />}
+      buildingIcon={<Building2 className="h-8 w-8" />}
+    />
+  );
+}
+```
+
+### Organization Store
+
+A Zustand store for managing the active organization state (persisted in localStorage):
+
+```tsx
+import { useOrganizationStore } from "@djpanda/convex-tenants/react";
+
+function MyComponent() {
+  const { activeOrganizationId, setActiveOrganizationId, clearActiveOrganization } = useOrganizationStore();
+
+  return (
+    <button onClick={() => setActiveOrganizationId("org_123")}>
+      Switch to Org
+    </button>
+  );
+}
+```
+
+## Role Hierarchy
+
+The tenants component uses a role hierarchy for permission checks:
+
+- **owner**: Full control, can delete organization, transfer ownership
+- **admin**: Can manage members, teams, invitations, and settings
+- **member**: Basic read access to organization resources
+
+## Authorization Integration
+
+The tenants component automatically syncs roles and team memberships to the authz child component:
+
+- When a user joins an organization, their role is assigned in authz with organization scope
+- When a user's role changes, the authz role is updated
+- When a user joins/leaves a team, the team membership is synced as a ReBAC relationship
+
+This means you can use the authz component for fine-grained permission checks:
+
+```typescript
+// Check via the authz child component
+const isAdmin = await ctx.runQuery(
+  components.tenants.authz.rebac.hasDirectRelation,
+  {
+    subjectType: "user",
+    subjectId: userId,
+    relation: "admin",
+    objectType: "organization",
+    objectId: organizationId,
+  }
+);
+```
+
+## API Reference
+
+### Organization Functions
+
+- `listOrganizations` - List all organizations the user belongs to
+- `getOrganization` - Get organization by ID
+- `getOrganizationBySlug` - Get organization by slug
+- `createOrganization` - Create a new organization
+- `updateOrganization` - Update organization name, slug, logo, metadata
+- `deleteOrganization` - Delete an organization (owner only)
+
+### Member Functions
+
+- `listMembers` - List all members of an organization
+- `getMember` - Get a specific member
+- `getCurrentMember` - Get current user's membership
+- `checkPermission` - Check if user has at least a certain role
+- `addMember` - Add a member to an organization
+- `removeMember` - Remove a member (cannot remove owners)
+- `updateMemberRole` - Change a member's role (owner only)
+- `leaveOrganization` - Leave an organization
+
+### Team Functions
+
+- `listTeams` - List all teams in an organization
+- `getTeam` - Get team by ID
+- `listTeamMembers` - List all members of a team
+- `isTeamMember` - Check if current user is a team member
+- `createTeam` - Create a new team
+- `updateTeam` - Update team name and description
+- `deleteTeam` - Delete a team
+- `addTeamMember` - Add a member to a team
+- `removeTeamMember` - Remove a member from a team
+
+### Invitation Functions
+
+- `listInvitations` - List all invitations for an organization
+- `getInvitation` - Get invitation by ID
+- `getPendingInvitations` - Get pending invitations for an email
+- `inviteMember` - Create a new invitation
+- `acceptInvitation` - Accept an invitation
+- `resendInvitation` - Resend an invitation
+- `cancelInvitation` - Cancel an invitation
+
+## License
+
+MIT
