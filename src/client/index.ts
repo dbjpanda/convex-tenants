@@ -572,9 +572,128 @@ export function makeTenantsAPI(
       userId: string
     ) => Promise<{ name?: string; email?: string } | null>;
 
-    /**
-     * Callback when an invitation is created (for sending emails).
-     */
+    // ================================
+    // Organization Callbacks
+    // ================================
+
+    /** Called after a new organization is created. */
+    onOrganizationCreated?: (
+      ctx: any,
+      data: {
+        organizationId: string;
+        name: string;
+        slug: string;
+        ownerId: string;
+      }
+    ) => Promise<void>;
+
+    /** Called after an organization is deleted. */
+    onOrganizationDeleted?: (
+      ctx: any,
+      data: {
+        organizationId: string;
+        name: string;
+        deletedBy: string;
+      }
+    ) => Promise<void>;
+
+    // ================================
+    // Member Callbacks
+    // ================================
+
+    /** Called after a member is added to an organization. */
+    onMemberAdded?: (
+      ctx: any,
+      data: {
+        organizationId: string;
+        userId: string;
+        role: OrgRole;
+        addedBy: string;
+      }
+    ) => Promise<void>;
+
+    /** Called after a member is removed from an organization. */
+    onMemberRemoved?: (
+      ctx: any,
+      data: {
+        organizationId: string;
+        userId: string;
+        removedBy: string;
+      }
+    ) => Promise<void>;
+
+    /** Called after a member's role is changed. */
+    onMemberRoleChanged?: (
+      ctx: any,
+      data: {
+        organizationId: string;
+        userId: string;
+        oldRole: OrgRole;
+        newRole: OrgRole;
+        changedBy: string;
+      }
+    ) => Promise<void>;
+
+    /** Called after a member leaves an organization. */
+    onMemberLeft?: (
+      ctx: any,
+      data: {
+        organizationId: string;
+        userId: string;
+      }
+    ) => Promise<void>;
+
+    // ================================
+    // Team Callbacks
+    // ================================
+
+    /** Called after a team is created. */
+    onTeamCreated?: (
+      ctx: any,
+      data: {
+        teamId: string;
+        name: string;
+        organizationId: string;
+        createdBy: string;
+      }
+    ) => Promise<void>;
+
+    /** Called after a team is deleted. */
+    onTeamDeleted?: (
+      ctx: any,
+      data: {
+        teamId: string;
+        name: string;
+        organizationId: string;
+        deletedBy: string;
+      }
+    ) => Promise<void>;
+
+    /** Called after a member is added to a team. */
+    onTeamMemberAdded?: (
+      ctx: any,
+      data: {
+        teamId: string;
+        userId: string;
+        addedBy: string;
+      }
+    ) => Promise<void>;
+
+    /** Called after a member is removed from a team. */
+    onTeamMemberRemoved?: (
+      ctx: any,
+      data: {
+        teamId: string;
+        userId: string;
+        removedBy: string;
+      }
+    ) => Promise<void>;
+
+    // ================================
+    // Invitation Callbacks
+    // ================================
+
+    /** Called after an invitation is created (e.g. for sending emails). */
     onInvitationCreated?: (
       ctx: any,
       invitation: {
@@ -588,9 +707,7 @@ export function makeTenantsAPI(
       }
     ) => Promise<void>;
 
-    /**
-     * Callback when an invitation is resent.
-     */
+    /** Called after an invitation is resent. */
     onInvitationResent?: (
       ctx: any,
       invitation: {
@@ -601,6 +718,19 @@ export function makeTenantsAPI(
         role: InvitationRole;
         inviterName?: string;
         expiresAt: number;
+      }
+    ) => Promise<void>;
+
+    /** Called after an invitation is accepted and the user joins the org. */
+    onInvitationAccepted?: (
+      ctx: any,
+      data: {
+        invitationId: string;
+        organizationId: string;
+        organizationName: string;
+        userId: string;
+        role: InvitationRole;
+        email: string;
       }
     ) => Promise<void>;
 
@@ -661,11 +791,23 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
-        return await tenants.createOrganization(ctx, userId, args.name, {
+        const organizationId = await tenants.createOrganization(ctx, userId, args.name, {
           slug: args.slug,
           logo: args.logo,
           metadata: args.metadata,
         });
+
+        if (options.onOrganizationCreated) {
+          const org = await tenants.getOrganization(ctx, organizationId);
+          await options.onOrganizationCreated(ctx, {
+            organizationId,
+            name: org?.name ?? args.name,
+            slug: org?.slug ?? args.slug ?? "",
+            ownerId: userId,
+          });
+        }
+
+        return organizationId;
       },
     }),
 
@@ -692,7 +834,23 @@ export function makeTenantsAPI(
       args: { organizationId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+
+        // Fetch org name before deletion
+        let orgName = "Unknown";
+        if (options.onOrganizationDeleted) {
+          const org = await tenants.getOrganization(ctx, args.organizationId);
+          orgName = org?.name ?? "Unknown";
+        }
+
         await tenants.deleteOrganization(ctx, userId, args.organizationId);
+
+        if (options.onOrganizationDeleted) {
+          await options.onOrganizationDeleted(ctx, {
+            organizationId: args.organizationId,
+            name: orgName,
+            deletedBy: userId,
+          });
+        }
       },
     }),
 
@@ -785,6 +943,15 @@ export function makeTenantsAPI(
           args.memberUserId,
           args.role
         );
+
+        if (options.onMemberAdded) {
+          await options.onMemberAdded(ctx, {
+            organizationId: args.organizationId,
+            userId: args.memberUserId,
+            role: args.role,
+            addedBy: userId,
+          });
+        }
       },
     }),
 
@@ -798,6 +965,14 @@ export function makeTenantsAPI(
           args.organizationId,
           args.memberUserId
         );
+
+        if (options.onMemberRemoved) {
+          await options.onMemberRemoved(ctx, {
+            organizationId: args.organizationId,
+            userId: args.memberUserId,
+            removedBy: userId,
+          });
+        }
       },
     }),
 
@@ -809,6 +984,18 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+
+        // Fetch old role before update
+        let oldRole: OrgRole | null = null;
+        if (options.onMemberRoleChanged) {
+          const member = await tenants.getMember(
+            ctx,
+            args.organizationId,
+            args.memberUserId
+          );
+          oldRole = member?.role ?? null;
+        }
+
         await tenants.updateMemberRole(
           ctx,
           userId,
@@ -816,6 +1003,16 @@ export function makeTenantsAPI(
           args.memberUserId,
           args.role
         );
+
+        if (options.onMemberRoleChanged && oldRole) {
+          await options.onMemberRoleChanged(ctx, {
+            organizationId: args.organizationId,
+            userId: args.memberUserId,
+            oldRole,
+            newRole: args.role,
+            changedBy: userId,
+          });
+        }
       },
     }),
 
@@ -824,6 +1021,13 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await tenants.leaveOrganization(ctx, userId, args.organizationId);
+
+        if (options.onMemberLeft) {
+          await options.onMemberLeft(ctx, {
+            organizationId: args.organizationId,
+            userId,
+          });
+        }
       },
     }),
 
@@ -882,13 +1086,24 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
-        return await tenants.createTeam(
+        const teamId = await tenants.createTeam(
           ctx,
           userId,
           args.organizationId,
           args.name,
           args.description
         );
+
+        if (options.onTeamCreated) {
+          await options.onTeamCreated(ctx, {
+            teamId,
+            name: args.name,
+            organizationId: args.organizationId,
+            createdBy: userId,
+          });
+        }
+
+        return teamId;
       },
     }),
 
@@ -911,7 +1126,26 @@ export function makeTenantsAPI(
       args: { teamId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+
+        // Fetch team details before deletion
+        let teamName = "Unknown";
+        let teamOrgId = "";
+        if (options.onTeamDeleted) {
+          const team = await tenants.getTeam(ctx, args.teamId);
+          teamName = team?.name ?? "Unknown";
+          teamOrgId = team?.organizationId ?? "";
+        }
+
         await tenants.deleteTeam(ctx, userId, args.teamId);
+
+        if (options.onTeamDeleted) {
+          await options.onTeamDeleted(ctx, {
+            teamId: args.teamId,
+            name: teamName,
+            organizationId: teamOrgId,
+            deletedBy: userId,
+          });
+        }
       },
     }),
 
@@ -920,6 +1154,14 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await tenants.addTeamMember(ctx, userId, args.teamId, args.memberUserId);
+
+        if (options.onTeamMemberAdded) {
+          await options.onTeamMemberAdded(ctx, {
+            teamId: args.teamId,
+            userId: args.memberUserId,
+            addedBy: userId,
+          });
+        }
       },
     }),
 
@@ -933,6 +1175,14 @@ export function makeTenantsAPI(
           args.teamId,
           args.memberUserId
         );
+
+        if (options.onTeamMemberRemoved) {
+          await options.onTeamMemberRemoved(ctx, {
+            teamId: args.teamId,
+            userId: args.memberUserId,
+            removedBy: userId,
+          });
+        }
       },
     }),
 
@@ -1010,7 +1260,40 @@ export function makeTenantsAPI(
       args: { invitationId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+
+        // Fetch invitation details before acceptance (status will change)
+        let invitationData: {
+          organizationId: string;
+          role: InvitationRole;
+          email: string;
+        } | null = null;
+        if (options.onInvitationAccepted) {
+          const inv = await tenants.getInvitation(ctx, args.invitationId);
+          if (inv) {
+            invitationData = {
+              organizationId: inv.organizationId,
+              role: inv.role,
+              email: inv.email,
+            };
+          }
+        }
+
         await tenants.acceptInvitation(ctx, args.invitationId, userId);
+
+        if (options.onInvitationAccepted && invitationData) {
+          const org = await tenants.getOrganization(
+            ctx,
+            invitationData.organizationId
+          );
+          await options.onInvitationAccepted(ctx, {
+            invitationId: args.invitationId,
+            organizationId: invitationData.organizationId,
+            organizationName: org?.name ?? "Unknown",
+            userId,
+            role: invitationData.role,
+            email: invitationData.email,
+          });
+        }
       },
     }),
 

@@ -135,16 +135,53 @@ makeTenantsAPI(components.tenants, {
   // Optional: enrich member/team-member results with user details
   getUser: (ctx, userId) => Promise<{ name?: string; email?: string } | null>,
 
-  // Optional: called after an invitation is created (e.g. send an email)
-  onInvitationCreated: (ctx, invitation) => Promise<void>,
-
-  // Optional: called after an invitation is resent
-  onInvitationResent: (ctx, invitation) => Promise<void>,
-
   // Optional: default invitation expiration in ms (default: 48 hours)
   defaultInvitationExpiration: number,
+
+  // ---- Event Hook Callbacks (all optional) ----
+
+  // Organization hooks
+  onOrganizationCreated: (ctx, { organizationId, name, slug, ownerId }) => Promise<void>,
+  onOrganizationDeleted: (ctx, { organizationId, name, deletedBy }) => Promise<void>,
+
+  // Member hooks
+  onMemberAdded: (ctx, { organizationId, userId, role, addedBy }) => Promise<void>,
+  onMemberRemoved: (ctx, { organizationId, userId, removedBy }) => Promise<void>,
+  onMemberRoleChanged: (ctx, { organizationId, userId, oldRole, newRole, changedBy }) => Promise<void>,
+  onMemberLeft: (ctx, { organizationId, userId }) => Promise<void>,
+
+  // Team hooks
+  onTeamCreated: (ctx, { teamId, name, organizationId, createdBy }) => Promise<void>,
+  onTeamDeleted: (ctx, { teamId, name, organizationId, deletedBy }) => Promise<void>,
+  onTeamMemberAdded: (ctx, { teamId, userId, addedBy }) => Promise<void>,
+  onTeamMemberRemoved: (ctx, { teamId, userId, removedBy }) => Promise<void>,
+
+  // Invitation hooks
+  onInvitationCreated: (ctx, { invitationId, email, organizationId, organizationName, role, inviterName, expiresAt }) => Promise<void>,
+  onInvitationResent: (ctx, { invitationId, email, organizationId, organizationName, role, inviterName, expiresAt }) => Promise<void>,
+  onInvitationAccepted: (ctx, { invitationId, organizationId, organizationName, userId, role, email }) => Promise<void>,
 })
 ```
+
+#### Event Hook Reference
+
+| Hook | Fires After | Callback Data |
+|------|-------------|---------------|
+| `onOrganizationCreated` | `createOrganization` | `organizationId`, `name`, `slug`, `ownerId` |
+| `onOrganizationDeleted` | `deleteOrganization` | `organizationId`, `name`, `deletedBy` |
+| `onMemberAdded` | `addMember` | `organizationId`, `userId`, `role`, `addedBy` |
+| `onMemberRemoved` | `removeMember` | `organizationId`, `userId`, `removedBy` |
+| `onMemberRoleChanged` | `updateMemberRole` | `organizationId`, `userId`, `oldRole`, `newRole`, `changedBy` |
+| `onMemberLeft` | `leaveOrganization` | `organizationId`, `userId` |
+| `onTeamCreated` | `createTeam` | `teamId`, `name`, `organizationId`, `createdBy` |
+| `onTeamDeleted` | `deleteTeam` | `teamId`, `name`, `organizationId`, `deletedBy` |
+| `onTeamMemberAdded` | `addTeamMember` | `teamId`, `userId`, `addedBy` |
+| `onTeamMemberRemoved` | `removeTeamMember` | `teamId`, `userId`, `removedBy` |
+| `onInvitationCreated` | `inviteMember` | `invitationId`, `email`, `organizationId`, `organizationName`, `role`, `inviterName?`, `expiresAt` |
+| `onInvitationResent` | `resendInvitation` | `invitationId`, `email`, `organizationId`, `organizationName`, `role`, `inviterName?`, `expiresAt` |
+| `onInvitationAccepted` | `acceptInvitation` | `invitationId`, `organizationId`, `organizationName`, `userId`, `role`, `email` |
+
+All hooks receive `ctx` as the first argument (the mutation context), so you can use `ctx.db`, `ctx.scheduler`, etc. inside them.
 
 **Auth behavior:**
 - **Queries** — return safe defaults when unauthenticated (empty array, `null`, `false`)
@@ -192,7 +229,7 @@ Get a single organization by its unique slug.
 
 #### `createOrganization` (mutation)
 
-Create a new organization. The authenticated user becomes the owner.
+Create a new organization. The authenticated user becomes the owner. Triggers `onOrganizationCreated` callback.
 
 | Arg | Type | Required | Description |
 |-----|------|----------|-------------|
@@ -225,7 +262,7 @@ Update an organization's details. Requires admin or owner role.
 
 #### `deleteOrganization` (mutation)
 
-Delete an organization and all its members, teams, and invitations. Owner only.
+Delete an organization and all its members, teams, and invitations. Owner only. Triggers `onOrganizationDeleted` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -289,7 +326,7 @@ Check if the authenticated user has at least a certain role in an organization.
 
 #### `addMember` (mutation)
 
-Add a user to an organization. Requires admin or owner role.
+Add a user to an organization. Requires admin or owner role. Triggers `onMemberAdded` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -303,7 +340,7 @@ Add a user to an organization. Requires admin or owner role.
 
 #### `removeMember` (mutation)
 
-Remove a member from an organization. Cannot remove owners.
+Remove a member from an organization. Cannot remove owners. Triggers `onMemberRemoved` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -316,7 +353,7 @@ Remove a member from an organization. Cannot remove owners.
 
 #### `updateMemberRole` (mutation)
 
-Change a member's role. Owner only.
+Change a member's role. Owner only. Triggers `onMemberRoleChanged` callback (includes `oldRole` and `newRole`).
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -330,7 +367,7 @@ Change a member's role. Owner only.
 
 #### `leaveOrganization` (mutation)
 
-Leave an organization. Owners cannot leave (must transfer ownership first).
+Leave an organization. Owners cannot leave (must transfer ownership first). Triggers `onMemberLeft` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -392,7 +429,7 @@ Check if the authenticated user is a member of a team.
 
 #### `createTeam` (mutation)
 
-Create a new team in an organization. Requires admin or owner role.
+Create a new team in an organization. Requires admin or owner role. Triggers `onTeamCreated` callback.
 
 | Arg | Type | Required | Description |
 |-----|------|----------|-------------|
@@ -420,7 +457,7 @@ Update a team's name or description. Requires admin or owner role.
 
 #### `deleteTeam` (mutation)
 
-Delete a team and all its memberships. Requires admin or owner role.
+Delete a team and all its memberships. Requires admin or owner role. Triggers `onTeamDeleted` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -432,7 +469,7 @@ Delete a team and all its memberships. Requires admin or owner role.
 
 #### `addTeamMember` (mutation)
 
-Add a member to a team. The user must already be a member of the organization.
+Add a member to a team. The user must already be a member of the organization. Triggers `onTeamMemberAdded` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -445,7 +482,7 @@ Add a member to a team. The user must already be a member of the organization.
 
 #### `removeTeamMember` (mutation)
 
-Remove a member from a team.
+Remove a member from a team. Triggers `onTeamMemberRemoved` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -511,7 +548,7 @@ Create an invitation to join an organization. Requires admin or owner role. Trig
 
 #### `acceptInvitation` (mutation)
 
-Accept a pending invitation. The authenticated user is added to the organization with the invited role.
+Accept a pending invitation. The authenticated user is added to the organization with the invited role. Triggers `onInvitationAccepted` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|

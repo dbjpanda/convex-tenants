@@ -21,34 +21,51 @@ const strictApi = makeTenantsAPI(components.tenants, {
     email: `${userId}@test.com`,
   }),
 
-  onInvitationCreated: async (ctx, invitation) => {
-    await ctx.db.insert("callbackLog", {
-      type: "invitationCreated",
-      data: {
-        invitationId: invitation.invitationId,
-        email: invitation.email,
-        organizationId: invitation.organizationId,
-        organizationName: invitation.organizationName,
-        role: invitation.role,
-        inviterName: invitation.inviterName ?? null,
-        expiresAt: invitation.expiresAt,
-      },
-    });
+  // Organization callbacks
+  onOrganizationCreated: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "organizationCreated", data });
+  },
+  onOrganizationDeleted: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "organizationDeleted", data });
   },
 
-  onInvitationResent: async (ctx, invitation) => {
-    await ctx.db.insert("callbackLog", {
-      type: "invitationResent",
-      data: {
-        invitationId: invitation.invitationId,
-        email: invitation.email,
-        organizationId: invitation.organizationId,
-        organizationName: invitation.organizationName,
-        role: invitation.role,
-        inviterName: invitation.inviterName ?? null,
-        expiresAt: invitation.expiresAt,
-      },
-    });
+  // Member callbacks
+  onMemberAdded: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "memberAdded", data });
+  },
+  onMemberRemoved: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "memberRemoved", data });
+  },
+  onMemberRoleChanged: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "memberRoleChanged", data });
+  },
+  onMemberLeft: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "memberLeft", data });
+  },
+
+  // Team callbacks
+  onTeamCreated: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "teamCreated", data });
+  },
+  onTeamDeleted: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "teamDeleted", data });
+  },
+  onTeamMemberAdded: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "teamMemberAdded", data });
+  },
+  onTeamMemberRemoved: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "teamMemberRemoved", data });
+  },
+
+  // Invitation callbacks
+  onInvitationCreated: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "invitationCreated", data });
+  },
+  onInvitationResent: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "invitationResent", data });
+  },
+  onInvitationAccepted: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "invitationAccepted", data });
   },
 });
 

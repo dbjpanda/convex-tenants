@@ -37,23 +37,20 @@ export const {
     };
   },
 
-  onInvitationCreated: async (_ctx, invitation) => {
-    // In a real app, you'd send an invitation email
-    console.log(`[Example] Invitation created for ${invitation.email}`);
-    console.log(`  Organization: ${invitation.organizationName}`);
-    console.log(`  Role: ${invitation.role}`);
-    console.log(`  Invited by: ${invitation.inviterName ?? "Unknown"}`);
-    console.log(`  Expires: ${new Date(invitation.expiresAt).toISOString()}`);
-  },
-
-  onInvitationResent: async (_ctx, invitation) => {
-    // In a real app, you'd resend the invitation email
-    console.log(`[Example] Invitation resent to ${invitation.email}`);
-    console.log(`  Organization: ${invitation.organizationName}`);
-    console.log(`  Role: ${invitation.role}`);
-    console.log(`  Resent by: ${invitation.inviterName ?? "Unknown"}`);
-    console.log(`  Expires: ${new Date(invitation.expiresAt).toISOString()}`);
-  },
+  // Event hooks
+  onOrganizationCreated: async (ctx, data) => console.log(`Organization created: ${data.name}`),
+  onOrganizationDeleted: async (ctx, data) => console.log(`Organization deleted: ${data.name}`),
+  onMemberAdded: async (ctx, data) => console.log(`Member ${data.userId} added as ${data.role}`),
+  onMemberRemoved: async (ctx, data) => console.log(`Member ${data.userId} removed`),
+  onMemberRoleChanged: async (ctx, data) => console.log(`Member ${data.userId} role: ${data.oldRole} → ${data.newRole}`),
+  onMemberLeft: async (ctx, data) => console.log(`Member ${data.userId} left`),
+  onTeamCreated: async (ctx, data) => console.log(`Team created: ${data.name}`),
+  onTeamDeleted: async (ctx, data) => console.log(`Team deleted: ${data.name}`),
+  onTeamMemberAdded: async (ctx, data) => console.log(`Team member ${data.userId} added`),
+  onTeamMemberRemoved: async (ctx, data) => console.log(`Team member ${data.userId} removed`),
+  onInvitationCreated: async (ctx, data) => console.log(`Invitation sent to ${data.email}`),
+  onInvitationResent: async (ctx, data) => console.log(`Invitation resent to ${data.email}`),
+  onInvitationAccepted: async (ctx, data) => console.log(`Invitation accepted by ${data.userId}`),
 
   defaultInvitationExpiration: 48 * 60 * 60 * 1000, // 48 hours
 });
