@@ -187,10 +187,13 @@ describe("makeTenantsAPI", () => {
         role: "member",
       });
 
-      // List members — each should have a `user` field from getUser
-      const members = await asAlice.query(api.example.strictListMembers, {
-        organizationId: orgId,
-      });
+      // List members — each should have a `user` field from getUser.
+      // The `user` field is added dynamically by getUser enrichment,
+      // so we cast to `any` for the assertion.
+      const members: any[] = await asAlice.query(
+        api.example.strictListMembers,
+        { organizationId: orgId }
+      );
 
       expect(members).toHaveLength(2); // alice (owner) + bob (member)
       for (const member of members) {
@@ -225,7 +228,7 @@ describe("makeTenantsAPI", () => {
         { name: "Get Member Org" }
       );
 
-      const member = await asAlice.query(api.example.strictGetMember, {
+      const member: any = await asAlice.query(api.example.strictGetMember, {
         organizationId: orgId,
         userId: "alice",
       });
@@ -267,7 +270,7 @@ describe("makeTenantsAPI", () => {
       });
 
       // List team members — should have user data
-      const teamMembers = await asAlice.query(
+      const teamMembers: any[] = await asAlice.query(
         api.example.strictListTeamMembers,
         { teamId }
       );

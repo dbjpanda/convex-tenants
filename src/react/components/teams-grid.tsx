@@ -1,7 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Users, Trash2 } from "lucide-react";
 import { cn } from "../utils.js";
+import { Button } from "../ui/button.js";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card.js";
+import { Badge } from "../ui/badge.js";
+import { Skeleton } from "../ui/skeleton.js";
 import type { Team } from "../hooks/use-teams.js";
 
 export interface TeamsGridProps {
@@ -9,47 +14,47 @@ export interface TeamsGridProps {
    * List of teams in the organization
    */
   teams: Team[];
-  
+
   /**
    * Whether the data is loading
    */
   isLoading?: boolean;
-  
+
   /**
    * Whether the current user is owner or admin
    */
   isOwnerOrAdmin?: boolean;
-  
+
   /**
    * Callback when clicking a team
    */
   onTeamClick?: (team: Team) => void;
-  
+
   /**
    * Callback to delete a team
    */
   onDeleteTeam?: (teamId: string) => Promise<void>;
-  
+
   /**
    * Empty state action element (e.g., Create Team button)
    */
   emptyAction?: ReactNode;
-  
+
   /**
    * Toast notification callback
    */
   onToast?: (message: string, type: "success" | "error") => void;
-  
+
   /**
    * Custom class name
    */
   className?: string;
-  
+
   /**
    * Custom icon for users/team
    */
   usersIcon?: ReactNode;
-  
+
   /**
    * Custom icon for trash/delete
    */
@@ -58,23 +63,20 @@ export interface TeamsGridProps {
 
 /**
  * A grid component for displaying teams in an organization.
- * 
+ *
  * @example
  * ```tsx
  * import { TeamsGrid, CreateTeamDialog } from "@djpanda/convex-tenants/react";
- * import { Users, Trash2 } from "lucide-react";
- * 
+ *
  * function MyApp() {
  *   const { teams, isLoading, deleteTeam, createTeam } = useTeams(...);
- *   
+ *
  *   return (
  *     <TeamsGrid
  *       teams={teams}
  *       isLoading={isLoading}
  *       isOwnerOrAdmin={true}
  *       onDeleteTeam={deleteTeam}
- *       usersIcon={<Users className="h-4 w-4" />}
- *       trashIcon={<Trash2 className="h-4 w-4" />}
  *       emptyAction={
  *         <CreateTeamDialog
  *           organizationName="Acme Inc"
@@ -98,6 +100,9 @@ export function TeamsGrid({
   usersIcon,
   trashIcon,
 }: TeamsGridProps) {
+  const UsersIcon = usersIcon ?? <Users className="size-4" />;
+  const TrashIcon = trashIcon ?? <Trash2 className="size-4" />;
+
   const handleDeleteTeam = async (teamId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -110,8 +115,23 @@ export function TeamsGrid({
 
   if (isLoading) {
     return (
-      <div className={cn("p-8 text-center text-gray-500", className)}>
-        Loading teams...
+      <div className={cn("grid gap-4 md:grid-cols-2 lg:grid-cols-3", className)}>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-5 w-28" />
+                  <Skeleton className="h-4 w-40" />
+                </div>
+                <Skeleton className="size-6 rounded-md" />
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
     );
   }
@@ -119,11 +139,11 @@ export function TeamsGrid({
   if (teams.length === 0) {
     return (
       <div className={cn("p-8 text-center", className)}>
-        <div className="flex justify-center mb-4">
-          <span className="text-gray-400">{usersIcon}</span>
+        <div className="mb-4 flex justify-center">
+          <span className="text-muted-foreground">{UsersIcon}</span>
         </div>
-        <h3 className="text-lg font-semibold mb-2">No teams yet</h3>
-        <p className="text-gray-500 mb-4">
+        <h3 className="mb-2 text-lg font-semibold">No teams yet</h3>
+        <p className="mb-4 text-muted-foreground">
           Create teams to organize your members
         </p>
         {isOwnerOrAdmin && emptyAction}
@@ -134,38 +154,41 @@ export function TeamsGrid({
   return (
     <div className={cn("grid gap-4 md:grid-cols-2 lg:grid-cols-3", className)}>
       {teams.map((team) => (
-        <div
+        <Card
           key={team._id}
-          onClick={() => onTeamClick?.(team)}
           className={cn(
-            "p-4 border rounded-lg bg-white",
-            onTeamClick && "cursor-pointer hover:shadow-md transition-shadow"
+            onTeamClick && "cursor-pointer transition-shadow hover:shadow-md"
           )}
+          onClick={() => onTeamClick?.(team)}
         >
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg">{team.name}</h3>
-              {team.description && (
-                <p className="text-sm text-gray-500 mt-1">{team.description}</p>
-              )}
-              <div className="flex items-center gap-2 mt-2">
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                  {usersIcon}
-                  <span className="ml-1">Team</span>
-                </span>
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 space-y-1">
+                <CardTitle className="text-lg">{team.name}</CardTitle>
+                {team.description && (
+                  <CardDescription>{team.description}</CardDescription>
+                )}
               </div>
+              {isOwnerOrAdmin && onDeleteTeam && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={(e) => handleDeleteTeam(team._id, e)}
+                  aria-label="Delete team"
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  {TrashIcon}
+                </Button>
+              )}
             </div>
-            {isOwnerOrAdmin && onDeleteTeam && (
-              <button
-                onClick={(e) => handleDeleteTeam(team._id, e)}
-                className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600"
-                title="Delete team"
-              >
-                {trashIcon}
-              </button>
-            )}
-          </div>
-        </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <Badge variant="secondary">
+              {UsersIcon}
+              <span>Team</span>
+            </Badge>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );

@@ -80,17 +80,13 @@
     "clsx": "^2.0.0",
     "convex": "^1.29.3",
     "react": "^18.3.1 || ^19.0.0",
-    "tailwind-merge": "^2.0.0 || ^3.0.0",
-    "zustand": "^4.0.0 || ^5.0.0"
+    "tailwind-merge": "^2.0.0 || ^3.0.0"
   },
   "peerDependenciesMeta": {
     "clsx": {
       "optional": true
     },
     "tailwind-merge": {
-      "optional": true
-    },
-    "zustand": {
       "optional": true
     }
   },
@@ -100,14 +96,12 @@
     "@edge-runtime/vm": "^5.0.0",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "9.39.1",
-    "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/vite": "^4.1.17",
     "@types/node": "^24.10.4",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "chokidar-cli": "3.0.0",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "1.31.0",
     "convex-test": "0.0.40",
@@ -117,7 +111,6 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "lucide-react": "^0.555.0",
     "npm-run-all2": "8.0.4",
     "path-exists-cli": "2.0.0",
     "pkg-pr-new": "^0.0.60",
@@ -129,9 +122,13 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.47.0",
     "vite": "7.2.6",
-    "vitest": "3.2.4",
-    "zustand": "^5.0.9"
+    "vitest": "3.2.4"
   },
   "types": "./dist/client/index.d.ts",
-  "module": "./dist/client/index.js"
+  "module": "./dist/client/index.js",
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "lucide-react": "^0.555.0",
+    "radix-ui": "^1.4.3"
+  }
 }

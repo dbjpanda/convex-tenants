@@ -10,6 +10,18 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Deduplicate React — prevents "Invalid hook call" when the library
+      // (linked via file:..) has its own node_modules/react copy.
+      react: path.resolve(__dirname, "./node_modules/react"),
+      "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
+      "react/jsx-runtime": path.resolve(
+        __dirname,
+        "./node_modules/react/jsx-runtime"
+      ),
+      "react/jsx-dev-runtime": path.resolve(
+        __dirname,
+        "./node_modules/react/jsx-dev-runtime"
+      ),
     },
     conditions: ["@convex-dev/component-source"],
   },

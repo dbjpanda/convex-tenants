@@ -21,7 +21,7 @@ npm install @djpanda/convex-tenants @djpanda/convex-authz
 For React UI components, also install optional peer dependencies:
 
 ```bash
-npm install zustand clsx tailwind-merge
+npm install clsx tailwind-merge
 ```
 
 ## Quick Start
@@ -123,7 +123,62 @@ function OrganizationList() {
 
 ## React UI Components
 
-The package includes pre-built React components for common tenant management UI patterns. These components are styled with Tailwind CSS and designed to be customizable.
+The package includes pre-built React components for common tenant management UI patterns. These components are built with [shadcn/ui](https://ui.shadcn.com) (Radix UI + Tailwind CSS) and ship with default `lucide-react` icons. They are fully accessible, support dark mode via CSS variables, and automatically adopt your app's theme.
+
+### Theming
+
+The components use shadcn/ui CSS variables for theming. If your app already uses shadcn/ui, the tenant components will automatically match your theme. If not, add the CSS variables to your root stylesheet:
+
+```css
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+  }
+}
+```
+
+> **Tip:** If you use `npx shadcn@latest init` in your project, these variables are set up for you automatically.
 
 ### Import
 
@@ -132,9 +187,12 @@ import {
   // Components
   OrganizationSwitcher,
   InviteMemberDialog,
+  CreateOrganizationDialog,
   CreateTeamDialog,
   MembersTable,
+  MembersSection,
   TeamsGrid,
+  TeamsSection,
   AcceptInvitation,
   // Hooks
   useOrganization,
@@ -152,120 +210,99 @@ import {
 
 ### OrganizationSwitcher
 
-A dropdown component for switching between organizations with the ability to create new ones.
+A Popover-based dropdown for switching between organizations with the ability to create new ones. Icons are included by default.
 
 ```tsx
 import { OrganizationSwitcher } from "@djpanda/convex-tenants/react";
-import { Building2, Check, ChevronsUpDown, Plus } from "lucide-react";
 
-function Header() {
-  // ... your state and handlers
+// With TenantsProvider (recommended) — no props needed
+<TenantsProvider api={api.example}>
+  <OrganizationSwitcher />
+</TenantsProvider>
 
-  return (
-    <OrganizationSwitcher
-      organizations={organizations}
-      currentOrganization={currentOrganization}
-      onSwitchOrganization={handleSwitch}
-      onCreateOrganization={handleCreate}
-      buildingIcon={<Building2 className="h-5 w-5" />}
-      checkIcon={<Check className="h-4 w-4" />}
-      chevronsIcon={<ChevronsUpDown className="h-4 w-4" />}
-      plusIcon={<Plus className="h-4 w-4" />}
-    />
-  );
-}
+// Standalone
+<OrganizationSwitcher
+  organizations={organizations}
+  currentOrganization={currentOrganization}
+  onSwitchOrganization={handleSwitch}
+  onCreateOrganization={handleCreate}
+/>
 ```
 
 ### InviteMemberDialog
 
-A dialog for inviting new members to an organization.
+A dialog for inviting new members to an organization. Uses shadcn Dialog, Input, Select, and Label.
 
 ```tsx
 import { InviteMemberDialog } from "@djpanda/convex-tenants/react";
-import { Mail, Copy, Link } from "lucide-react";
 
-function MembersPage() {
-  return (
-    <InviteMemberDialog
-      organizationName="Acme Inc"
-      teams={teams}
-      onInvite={handleInvite}
-      onToast={(msg, type) => toast(msg)}
-      mailIcon={<Mail className="h-4 w-4" />}
-      copyIcon={<Copy className="h-4 w-4" />}
-      linkIcon={<Link className="h-4 w-4" />}
-    />
-  );
-}
+<InviteMemberDialog
+  organizationName="Acme Inc"
+  teams={teams}
+  onInvite={handleInvite}
+  onToast={(msg, type) => toast(msg)}
+/>
 ```
 
 ### MembersTable
 
-A table for displaying and managing organization members and invitations.
+A table for displaying and managing organization members and invitations. Uses shadcn Table, DropdownMenu, Select, and Badge.
 
 ```tsx
 import { MembersTable } from "@djpanda/convex-tenants/react";
-import { MoreHorizontal, UserMinus, Copy, RefreshCw, XCircle } from "lucide-react";
 
-function MembersPage() {
-  return (
-    <MembersTable
-      members={members}
-      invitations={invitations}
-      teams={teams}
-      isOwner={isOwner}
-      isOwnerOrAdmin={isOwnerOrAdmin}
-      onRemoveMember={handleRemoveMember}
-      onUpdateMemberRole={handleUpdateRole}
-      onAddToTeam={handleAddToTeam}
-      onResendInvitation={handleResend}
-      onCopyInvitationLink={handleCopyLink}
-      onCancelInvitation={handleCancel}
-      moreIcon={<MoreHorizontal className="h-4 w-4" />}
-      userMinusIcon={<UserMinus className="h-4 w-4" />}
-      copyIcon={<Copy className="h-4 w-4" />}
-      refreshIcon={<RefreshCw className="h-4 w-4" />}
-      cancelIcon={<XCircle className="h-4 w-4" />}
-    />
-  );
-}
+<MembersTable
+  members={members}
+  invitations={invitations}
+  teams={teams}
+  isOwner={isOwner}
+  isOwnerOrAdmin={isOwnerOrAdmin}
+  onRemoveMember={handleRemoveMember}
+  onUpdateMemberRole={handleUpdateRole}
+  onResendInvitation={handleResend}
+  onCancelInvitation={handleCancel}
+/>
+```
+
+### MembersSection / TeamsSection
+
+Complete section components that combine headers, tables/grids, and dialogs. Must be used within a `TenantsProvider`.
+
+```tsx
+import { MembersSection, TeamsSection } from "@djpanda/convex-tenants/react";
+
+<TenantsProvider api={api.example}>
+  <MembersSection />
+  <TeamsSection onTeamClick={(team) => navigate(`/teams/${team._id}`)} />
+</TenantsProvider>
 ```
 
 ### TeamsGrid
 
-A grid component for displaying teams in an organization.
+A card grid for displaying teams in an organization. Uses shadcn Card and Badge.
 
 ```tsx
 import { TeamsGrid, CreateTeamDialog } from "@djpanda/convex-tenants/react";
-import { Users, Trash2, Plus } from "lucide-react";
 
-function TeamsPage() {
-  return (
-    <TeamsGrid
-      teams={teams}
-      isOwnerOrAdmin={isOwnerOrAdmin}
-      onDeleteTeam={handleDeleteTeam}
-      usersIcon={<Users className="h-4 w-4" />}
-      trashIcon={<Trash2 className="h-4 w-4" />}
-      emptyAction={
-        <CreateTeamDialog
-          organizationName="Acme Inc"
-          onCreateTeam={handleCreateTeam}
-          plusIcon={<Plus className="h-4 w-4" />}
-        />
-      }
+<TeamsGrid
+  teams={teams}
+  isOwnerOrAdmin={isOwnerOrAdmin}
+  onDeleteTeam={handleDeleteTeam}
+  emptyAction={
+    <CreateTeamDialog
+      organizationName="Acme Inc"
+      onCreateTeam={handleCreateTeam}
     />
-  );
-}
+  }
+/>
 ```
 
 ### AcceptInvitation
 
-A page component for accepting organization invitations.
+A page component for accepting organization invitations. Uses shadcn Card and Button, with default lucide-react icons.
 
 ```tsx
 import { AcceptInvitation, useInvitation } from "@djpanda/convex-tenants/react";
-import { Loader2, CheckCircle, XCircle, Building2 } from "lucide-react";
 
 function AcceptInvitationPage({ invitationId }) {
   const {
@@ -296,18 +333,27 @@ function AcceptInvitationPage({ invitationId }) {
       onDecline={() => navigate("/")}
       onNavigateToLogin={() => navigate("/login")}
       onNavigateHome={() => navigate("/")}
-      loadingIcon={<Loader2 className="h-8 w-8 animate-spin" />}
-      checkIcon={<CheckCircle className="h-6 w-6" />}
-      errorIcon={<XCircle className="h-6 w-6" />}
-      buildingIcon={<Building2 className="h-8 w-8" />}
     />
   );
 }
 ```
 
+### Customizing Icons
+
+All components include default icons from `lucide-react`. You can override any icon via props:
+
+```tsx
+import { CustomIcon } from "my-icon-library";
+
+<OrganizationSwitcher
+  buildingIcon={<CustomIcon name="building" />}
+  plusIcon={<CustomIcon name="plus" />}
+/>
+```
+
 ### Organization Store
 
-A Zustand store for managing the active organization state (persisted in localStorage):
+A hook for managing the active organization state, persisted in a cookie (`tenants-active-org`) for SSR compatibility. Uses React's built-in `useSyncExternalStore` — no external dependencies.
 
 ```tsx
 import { useOrganizationStore } from "@djpanda/convex-tenants/react";
@@ -321,6 +367,12 @@ function MyComponent() {
     </button>
   );
 }
+```
+
+Reading the cookie server-side (e.g. Next.js middleware):
+
+```ts
+const activeOrgId = request.cookies.get("tenants-active-org")?.value;
 ```
 
 ## Role Hierarchy

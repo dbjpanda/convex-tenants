@@ -174,7 +174,8 @@ export function TenantsProvider({
   // Queries
   // ============================================================================
 
-  const organizations = useQuery(api.listOrganizations) ?? [];
+  const organizationsRaw = useQuery(api.listOrganizations);
+  const organizations = organizationsRaw ?? [];
 
   // Get current organization
   const currentOrganization = useMemo(() => {
@@ -193,20 +194,23 @@ export function TenantsProvider({
   }, [organizations, activeOrganizationId, setActiveOrganizationId]);
 
   // Organization-scoped queries (skip if no org)
-  const members = useQuery(
+  const membersRaw = useQuery(
     api.listMembers,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
-  ) ?? [];
+  );
+  const members = membersRaw ?? [];
 
-  const invitations = useQuery(
+  const invitationsRaw = useQuery(
     api.listInvitations,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
-  ) ?? [];
+  );
+  const invitations = invitationsRaw ?? [];
 
-  const teams = useQuery(
+  const teamsRaw = useQuery(
     api.listTeams,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
-  ) ?? [];
+  );
+  const teams = teamsRaw ?? [];
 
   // ============================================================================
   // Mutations
@@ -227,10 +231,10 @@ export function TenantsProvider({
   // Loading States
   // ============================================================================
 
-  const isOrganizationsLoading = organizations === undefined;
-  const isMembersLoading = currentOrganization ? members === undefined : false;
-  const isInvitationsLoading = currentOrganization ? invitations === undefined : false;
-  const isTeamsLoading = currentOrganization ? teams === undefined : false;
+  const isOrganizationsLoading = organizationsRaw === undefined;
+  const isMembersLoading = currentOrganization ? membersRaw === undefined : false;
+  const isInvitationsLoading = currentOrganization ? invitationsRaw === undefined : false;
+  const isTeamsLoading = currentOrganization ? teamsRaw === undefined : false;
   const isLoading = isOrganizationsLoading || isMembersLoading || isInvitationsLoading || isTeamsLoading;
 
   // ============================================================================

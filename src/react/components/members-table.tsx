@@ -1,7 +1,41 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import {
+  MoreHorizontal,
+  UserMinus,
+  Copy,
+  Check,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
 import { cn, formatDate, getInvitationLink, copyToClipboard } from "../utils.js";
+import { Button } from "../ui/button.js";
+import { Badge } from "../ui/badge.js";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select.js";
+import { Skeleton } from "../ui/skeleton.js";
 import type { Member } from "../hooks/use-members.js";
 import type { Invitation } from "../hooks/use-invitations.js";
 import type { Team } from "../hooks/use-teams.js";
@@ -13,84 +47,87 @@ export interface MembersTableProps {
    * List of organization members
    */
   members: Member[];
-  
+
   /**
    * List of organization invitations
    */
   invitations: Invitation[];
-  
+
   /**
    * List of teams in the organization
    */
   teams?: Team[];
-  
+
   /**
    * Whether the data is loading
    */
   isLoading?: boolean;
-  
+
   /**
    * Whether the current user is the owner
    */
   isOwner?: boolean;
-  
+
   /**
    * Whether the current user is owner or admin
    */
   isOwnerOrAdmin?: boolean;
-  
+
   /**
    * Base URL for invitation links (defaults to window.location.origin)
    */
   baseUrl?: string;
-  
+
   /**
    * Custom invitation path pattern (defaults to "/accept-invitation/:id")
    * Use ":id" as placeholder for invitation ID
    */
   invitationPath?: string;
-  
+
   /**
    * Callback to remove a member
    */
   onRemoveMember?: (memberUserId: string) => Promise<void>;
-  
+
   /**
    * Callback to update member role
    */
-  onUpdateMemberRole?: (memberUserId: string, role: "owner" | "admin" | "member") => Promise<void>;
-  
+  onUpdateMemberRole?: (
+    memberUserId: string,
+    role: "owner" | "admin" | "member"
+  ) => Promise<void>;
+
   /**
    * Callback to add member to team
    */
   onAddToTeam?: (userId: string, teamId: string) => Promise<void>;
-  
+
   /**
    * Callback to resend invitation
    */
   onResendInvitation?: (invitationId: string) => Promise<void>;
-  
+
   /**
    * Custom callback to copy invitation link (if not provided, uses built-in copy)
    */
   onCopyInvitationLink?: (invitationId: string) => void;
-  
+
   /**
    * Callback to cancel invitation
    */
   onCancelInvitation?: (invitationId: string) => Promise<void>;
-  
+
   /**
    * Toast notification callback
    */
   onToast?: (message: string, type: "success" | "error") => void;
-  
+
   /**
    * Custom class name
    */
   className?: string;
-  
-  // Icons
+
+  // Icons (optional overrides — defaults to lucide-react)
   moreIcon?: ReactNode;
   userMinusIcon?: ReactNode;
   copyIcon?: ReactNode;
@@ -125,16 +162,15 @@ type UnifiedData = UnifiedMember | UnifiedInvitation;
 
 /**
  * A table component for displaying and managing organization members and invitations.
- * 
+ *
  * @example
  * ```tsx
  * import { MembersTable } from "@djpanda/convex-tenants/react";
- * import { MoreHorizontal, UserMinus, Copy, RefreshCw, XCircle } from "lucide-react";
- * 
+ *
  * function MyApp() {
  *   const { members, removeMember, updateMemberRole } = useMembers(...);
  *   const { invitations, resendInvitation, cancelInvitation } = useInvitations(...);
- *   
+ *
  *   return (
  *     <MembersTable
  *       members={members}
@@ -145,11 +181,6 @@ type UnifiedData = UnifiedMember | UnifiedInvitation;
  *       onUpdateMemberRole={updateMemberRole}
  *       onResendInvitation={resendInvitation}
  *       onCancelInvitation={cancelInvitation}
- *       moreIcon={<MoreHorizontal className="h-4 w-4" />}
- *       userMinusIcon={<UserMinus className="h-4 w-4" />}
- *       copyIcon={<Copy className="h-4 w-4" />}
- *       refreshIcon={<RefreshCw className="h-4 w-4" />}
- *       cancelIcon={<XCircle className="h-4 w-4" />}
  *     />
  *   );
  * }
@@ -181,16 +212,20 @@ export function MembersTable({
 }: MembersTableProps) {
   const [filter, setFilter] = useState<FilterValue>("all");
   const [resendingId, setResendingId] = useState<string | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const MoreIcon = moreIcon ?? <MoreHorizontal className="size-4" />;
+  const UserMinusIcon = userMinusIcon ?? <UserMinus className="size-4" />;
+  const CopyIcon = copyIcon ?? <Copy className="size-4" />;
+  const CheckIcon = checkIcon ?? <Check className="size-4" />;
+  const RefreshIcon = refreshIcon ?? <RefreshCw className="size-4" />;
+  const CancelIcon = cancelIcon ?? <XCircle className="size-4" />;
 
   // Built-in copy handler
   const handleCopyLink = async (invitationId: string) => {
     if (onCopyInvitationLink) {
-      // Use custom handler if provided
       onCopyInvitationLink(invitationId);
     } else {
-      // Use built-in copy
       const link = getInvitationLink(invitationId, baseUrl, invitationPath);
       const success = await copyToClipboard(link);
       if (success) {
@@ -203,46 +238,47 @@ export function MembersTable({
     }
   };
 
-  // Calculate counts
+  // Counts
   const membersCount = members.length;
   const invitationsCount = invitations.length;
   const totalCount = membersCount + invitationsCount;
 
-  // Get description based on filter
   const getDescription = () => {
-    if (filter === "all") {
+    if (filter === "all")
       return `${totalCount} people (${membersCount} members, ${invitationsCount} pending)`;
-    } else if (filter === "members") {
+    if (filter === "members")
       return `${membersCount} active member${membersCount !== 1 ? "s" : ""}`;
-    } else {
-      return `${invitationsCount} pending invitation${invitationsCount !== 1 ? "s" : ""}`;
-    }
+    return `${invitationsCount} pending invitation${invitationsCount !== 1 ? "s" : ""}`;
   };
 
-  // Create unified data for "all" filter
+  // Unified data for "all" filter
   const unifiedData: UnifiedData[] =
     filter === "all"
       ? [
-          ...members.map((member) => ({
-            type: "member" as const,
-            _id: member._id,
-            email: member.user?.email || "",
-            name: member.user?.name || member.user?.email || "Unknown",
-            role: member.role,
-            teams: member.teams || [],
-            userId: member.userId,
-          })),
-          ...invitations.map((invitation) => ({
-            type: "invitation" as const,
-            _id: invitation._id,
-            email: invitation.email,
-            name: null,
-            role: invitation.role,
-            teamId: invitation.teamId,
-            expiresAt: invitation.expiresAt,
-            status: invitation.status,
-            isExpired: invitation.isExpired,
-          })),
+          ...members.map(
+            (member): UnifiedMember => ({
+              type: "member",
+              _id: member._id,
+              email: member.user?.email || "",
+              name: member.user?.name || member.user?.email || "Unknown",
+              role: member.role,
+              teams: member.teams || [],
+              userId: member.userId,
+            })
+          ),
+          ...invitations.map(
+            (invitation): UnifiedInvitation => ({
+              type: "invitation",
+              _id: invitation._id,
+              email: invitation.email,
+              name: null,
+              role: invitation.role,
+              teamId: invitation.teamId,
+              expiresAt: invitation.expiresAt,
+              status: invitation.status,
+              isExpired: invitation.isExpired,
+            })
+          ),
         ]
       : [];
 
@@ -253,10 +289,12 @@ export function MembersTable({
     } catch (error: any) {
       onToast?.(error.message || "Failed to remove member", "error");
     }
-    setDropdownOpen(null);
   };
 
-  const handleUpdateRole = async (memberUserId: string, role: "owner" | "admin" | "member") => {
+  const handleUpdateRole = async (
+    memberUserId: string,
+    role: "owner" | "admin" | "member"
+  ) => {
     try {
       await onUpdateMemberRole?.(memberUserId, role);
       onToast?.("Role updated successfully", "success");
@@ -272,7 +310,6 @@ export function MembersTable({
     } catch (error: any) {
       onToast?.(error.message || "Failed to add to team", "error");
     }
-    setDropdownOpen(null);
   };
 
   const handleResendInvitation = async (invitationId: string) => {
@@ -297,398 +334,318 @@ export function MembersTable({
   };
 
   const getStatusBadge = (status: string, isExpired: boolean) => {
-    if (status === "pending" && !isExpired) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-          Pending
-        </span>
-      );
-    }
-    if (status === "cancelled") {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-          Cancelled
-        </span>
-      );
-    }
-    if (status === "accepted") {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-          Accepted
-        </span>
-      );
-    }
-    if (status === "expired" || isExpired) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-          Expired
-        </span>
-      );
-    }
+    if (status === "pending" && !isExpired)
+      return <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-400">Pending</Badge>;
+    if (status === "cancelled")
+      return <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">Cancelled</Badge>;
+    if (status === "accepted")
+      return <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">Accepted</Badge>;
+    if (status === "expired" || isExpired)
+      return <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">Expired</Badge>;
     return null;
   };
 
   const getRoleBadge = (role: string) => {
-    const colors =
-      role === "owner"
-        ? "bg-purple-100 text-purple-800"
-        : role === "admin"
-          ? "bg-blue-100 text-blue-800"
-          : "bg-gray-100 text-gray-800";
-    return (
-      <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize", colors)}>
-        {role}
-      </span>
-    );
+    if (role === "owner")
+      return <Badge variant="outline" className="border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-400">Owner</Badge>;
+    if (role === "admin")
+      return <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">Admin</Badge>;
+    return <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">Member</Badge>;
   };
 
   if (isLoading) {
     return (
-      <div className={cn("p-8 text-center text-gray-500", className)}>
-        Loading...
+      <div className={className}>
+        {/* Filter skeleton */}
+        <div className="mb-4 flex items-center gap-4">
+          <Skeleton className="h-9 w-[180px]" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+
+        {/* Table skeleton */}
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="py-3 font-semibold">Name / Email</TableHead>
+                <TableHead className="py-3 font-semibold">Status</TableHead>
+                <TableHead className="py-3 font-semibold">Role</TableHead>
+                <TableHead className="py-3 font-semibold">Teams</TableHead>
+                <TableHead className="py-3 text-right font-semibold">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell className="py-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-44" />
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </TableCell>
+                  <TableCell className="py-3 text-right">
+                    <Skeleton className="ml-auto h-8 w-8 rounded-md" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     );
   }
 
+  // Row renderer for a member
+  const renderMemberRow = (item: UnifiedMember) => (
+    <TableRow key={`member-${item._id}`}>
+      <TableCell className="py-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium">{item.name || item.email || "Unknown User"}</span>
+          {item.email && item.name && (
+            <span className="text-xs text-muted-foreground">{item.email}</span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="py-3">
+        <Badge className="border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">Active</Badge>
+      </TableCell>
+      <TableCell className="py-3">
+        {isOwner && item.role !== "owner" ? (
+          <Select
+            value={item.role}
+            onValueChange={(v) => handleUpdateRole(item.userId, v as any)}
+          >
+            <SelectTrigger className="h-7 w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="member">Member</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="owner">Owner</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          getRoleBadge(item.role)
+        )}
+      </TableCell>
+      <TableCell className="py-3">
+        {item.teams && item.teams.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {item.teams.map((team) => (
+              <Badge key={team._id} variant="outline" className="text-xs">
+                {team.name}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground">No teams</span>
+        )}
+      </TableCell>
+      {isOwnerOrAdmin && (
+        <TableCell className="py-3 text-right">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                {MoreIcon}
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {teams && teams.length > 0 && (
+                <>
+                  <DropdownMenuLabel>Add to Team</DropdownMenuLabel>
+                  {teams.map((team) => (
+                    <DropdownMenuItem
+                      key={team._id}
+                      onClick={() => handleAddToTeam(item.userId, team._id)}
+                    >
+                      {team.name}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem
+                onClick={() => handleRemoveMember(item.userId)}
+                disabled={item.role === "owner"}
+                className="text-destructive focus:text-destructive"
+              >
+                {UserMinusIcon}
+                Remove Member
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TableCell>
+      )}
+    </TableRow>
+  );
+
+  // Row renderer for an invitation
+  const renderInvitationRow = (item: UnifiedInvitation) => (
+    <TableRow key={`invitation-${item._id}`} className="text-muted-foreground">
+      <TableCell className="py-3 font-medium text-foreground">{item.email}</TableCell>
+      <TableCell className="py-3">{getStatusBadge(item.status, item.isExpired)}</TableCell>
+      <TableCell className="py-3">{getRoleBadge(item.role)}</TableCell>
+      <TableCell className="py-3">
+        {item.teamId ? (
+          <Badge variant="outline" className="text-xs">Team invited</Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">No team</span>
+        )}
+      </TableCell>
+      {isOwnerOrAdmin && (
+        <TableCell className="py-3 text-right">
+          <div className="flex items-center justify-end gap-1">
+            {item.status === "pending" && !item.isExpired && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => handleResendInvitation(item._id)}
+                  disabled={resendingId === item._id}
+                  aria-label="Resend invitation"
+                >
+                  <span className={resendingId === item._id ? "animate-spin" : ""}>
+                    {RefreshIcon}
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => handleCopyLink(item._id)}
+                  aria-label={copiedId === item._id ? "Copied!" : "Copy invitation link"}
+                  className={cn(
+                    copiedId === item._id &&
+                      "bg-green-50 text-green-600 dark:bg-green-950 dark:text-green-400"
+                  )}
+                >
+                  {copiedId === item._id ? CheckIcon : CopyIcon}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => handleCancelInvitation(item._id)}
+                  disabled={resendingId === item._id}
+                  aria-label="Cancel invitation"
+                  className="text-red-500 hover:text-red-600 dark:text-red-400"
+                >
+                  {CancelIcon}
+                </Button>
+              </>
+            )}
+            {(item.status === "cancelled" ||
+              item.status === "expired" ||
+              item.isExpired) && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => handleCopyLink(item._id)}
+                aria-label={copiedId === item._id ? "Copied!" : "Copy invitation link"}
+                className={cn(
+                  copiedId === item._id &&
+                    "bg-green-50 text-green-600 dark:bg-green-950 dark:text-green-400"
+                )}
+              >
+                {copiedId === item._id ? CheckIcon : CopyIcon}
+              </Button>
+            )}
+          </div>
+        </TableCell>
+      )}
+    </TableRow>
+  );
+
   return (
     <div className={className}>
       {/* Filter */}
-      <div className="flex items-center gap-4 mb-4">
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as FilterValue)}
-          className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">All</option>
-          <option value="members">Members Only</option>
-          <option value="invitations">Invitations Only</option>
-        </select>
-        <span className="text-sm text-gray-500">{getDescription()}</span>
+      <div className="mb-4 flex items-center gap-4">
+        <Select value={filter} onValueChange={(v) => setFilter(v as FilterValue)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="members">Members Only</SelectItem>
+            <SelectItem value="invitations">Invitations Only</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground">{getDescription()}</span>
       </div>
 
       {/* Table */}
-      <div className="border rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name / Email
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Role
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Teams
-              </th>
+      <div className="overflow-hidden rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="py-3 font-semibold">Name / Email</TableHead>
+              <TableHead className="py-3 font-semibold">Status</TableHead>
+              <TableHead className="py-3 font-semibold">Role</TableHead>
+              <TableHead className="py-3 font-semibold">Teams</TableHead>
               {isOwnerOrAdmin && (
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <TableHead className="py-3 text-right font-semibold">Actions</TableHead>
               )}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {filter === "all" &&
-              unifiedData.map((item) => (
-                <tr key={`${item.type}-${item._id}`}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {item.type === "member" ? item.name || item.email || "Unknown User" : item.email}
-                      </span>
-                      {item.type === "member" && item.email && (
-                        <span className="text-sm text-gray-500">{item.email}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {item.type === "member" ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                        Active
-                      </span>
-                    ) : (
-                      getStatusBadge(item.status, item.isExpired)
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {item.type === "member" && isOwner && item.role !== "owner" ? (
-                      <select
-                        value={item.role}
-                        onChange={(e) => handleUpdateRole(item.userId, e.target.value as any)}
-                        className="px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                        <option value="owner">Owner</option>
-                      </select>
-                    ) : (
-                      getRoleBadge(item.role)
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {item.type === "member" ? (
-                      item.teams && item.teams.length > 0 ? (
-                        <div className="flex gap-1 flex-wrap">
-                          {item.teams.map((team) => (
-                            <span key={team._id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                              {team.name}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-500 text-sm">No teams</span>
-                      )
-                    ) : item.teamId ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                        Team invited
-                      </span>
-                    ) : (
-                      <span className="text-gray-500 text-sm">No team</span>
-                    )}
-                  </td>
-                  {isOwnerOrAdmin && (
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      {item.type === "member" ? (
-                        <div className="relative inline-block">
-                          <button
-                            onClick={() => setDropdownOpen(dropdownOpen === item._id ? null : item._id)}
-                            className="p-1 hover:bg-gray-100 rounded"
-                          >
-                            {moreIcon}
-                          </button>
-                          {dropdownOpen === item._id && (
-                            <>
-                              <div className="absolute right-0 mt-1 w-48 bg-white border rounded-md shadow-lg z-10">
-                                {teams && teams.length > 0 && (
-                                  <>
-                                    <div className="px-3 py-2 text-xs font-medium text-gray-500">
-                                      Add to Team
-                                    </div>
-                                    {teams.map((team) => (
-                                      <button
-                                        key={team._id}
-                                        onClick={() => handleAddToTeam(item.userId, team._id)}
-                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
-                                      >
-                                        {team.name}
-                                      </button>
-                                    ))}
-                                    <div className="border-t my-1" />
-                                  </>
-                                )}
-                                <button
-                                  onClick={() => handleRemoveMember(item.userId)}
-                                  disabled={item.role === "owner"}
-                                  className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                >
-                                  {userMinusIcon}
-                                  Remove Member
-                                </button>
-                              </div>
-                              <div className="fixed inset-0 z-0" onClick={() => setDropdownOpen(null)} />
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-end gap-1">
-                          {item.status === "pending" && !item.isExpired && (
-                            <>
-                              <button
-                                onClick={() => handleResendInvitation(item._id)}
-                                disabled={resendingId === item._id}
-                                className="p-1 hover:bg-gray-100 rounded disabled:opacity-50"
-                                title="Resend invitation"
-                              >
-                                <span className={resendingId === item._id ? "animate-spin" : ""}>
-                                  {refreshIcon}
-                                </span>
-                              </button>
-                              <button
-                                onClick={() => handleCopyLink(item._id)}
-                                className={cn(
-                                  "p-1 rounded transition-colors",
-                                  copiedId === item._id 
-                                    ? "bg-green-100 text-green-600" 
-                                    : "hover:bg-gray-100"
-                                )}
-                                title={copiedId === item._id ? "Copied!" : "Copy invitation link"}
-                              >
-                                {copiedId === item._id ? (checkIcon || copyIcon) : copyIcon}
-                              </button>
-                              <button
-                                onClick={() => handleCancelInvitation(item._id)}
-                                disabled={resendingId === item._id}
-                                className="p-1 hover:bg-gray-100 rounded text-red-600 disabled:opacity-50"
-                                title="Cancel invitation"
-                              >
-                                {cancelIcon}
-                              </button>
-                            </>
-                          )}
-                          {(item.status === "cancelled" || item.status === "expired" || item.isExpired) && (
-                            <button
-                              onClick={() => handleCopyLink(item._id)}
-                              className={cn(
-                                "p-1 rounded transition-colors",
-                                copiedId === item._id 
-                                  ? "bg-green-100 text-green-600" 
-                                  : "hover:bg-gray-100"
-                              )}
-                              title={copiedId === item._id ? "Copied!" : "Copy invitation link"}
-                            >
-                              {copiedId === item._id ? (checkIcon || copyIcon) : copyIcon}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
+              unifiedData.map((item) =>
+                item.type === "member"
+                  ? renderMemberRow(item)
+                  : renderInvitationRow(item)
+              )}
 
             {filter === "members" &&
-              members.map((member) => (
-                <tr key={member._id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {member.user?.name || member.user?.email || "Unknown User"}
-                      </span>
-                      {member.user?.email && (
-                        <span className="text-sm text-gray-500">{member.user.email}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                      Active
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {isOwner && member.role !== "owner" ? (
-                      <select
-                        value={member.role}
-                        onChange={(e) => handleUpdateRole(member.userId, e.target.value as any)}
-                        className="px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                        <option value="owner">Owner</option>
-                      </select>
-                    ) : (
-                      getRoleBadge(member.role)
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {member.teams && member.teams.length > 0 ? (
-                      <div className="flex gap-1 flex-wrap">
-                        {member.teams.map((team) => (
-                          <span key={team._id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                            {team.name}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-gray-500 text-sm">No teams</span>
-                    )}
-                  </td>
-                  {isOwnerOrAdmin && (
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <button
-                        onClick={() => handleRemoveMember(member.userId)}
-                        disabled={member.role === "owner"}
-                        className="p-1 hover:bg-gray-100 rounded text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Remove member"
-                      >
-                        {userMinusIcon}
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
+              members.map((member) =>
+                renderMemberRow({
+                  type: "member",
+                  _id: member._id,
+                  email: member.user?.email || "",
+                  name: member.user?.name || member.user?.email || "Unknown User",
+                  role: member.role,
+                  teams: member.teams || [],
+                  userId: member.userId,
+                })
+              )}
 
             {filter === "invitations" &&
-              invitations.map((invitation) => (
-                <tr key={invitation._id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium">
-                    {invitation.email}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(invitation.status, invitation.isExpired)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getRoleBadge(invitation.role)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {invitation.teamId ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                        Team invited
-                      </span>
-                    ) : (
-                      <span className="text-gray-500 text-sm">No team</span>
-                    )}
-                  </td>
-                  {isOwnerOrAdmin && (
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {invitation.status === "pending" && !invitation.isExpired && (
-                          <>
-                            <button
-                              onClick={() => handleResendInvitation(invitation._id)}
-                              disabled={resendingId === invitation._id}
-                              className="p-1 hover:bg-gray-100 rounded disabled:opacity-50"
-                              title="Resend invitation"
-                            >
-                              <span className={resendingId === invitation._id ? "animate-spin" : ""}>
-                                {refreshIcon}
-                              </span>
-                            </button>
-                            <button
-                              onClick={() => handleCopyLink(invitation._id)}
-                              className={cn(
-                                "p-1 rounded transition-colors",
-                                copiedId === invitation._id 
-                                  ? "bg-green-100 text-green-600" 
-                                  : "hover:bg-gray-100"
-                              )}
-                              title={copiedId === invitation._id ? "Copied!" : "Copy invitation link"}
-                            >
-                              {copiedId === invitation._id ? (checkIcon || copyIcon) : copyIcon}
-                            </button>
-                            <button
-                              onClick={() => handleCancelInvitation(invitation._id)}
-                              disabled={resendingId === invitation._id}
-                              className="p-1 hover:bg-gray-100 rounded text-red-600 disabled:opacity-50"
-                              title="Cancel invitation"
-                            >
-                              {cancelIcon}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-          </tbody>
-        </table>
+              invitations.map((invitation) =>
+                renderInvitationRow({
+                  type: "invitation",
+                  _id: invitation._id,
+                  email: invitation.email,
+                  name: null,
+                  role: invitation.role,
+                  teamId: invitation.teamId,
+                  expiresAt: invitation.expiresAt,
+                  status: invitation.status,
+                  isExpired: invitation.isExpired,
+                })
+              )}
+          </TableBody>
+        </Table>
 
         {/* Empty states */}
         {filter === "all" && unifiedData.length === 0 && (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-muted-foreground">
             No members or invitations found
           </div>
         )}
         {filter === "members" && members.length === 0 && (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-muted-foreground">
             No members found
           </div>
         )}
         {filter === "invitations" && invitations.length === 0 && (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-muted-foreground">
             No pending invitations
           </div>
         )}

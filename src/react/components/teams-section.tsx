@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { Users, Plus } from "lucide-react";
 import { cn } from "../utils.js";
 import { useTenants } from "../providers/tenants-context.js";
 import { TeamsGrid } from "./teams-grid.js";
+import { CreateTeamDialog } from "./create-team-dialog.js";
+import { Button } from "../ui/button.js";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction } from "../ui/card.js";
+import { Skeleton } from "../ui/skeleton.js";
 import type { Team } from "../hooks/use-teams.js";
 
 export interface TeamsSectionProps {
@@ -27,11 +32,10 @@ export interface TeamsSectionProps {
    */
   onTeamClick?: (team: Team) => void;
 
-  // Icons
+  // Icons (optional overrides)
   usersIcon?: ReactNode;
   plusIcon?: ReactNode;
   trashIcon?: ReactNode;
-  closeIcon?: ReactNode;
 }
 
 /**
@@ -60,11 +64,11 @@ export function TeamsSection({
   usersIcon,
   plusIcon,
   trashIcon,
-  closeIcon,
 }: TeamsSectionProps) {
   const {
     currentOrganization,
     teams,
+    isOrganizationsLoading,
     isOwnerOrAdmin,
     isTeamsLoading,
     createTeam,
@@ -72,9 +76,21 @@ export function TeamsSection({
     onToast,
   } = useTenants();
 
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  // Show full card skeleton while organizations load, or "select org" when done loading with none selected
+  if (isOrganizationsLoading || !currentOrganization) {
+    return (
+      <TeamsSectionSkeleton className={className} title={title} noOrg={!isOrganizationsLoading} />
+    );
+  }
 
   const shouldShowCreateButton = showCreateButton ?? isOwnerOrAdmin;
+
+  const UsersIcon = usersIcon ?? (
+    <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+      <Users className="size-5 text-primary" />
+    </div>
+  );
+  const PlusIcon = plusIcon ?? <Plus className="size-4" />;
 
   // Transform teams for the grid
   const transformedTeams: Team[] = teams.map((t) => ({
@@ -87,61 +103,46 @@ export function TeamsSection({
     metadata: undefined,
   }));
 
-  if (!currentOrganization) {
-    return (
-      <div className={cn("bg-white border rounded-lg p-8 text-center", className)}>
-        <p className="text-gray-500">Select an organization to view teams</p>
-      </div>
-    );
-  }
-
-  const defaultUsersIcon = (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-    </svg>
-  );
-
-  const defaultPlusIcon = (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-    </svg>
-  );
-
-  const defaultTrashIcon = (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-    </svg>
-  );
-
   return (
-    <div className={cn("bg-white border rounded-lg overflow-hidden", className)}>
+    <Card className={className}>
       {/* Header */}
-      <div className="px-6 py-4 border-b flex items-center justify-between">
+      <CardHeader>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-            {usersIcon || defaultUsersIcon}
-          </div>
+          {UsersIcon}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-            <p className="text-sm text-gray-500">
-              {teams.length} team{teams.length !== 1 ? "s" : ""}
-            </p>
+            <CardTitle className="text-base">{title}</CardTitle>
+            {isTeamsLoading ? (
+              <Skeleton className="mt-1 h-4 w-24" />
+            ) : (
+              <CardDescription>
+                {teams.length} team{teams.length !== 1 ? "s" : ""}
+              </CardDescription>
+            )}
           </div>
         </div>
 
         {shouldShowCreateButton && (
-          <button
-            onClick={() => setShowCreateDialog(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            {plusIcon || defaultPlusIcon}
-            <span>Create Team</span>
-          </button>
+          <CardAction>
+            <CreateTeamDialog
+              organizationName={currentOrganization.name}
+              onCreateTeam={async (name, description) => {
+                const result = await createTeam({ name, description });
+                return result ?? "";
+              }}
+              onToast={onToast}
+              trigger={
+                <Button>
+                  {PlusIcon}
+                  <span>Create Team</span>
+                </Button>
+              }
+            />
+          </CardAction>
         )}
-      </div>
+      </CardHeader>
 
       {/* Teams Grid */}
-      <div className="p-6">
+      <CardContent>
         <TeamsGrid
           teams={transformedTeams}
           isLoading={isTeamsLoading}
@@ -149,135 +150,92 @@ export function TeamsSection({
           onTeamClick={onTeamClick}
           onDeleteTeam={deleteTeam}
           onToast={onToast}
-          usersIcon={usersIcon || defaultUsersIcon}
-          trashIcon={trashIcon || defaultTrashIcon}
+          usersIcon={usersIcon}
+          trashIcon={trashIcon}
           emptyAction={
-            <button
-              onClick={() => setShowCreateDialog(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors mx-auto"
-            >
-              {plusIcon || defaultPlusIcon}
-              <span>Create your first team</span>
-            </button>
+            <CreateTeamDialog
+              organizationName={currentOrganization.name}
+              onCreateTeam={async (name, description) => {
+                const result = await createTeam({ name, description });
+                return result ?? "";
+              }}
+              onToast={onToast}
+              trigger={
+                <Button>
+                  {PlusIcon}
+                  <span>Create your first team</span>
+                </Button>
+              }
+            />
           }
         />
-      </div>
-
-      {/* Create Team Dialog */}
-      {showCreateDialog && (
-        <CreateTeamDialogContent
-          onCreateTeam={createTeam}
-          onClose={() => setShowCreateDialog(false)}
-          onToast={onToast}
-          closeIcon={closeIcon}
-        />
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
-// Internal component for the create team dialog
-function CreateTeamDialogContent({
-  onCreateTeam,
-  onClose,
-  onToast,
-  closeIcon,
+// ============================================================================
+// Skeleton
+// ============================================================================
+
+function TeamsSectionSkeleton({
+  className,
+  title,
+  noOrg,
 }: {
-  onCreateTeam: (data: { name: string; description?: string }) => Promise<string | null>;
-  onClose: () => void;
-  onToast?: (message: string, type: "success" | "error") => void;
-  closeIcon?: ReactNode;
+  className?: string;
+  title: string;
+  noOrg?: boolean;
 }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleCreate = async () => {
-    if (!name.trim()) return;
-
-    setIsCreating(true);
-    setError(null);
-
-    try {
-      await onCreateTeam({
-        name: name.trim(),
-        description: description.trim() || undefined,
-      });
-      onClose();
-    } catch (err: any) {
-      setError(err.message || "Failed to create team");
-    } finally {
-      setIsCreating(false);
-    }
-  };
+  if (noOrg) {
+    return (
+      <Card className={className}>
+        <CardContent className="p-8 text-center">
+          <p className="text-muted-foreground">
+            Select an organization to view teams
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold">Create Team</h2>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
-            {closeIcon || (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
-          </button>
-        </div>
-
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Team Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Engineering"
-              disabled={isCreating}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            />
+    <Card className={className}>
+      {/* Header skeleton */}
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-10 rounded-lg" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-4 w-24" />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="The engineering team responsible for product development"
-              rows={3}
-              disabled={isCreating}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            />
-          </div>
-
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          )}
         </div>
+        <CardAction>
+          <Skeleton className="h-9 w-32 rounded-md" />
+        </CardAction>
+      </CardHeader>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-          <button
-            onClick={onClose}
-            disabled={isCreating}
-            className="px-4 py-2 border rounded-md hover:bg-gray-100 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={isCreating || !name.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isCreating ? "Creating..." : "Create Team"}
-          </button>
+      {/* Grid skeleton */}
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-28" />
+                    <Skeleton className="h-4 w-40" />
+                  </div>
+                  <Skeleton className="size-6 rounded-md" />
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </div>
-
-      {/* Backdrop */}
-      <div className="fixed inset-0 -z-10" onClick={onClose} />
-    </div>
+      </CardContent>
+    </Card>
   );
 }

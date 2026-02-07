@@ -1,8 +1,21 @@
 "use client";
 
 import { useState, type ReactNode, useCallback } from "react";
+import { Plus, Building2 } from "lucide-react";
 import { cn } from "../utils.js";
 import { useTenants } from "../providers/tenants-context.js";
+import { Button } from "../ui/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog.js";
+import { Input } from "../ui/input.js";
+import { Label } from "../ui/label.js";
 
 export interface CreateOrganizationDialogProps {
   /**
@@ -20,11 +33,6 @@ export interface CreateOrganizationDialogProps {
    * Custom icon for the plus/add button
    */
   plusIcon?: ReactNode;
-
-  /**
-   * Custom icon for close/X button
-   */
-  closeIcon?: ReactNode;
 
   /**
    * Custom icon for building/org
@@ -76,7 +84,6 @@ export function CreateOrganizationDialog({
   trigger,
   className,
   plusIcon,
-  closeIcon,
   buildingIcon,
   onSuccess,
   createOrganization: createOrganizationProp,
@@ -106,10 +113,16 @@ export function CreateOrganizationDialog({
     );
   }
 
+  const PlusIcon = plusIcon ?? <Plus className="size-4" />;
+  const OrgIcon = buildingIcon ?? (
+    <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+      <Building2 className="size-5 text-primary" />
+    </div>
+  );
+
   // Auto-generate slug from name
   const handleNameChange = useCallback((value: string) => {
     setName(value);
-    // Generate slug: lowercase, replace non-alphanumeric with dashes, trim dashes
     const generatedSlug = value
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -145,125 +158,81 @@ export function CreateOrganizationDialog({
   };
 
   return (
-    <>
-      {/* Trigger */}
-      <div onClick={() => setOpen(true)} className={className}>
-        {trigger || (
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-            {plusIcon || (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            )}
-            <span>Create Organization</span>
-          </button>
-        )}
-      </div>
+    <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : handleClose())}>
+      <DialogTrigger asChild>
+        <div className={className}>
+          {trigger || (
+            <Button>
+              {PlusIcon}
+              <span>Create Organization</span>
+            </Button>
+          )}
+        </div>
+      </DialogTrigger>
 
-      {/* Dialog */}
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <div className="flex items-center gap-3">
-                {buildingIcon || (
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                )}
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Create Organization</h2>
-                  <p className="text-sm text-gray-500">Set up a new organization</p>
-                </div>
-              </div>
-              <button
-                onClick={handleClose}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
-              >
-                {closeIcon || (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                )}
-              </button>
-            </div>
-
-            {/* Form */}
-            <div className="p-6 space-y-4">
-              <div>
-                <label htmlFor="org-name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Organization Name
-                </label>
-                <input
-                  id="org-name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="Acme Inc"
-                  disabled={isCreating}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:bg-gray-50"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="org-slug" className="block text-sm font-medium text-gray-700 mb-1">
-                  URL Slug
-                </label>
-                <div className="flex items-center">
-                  <span className="text-sm text-gray-500 mr-1">yourapp.com/</span>
-                  <input
-                    id="org-slug"
-                    type="text"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                    placeholder="acme-inc"
-                    disabled={isCreating}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:bg-gray-50"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  This will be your organization's unique identifier in URLs
-                </p>
-              </div>
-
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-600">{error}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-              <button
-                onClick={handleClose}
-                disabled={isCreating}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={isCreating || !name.trim() || !slug.trim()}
-                className={cn(
-                  "px-4 py-2 rounded-md transition-colors disabled:opacity-50",
-                  "bg-blue-600 text-white hover:bg-blue-700"
-                )}
-              >
-                {isCreating ? "Creating..." : "Create Organization"}
-              </button>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            {OrgIcon}
+            <div>
+              <DialogTitle>Create Organization</DialogTitle>
+              <DialogDescription>Set up a new organization</DialogDescription>
             </div>
           </div>
-        </div>
-      )}
+        </DialogHeader>
 
-      {/* Backdrop */}
-      {open && (
-        <div className="fixed inset-0 z-40" onClick={handleClose} />
-      )}
-    </>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="org-name">Organization Name</Label>
+            <Input
+              id="org-name"
+              type="text"
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="Acme Inc"
+              disabled={isCreating}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="org-slug">URL Slug</Label>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">yourapp.com/</span>
+              <Input
+                id="org-slug"
+                type="text"
+                value={slug}
+                onChange={(e) =>
+                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))
+                }
+                placeholder="acme-inc"
+                disabled={isCreating}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This will be your organization's unique identifier in URLs
+            </p>
+          </div>
+
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3" role="alert">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose} disabled={isCreating}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={isCreating || !name.trim() || !slug.trim()}
+          >
+            {isCreating ? "Creating..." : "Create Organization"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

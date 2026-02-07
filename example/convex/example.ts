@@ -13,9 +13,24 @@ const DEMO_USER_ID = "demo-user-123";
 /**
  * Example: Using the Tenants component with makeTenantsAPI
  *
- * This pattern creates a re-exported API with automatic authentication.
+ * One destructure exports everything — the recommended DX pattern.
+ * In a real app you'd use `getAuthUserId` from `@convex-dev/auth/server`
+ * instead of the demo fallback.
  */
-const api = makeTenantsAPI(components.tenants, {
+export const {
+  // Organizations
+  listOrganizations, getOrganization, getOrganizationBySlug,
+  createOrganization, updateOrganization, deleteOrganization,
+  // Members
+  listMembers, getMember, getCurrentMember, checkPermission,
+  addMember, removeMember, updateMemberRole, leaveOrganization,
+  // Teams
+  listTeams, getTeam, listTeamMembers, isTeamMember,
+  createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember,
+  // Invitations
+  listInvitations, getInvitation, getPendingInvitations,
+  inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
+} = makeTenantsAPI(components.tenants, {
   auth: async (ctx) => {
     return await getAuthUserId(ctx);
   },
@@ -44,48 +59,6 @@ const api = makeTenantsAPI(components.tenants, {
 
   defaultInvitationExpiration: 48 * 60 * 60 * 1000, // 48 hours
 });
-
-// ================================
-// Export all tenants API functions
-// ================================
-
-// Organization Operations
-export const listOrganizations = api.listOrganizations;
-export const getOrganization = api.getOrganization;
-export const getOrganizationBySlug = api.getOrganizationBySlug;
-export const createOrganization = api.createOrganization;
-export const updateOrganization = api.updateOrganization;
-export const deleteOrganization = api.deleteOrganization;
-
-// Member Operations
-export const listMembers = api.listMembers;
-export const getMember = api.getMember;
-export const getCurrentMember = api.getCurrentMember;
-export const checkPermission = api.checkPermission;
-export const addMember = api.addMember;
-export const removeMember = api.removeMember;
-export const updateMemberRole = api.updateMemberRole;
-export const leaveOrganization = api.leaveOrganization;
-
-// Team Operations
-export const listTeams = api.listTeams;
-export const getTeam = api.getTeam;
-export const listTeamMembers = api.listTeamMembers;
-export const isTeamMember = api.isTeamMember;
-export const createTeam = api.createTeam;
-export const updateTeam = api.updateTeam;
-export const deleteTeam = api.deleteTeam;
-export const addTeamMember = api.addTeamMember;
-export const removeTeamMember = api.removeTeamMember;
-
-// Invitation Operations
-export const listInvitations = api.listInvitations;
-export const getInvitation = api.getInvitation;
-export const getPendingInvitations = api.getPendingInvitations;
-export const inviteMember = api.inviteMember;
-export const acceptInvitation = api.acceptInvitation;
-export const resendInvitation = api.resendInvitation;
-export const cancelInvitation = api.cancelInvitation;
 
 // ================================
 // Strict Auth API (for testing auth enforcement, enrichment, and callbacks)

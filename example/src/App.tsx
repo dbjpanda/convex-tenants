@@ -10,42 +10,23 @@ import {
   MembersSection,
   TeamsSection,
 } from "@djpanda/convex-tenants/react";
-import {
-  Building2,
-  Check,
-  ChevronsUpDown,
-  Plus,
-  Users,
-  Mail,
-  Trash2,
-  MoreHorizontal,
-  RefreshCw,
-  Copy,
-  X,
-  Link,
-} from "lucide-react";
+import { Building2, Users, UsersRound } from "lucide-react";
 
 /**
- * Example App using the TenantsProvider pattern.
- * 
- * This demonstrates how simple it is to build a multi-tenant app
- * using the @djpanda/convex-tenants/react package.
- * 
- * The TenantsProvider handles:
- * - All data fetching (organizations, members, invitations, teams)
- * - All mutations (create org, invite, create team, etc.)
- * - Active organization state
- * - Role-based access control (isOwner, isOwnerOrAdmin)
- * 
- * Child components can access this via useTenants() hook
- * or rely on context-aware components like OrganizationSwitcher.
+ * Example App — zero loading logic needed.
+ *
+ * Every component handles its own skeleton states:
+ * - OrganizationSwitcher shows a skeleton trigger while orgs load
+ * - MembersSection shows a full card skeleton with table rows
+ * - TeamsSection shows a skeleton grid with card placeholders
+ *
+ * The developer only needs to render the components.
  */
 function App() {
   return (
-    <TenantsProvider 
+    <TenantsProvider
       api={api.example as any}
       onToast={(message, type) => {
-        // Simple toast using alert for demo
         if (type === "error") {
           alert(`Error: ${message}`);
         } else {
@@ -59,140 +40,99 @@ function App() {
 }
 
 function AppContent() {
-  const {
-    currentOrganization,
-    organizations,
-    isLoading,
-  } = useTenants();
-
+  const { currentOrganization, organizations, isOrganizationsLoading } =
+    useTenants();
   const [activeTab, setActiveTab] = useState<"members" | "teams">("members");
 
+  // Only check if orgs have finished loading AND there are none
+  const showEmptyState =
+    !isOrganizationsLoading && !currentOrganization && organizations.length === 0;
+
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-muted/40">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <header className="border-b bg-background shadow-sm">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Tenants Example</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Demo mode • Using the TenantsProvider pattern
+            <h1 className="text-xl font-semibold tracking-tight">
+              Tenants Example
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Multi-tenant organization management
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Organization Switcher - uses context automatically */}
-            <OrganizationSwitcher
-              className="w-64"
-              buildingIcon={<Building2 className="w-5 h-5" />}
-              checkIcon={<Check className="w-4 h-4" />}
-              chevronsIcon={<ChevronsUpDown className="w-4 h-4" />}
-              plusIcon={<Plus className="w-4 h-4" />}
-            />
-          </div>
+          {/* Shows its own skeleton while loading */}
+          <OrganizationSwitcher className="w-64" />
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-6">
-        {isLoading ? (
-          <div className="bg-white border border-slate-200 rounded-lg p-12 text-center">
-            <div className="animate-spin w-8 h-8 border-4 border-slate-200 border-t-blue-600 rounded-full mx-auto mb-4" />
-            <p className="text-slate-500">Loading...</p>
+      <main className="mx-auto max-w-6xl px-6 py-8">
+        {showEmptyState ? (
+          /* No Organization — Show Create Prompt */
+          <div className="rounded-xl border bg-background p-16 text-center shadow-sm">
+            <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-muted">
+              <Building2 className="size-10 text-muted-foreground" />
+            </div>
+            <h2 className="mb-2 text-xl font-semibold">No Organization Yet</h2>
+            <p className="mb-8 text-muted-foreground">
+              Create your first organization to get started
+            </p>
+            <CreateOrganizationDialog />
           </div>
-        ) : currentOrganization ? (
+        ) : (
           <>
             {/* Tabs */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">
+            <div className="mb-6">
+              <div className="inline-flex gap-1 rounded-lg border bg-muted/50 p-1">
                 <button
                   onClick={() => setActiveTab("members")}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
+                  className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                     activeTab === "members"
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Users className="w-4 h-4" />
+                  <Users className="size-4" />
                   Members
                 </button>
                 <button
                   onClick={() => setActiveTab("teams")}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
+                  className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                     activeTab === "teams"
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Users className="w-4 h-4" />
+                  <UsersRound className="size-4" />
                   Teams
                 </button>
               </div>
             </div>
 
-            {/* Content - Using context-aware section components */}
+            {/* Components handle their own skeleton loading — no gates needed */}
             {activeTab === "members" && (
               <MembersSection
-                showTeamSelection={true}
-                showInvitationLink={true}
+                showTeamSelection
+                showInvitationLink
                 invitationPath="/accept-invitation/:id"
                 expirationText="48 hours"
-                usersIcon={
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Users className="w-5 h-5 text-blue-600" />
-                  </div>
-                }
-                plusIcon={<Plus className="w-4 h-4" />}
-                moreIcon={<MoreHorizontal className="w-4 h-4" />}
-                userMinusIcon={<Trash2 className="w-4 h-4" />}
-                copyIcon={<Copy className="w-4 h-4" />}
-                checkIcon={<Check className="w-4 h-4" />}
-                refreshIcon={<RefreshCw className="w-4 h-4" />}
-                cancelIcon={<X className="w-4 h-4" />}
-                mailIcon={<Mail className="w-4 h-4" />}
-                linkIcon={<Link className="w-4 h-4" />}
               />
             )}
 
-            {activeTab === "teams" && (
-              <TeamsSection
-                usersIcon={<Users className="w-5 h-5" />}
-                plusIcon={<Plus className="w-4 h-4" />}
-                trashIcon={<Trash2 className="w-4 h-4" />}
-                closeIcon={<X className="w-5 h-5" />}
-              />
-            )}
+            {activeTab === "teams" && <TeamsSection />}
           </>
-        ) : organizations.length === 0 ? (
-          /* No Organization - Show Create Prompt */
-          <div className="bg-white border border-slate-200 rounded-lg p-12 text-center">
-            <Building2 className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
-              No Organization Yet
-            </h2>
-            <p className="text-slate-500 mb-6">
-              Create your first organization to get started
-            </p>
-            {/* CreateOrganizationDialog uses context automatically */}
-            <CreateOrganizationDialog
-              plusIcon={<Plus className="w-4 h-4" />}
-              buildingIcon={
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-blue-600" />
-                </div>
-              }
-              closeIcon={<X className="w-5 h-5" />}
-            />
-          </div>
-        ) : null}
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="max-w-6xl mx-auto px-6 py-8 text-center">
-        <p className="text-sm text-slate-500">
-          This example uses{" "}
-          <code className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700">
-            TenantsProvider
+      <footer className="mx-auto max-w-6xl px-6 py-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          Built with{" "}
+          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+            @djpanda/convex-tenants
           </code>{" "}
-          to reduce ~680 lines to ~200 lines
+          &middot; shadcn/ui + Tailwind CSS
         </p>
       </footer>
     </div>

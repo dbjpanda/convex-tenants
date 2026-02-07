@@ -1,7 +1,27 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { Mail, Copy, Check, Link as LinkIcon } from "lucide-react";
 import { cn, getInvitationLink as getLink } from "../utils.js";
+import { Button } from "../ui/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog.js";
+import { Input } from "../ui/input.js";
+import { Label } from "../ui/label.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select.js";
 import type { Team } from "../hooks/use-teams.js";
 
 export interface InviteMemberDialogProps {
@@ -9,28 +29,28 @@ export interface InviteMemberDialogProps {
    * Organization name to display in the dialog
    */
   organizationName: string;
-  
+
   /**
    * List of teams in the organization (optional)
    */
   teams?: Team[];
-  
+
   /**
    * Whether to show team selection (defaults to true if teams provided)
    */
   showTeamSelection?: boolean;
-  
+
   /**
    * Whether to show the invitation link after creating (defaults to true)
    */
   showInvitationLink?: boolean;
-  
+
   /**
    * Custom invitation path pattern (defaults to "/accept-invitation/:id")
    * Use ":id" as placeholder for invitation ID
    */
   invitationPath?: string;
-  
+
   /**
    * Callback when inviting a member
    */
@@ -39,52 +59,47 @@ export interface InviteMemberDialogProps {
     role: "admin" | "member";
     teamId?: string;
   }) => Promise<{ invitationId: string; email: string; expiresAt: number } | null | undefined>;
-  
+
   /**
    * Base URL for invitation links (defaults to window.location.origin)
    */
   baseUrl?: string;
-  
+
   /**
    * Trigger element to open the dialog
    */
   trigger?: ReactNode;
-  
+
   /**
    * Custom class name
    */
   className?: string;
-  
+
   /**
    * Custom icon for mail
    */
   mailIcon?: ReactNode;
-  
+
   /**
    * Custom icon for copy
    */
   copyIcon?: ReactNode;
-  
+
   /**
    * Custom icon for check (for copied state)
    */
   checkIcon?: ReactNode;
-  
+
   /**
    * Custom icon for link
    */
   linkIcon?: ReactNode;
-  
-  /**
-   * Custom icon for close/X
-   */
-  closeIcon?: ReactNode;
-  
+
   /**
    * Toast notification callback
    */
   onToast?: (message: string, type: "success" | "error") => void;
-  
+
   /**
    * Invitation expiration text (defaults to "48 hours")
    */
@@ -93,22 +108,18 @@ export interface InviteMemberDialogProps {
 
 /**
  * A dialog component for inviting new members to an organization.
- * 
+ *
  * @example
  * ```tsx
  * import { InviteMemberDialog } from "@djpanda/convex-tenants/react";
- * import { Mail, Copy, Link } from "lucide-react";
- * 
+ *
  * function MyApp() {
  *   const { inviteMember } = useInvitations(...);
- *   
+ *
  *   return (
  *     <InviteMemberDialog
  *       organizationName="Acme Inc"
  *       onInvite={inviteMember}
- *       mailIcon={<Mail className="h-4 w-4" />}
- *       copyIcon={<Copy className="h-4 w-4" />}
- *       linkIcon={<Link className="h-4 w-4" />}
  *     />
  *   );
  * }
@@ -128,7 +139,6 @@ export function InviteMemberDialog({
   copyIcon,
   checkIcon,
   linkIcon,
-  closeIcon,
   onToast,
   expirationText = "48 hours",
 }: InviteMemberDialogProps) {
@@ -140,6 +150,11 @@ export function InviteMemberDialog({
   const [invitationId, setInvitationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const MailIcon = mailIcon ?? <Mail className="size-4" />;
+  const CopyIcon = copyIcon ?? <Copy className="size-5" />;
+  const CheckIcon = checkIcon ?? <Check className="size-5" />;
+  const LinkLinkIcon = linkIcon ?? <LinkIcon className="size-4" />;
 
   const shouldShowTeams = showTeamSelection && teams && teams.length > 0;
 
@@ -159,7 +174,6 @@ export function InviteMemberDialog({
         setInvitationId(result.invitationId);
         onToast?.("Invitation created successfully!", "success");
       } else if (!showInvitationLink) {
-        // If not showing link, close the dialog
         handleClose();
         onToast?.("Invitation sent successfully!", "success");
       }
@@ -183,7 +197,6 @@ export function InviteMemberDialog({
         onToast?.("Invitation link copied to clipboard!", "success");
         setTimeout(() => setCopied(false), 2000);
       } catch {
-        // Fallback for browsers that don't support clipboard API
         prompt("Copy this invitation link:", invitationLink);
       }
     }
@@ -200,206 +213,161 @@ export function InviteMemberDialog({
   };
 
   return (
-    <>
-      {/* Trigger */}
-      <div onClick={() => setOpen(true)} className={className}>
-        {trigger || (
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-            {mailIcon}
-            <span>Invite Member</span>
-          </button>
-        )}
-      </div>
+    <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : handleClose())}>
+      <DialogTrigger asChild>
+        <div className={className}>
+          {trigger || (
+            <Button>
+              {MailIcon}
+              <span>Invite Member</span>
+            </Button>
+          )}
+        </div>
+      </DialogTrigger>
 
-      {/* Dialog */}
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-[500px] p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold">Invite Member</h2>
-              <p className="text-sm text-gray-500">
-                Invite a new member to {organizationName}. They'll receive an invitation link to join.
-              </p>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Invite Member</DialogTitle>
+          <DialogDescription>
+            Invite a new member to {organizationName}. They'll receive an invitation link to join.
+          </DialogDescription>
+        </DialogHeader>
+
+        {!invitationLink ? (
+          <>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="colleague@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isInviting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  value={role}
+                  onValueChange={(v) => setRole(v as "admin" | "member")}
+                  disabled={isInviting}
+                >
+                  <SelectTrigger id="role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  {role === "admin"
+                    ? "Admins can invite members and manage teams"
+                    : "Members have basic access to the organization"}
+                </p>
+              </div>
+
+              {shouldShowTeams && (
+                <div className="space-y-2">
+                  <Label htmlFor="team">Team (Optional)</Label>
+                  <Select
+                    value={teamId ?? "none"}
+                    onValueChange={(v) => setTeamId(v === "none" ? undefined : v)}
+                    disabled={isInviting}
+                  >
+                    <SelectTrigger id="team">
+                      <SelectValue placeholder="Select a team" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No team</SelectItem>
+                      {teams!.map((team) => (
+                        <SelectItem key={team._id} value={team._id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    Assign the new member to a team immediately
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <p className="text-sm text-destructive" role="alert">
+                  {error}
+                </p>
+              )}
             </div>
 
-            {!invitationLink ? (
-              <>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium mb-1">
-                      Email Address
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      placeholder="colleague@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isInviting}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="role" className="block text-sm font-medium mb-1">
-                      Role
-                    </label>
-                    <select
-                      id="role"
-                      value={role}
-                      onChange={(e) => setRole(e.target.value as "admin" | "member")}
-                      disabled={isInviting}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                    >
-                      <option value="member">Member</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {role === "admin"
-                        ? "Admins can invite members and manage teams"
-                        : "Members have basic access to the organization"}
-                    </p>
-                  </div>
-
-                  {shouldShowTeams && (
-                    <div>
-                      <label htmlFor="team" className="block text-sm font-medium mb-1">
-                        Team (Optional)
-                      </label>
-                      <select
-                        id="team"
-                        value={teamId || "none"}
-                        onChange={(e) => setTeamId(e.target.value === "none" ? undefined : e.target.value)}
-                        disabled={isInviting}
-                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                      >
-                        <option value="none">No team</option>
-                        {teams!.map((team) => (
-                          <option key={team._id} value={team._id}>
-                            {team.name}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Assign the new member to a team immediately
-                      </p>
-                    </div>
-                  )}
-
-                  {error && (
-                    <p className="text-sm text-red-600">{error}</p>
-                  )}
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose} disabled={isInviting}>
+                Cancel
+              </Button>
+              <Button onClick={handleInvite} disabled={isInviting || !email}>
+                {isInviting ? "Creating..." : "Create Invitation"}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <div className="space-y-4 py-2">
+              {/* Success message */}
+              <div className="py-2 text-center">
+                <div className="mb-3 inline-flex size-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                  <Check className="size-6 text-green-600 dark:text-green-400" />
                 </div>
+                <p className="font-medium">Invitation Created!</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  An invitation has been created for <strong>{email}</strong>
+                </p>
+              </div>
 
-                <div className="flex justify-end gap-2 mt-6">
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    disabled={isInviting}
-                    className="px-4 py-2 border rounded-md hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleInvite}
-                    disabled={isInviting || !email}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {isInviting ? "Creating..." : "Create Invitation"}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-4">
-                  {/* Success message */}
-                  <div className="text-center py-2">
-                    <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
-                      {checkIcon || (
-                        <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                    <p className="font-medium text-gray-900">Invitation Created!</p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      An invitation has been created for <strong>{email}</strong>
-                    </p>
+              {/* Invitation link */}
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <Label className="mb-2 block text-xs">Invitation Link</Label>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-1 items-center gap-2 overflow-hidden rounded-md border bg-background p-2">
+                    <span className="flex-shrink-0 text-muted-foreground">{LinkLinkIcon}</span>
+                    <code className="truncate text-sm">{invitationLink}</code>
                   </div>
-                  
-                  {/* Invitation link */}
-                  <div className="bg-gray-50 border rounded-lg p-4">
-                    <label className="block text-xs font-medium text-gray-500 mb-2">
-                      Invitation Link
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 flex-1 p-2 bg-white border rounded-md overflow-hidden">
-                        <span className="text-gray-400 flex-shrink-0">{linkIcon}</span>
-                        <code className="text-sm text-gray-700 truncate">{invitationLink}</code>
-                      </div>
-                      <button
-                        onClick={handleCopyLink}
-                        className={cn(
-                          "flex-shrink-0 p-2 rounded-md transition-colors",
-                          copied 
-                            ? "bg-green-100 text-green-600" 
-                            : "bg-blue-600 text-white hover:bg-blue-700"
-                        )}
-                        title={copied ? "Copied!" : "Copy link"}
-                      >
-                        {copied ? (
-                          checkIcon || (
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )
-                        ) : (
-                          copyIcon || (
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          )
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Share this link with the invitee. It expires in {expirationText}.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center mt-6">
-                  <button
-                    onClick={() => {
-                      setInvitationId(null);
-                      setEmail("");
-                      setCopied(false);
-                    }}
-                    className="px-4 py-2 border rounded-md hover:bg-gray-50"
+                  <Button
+                    variant={copied ? "secondary" : "default"}
+                    size="icon"
+                    onClick={handleCopyLink}
+                    aria-label={copied ? "Copied!" : "Copy link"}
+                    className={cn(
+                      copied && "bg-green-100 text-green-600 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400"
+                    )}
                   >
-                    Invite Another
-                  </button>
-                  <button
-                    onClick={handleClose}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Done
-                  </button>
+                    {copied ? CheckIcon : CopyIcon}
+                  </Button>
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Share this link with the invitee. It expires in {expirationText}.
+                </p>
+              </div>
+            </div>
 
-      {/* Backdrop */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={handleClose}
-        />
-      )}
-    </>
+            <DialogFooter className="sm:justify-between">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setInvitationId(null);
+                  setEmail("");
+                  setCopied(false);
+                }}
+              >
+                Invite Another
+              </Button>
+              <Button onClick={handleClose}>Done</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
