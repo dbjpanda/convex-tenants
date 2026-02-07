@@ -521,34 +521,36 @@ type MutationCtx = Pick<
 /**
  * Create an API for tenants that can be re-exported from your app.
  *
- * This function creates query and mutation functions that can be
- * exported directly from your Convex files, handling authentication
- * and providing callbacks for invitation emails.
+ * Returns an object of query/mutation functions with authentication
+ * handled server-side — no userId needs to be passed from the client.
+ * Use a single destructure to export all (or selected) functions.
  *
  * @example
  * ```ts
  * // convex/tenants.ts
- * import { components } from "./_generated/api";
  * import { makeTenantsAPI } from "@djpanda/convex-tenants";
+ * import { components } from "./_generated/api";
  * import { getAuthUserId } from "@convex-dev/auth/server";
  *
+ * // One statement exports everything:
  * export const {
- *   listOrganizations,
- *   createOrganization,
- *   inviteMember,
- *   // ... etc
+ *   // Organizations
+ *   listOrganizations, getOrganization, getOrganizationBySlug,
+ *   createOrganization, updateOrganization, deleteOrganization,
+ *   // Members
+ *   listMembers, getMember, getCurrentMember, checkPermission,
+ *   addMember, removeMember, updateMemberRole, leaveOrganization,
+ *   // Teams
+ *   listTeams, getTeam, listTeamMembers, isTeamMember,
+ *   createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember,
+ *   // Invitations
+ *   listInvitations, getInvitation, getPendingInvitations,
+ *   inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
  * } = makeTenantsAPI(components.tenants, {
  *   auth: async (ctx) => await getAuthUserId(ctx),
  *   getUser: async (ctx, userId) => {
  *     const user = await ctx.db.get(userId as Id<"users">);
  *     return user ? { name: user.name, email: user.email } : null;
- *   },
- *   onInvitationCreated: async (ctx, invitation) => {
- *     // Send invitation email
- *     await sendEmail(invitation.email, {
- *       type: "invitation",
- *       organizationName: invitation.organizationName,
- *     });
  *   },
  * });
  * ```

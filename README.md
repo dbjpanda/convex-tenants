@@ -50,7 +50,21 @@ import { makeTenantsAPI } from "@djpanda/convex-tenants";
 import { components, internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
-const api = makeTenantsAPI(components.tenants, {
+// All APIs are auto-exported in a single destructure — no userId passed from client!
+export const {
+  // Organizations
+  listOrganizations, getOrganization, getOrganizationBySlug,
+  createOrganization, updateOrganization, deleteOrganization,
+  // Members
+  listMembers, getMember, getCurrentMember, checkPermission,
+  addMember, removeMember, updateMemberRole, leaveOrganization,
+  // Teams
+  listTeams, getTeam, listTeamMembers, isTeamMember,
+  createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember,
+  // Invitations
+  listInvitations, getInvitation, getPendingInvitations,
+  inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
+} = makeTenantsAPI(components.tenants, {
   auth: async (ctx) => {
     return await getAuthUserId(ctx);
   },
@@ -68,13 +82,19 @@ const api = makeTenantsAPI(components.tenants, {
     });
   },
 });
-
-// Export all tenants functions
-export const listOrganizations = api.listOrganizations;
-export const createOrganization = api.createOrganization;
-export const inviteMember = api.inviteMember;
-// ... export other functions as needed
 ```
+
+> **Why the destructure?** Convex uses file-based routing — each named export
+> becomes a callable function reference (e.g. `api.tenants.listOrganizations`).
+> ES modules require static named exports, so we can't dynamically re-export.
+> But with a single destructure, **one statement exports everything**.
+>
+> You can also selectively export only the functions you need:
+>
+> ```typescript
+> export const { listOrganizations, createOrganization, inviteMember } =
+>   makeTenantsAPI(components.tenants, { ... });
+> ```
 
 ### 3. Use in your React app
 
