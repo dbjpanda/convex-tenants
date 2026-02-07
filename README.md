@@ -121,6 +121,430 @@ function OrganizationList() {
 }
 ```
 
+## API Reference
+
+All functions below are returned by `makeTenantsAPI()`. Each becomes a Convex query or mutation that you export from your `convex/tenants.ts` file. Authentication is handled server-side — the client never passes `userId`.
+
+### `makeTenantsAPI` Options
+
+```typescript
+makeTenantsAPI(components.tenants, {
+  // Required: returns the authenticated user's ID, or null if unauthenticated
+  auth: (ctx) => Promise<string | null>,
+
+  // Optional: enrich member/team-member results with user details
+  getUser: (ctx, userId) => Promise<{ name?: string; email?: string } | null>,
+
+  // Optional: called after an invitation is created (e.g. send an email)
+  onInvitationCreated: (ctx, invitation) => Promise<void>,
+
+  // Optional: called after an invitation is resent
+  onInvitationResent: (ctx, invitation) => Promise<void>,
+
+  // Optional: default invitation expiration in ms (default: 48 hours)
+  defaultInvitationExpiration: number,
+})
+```
+
+**Auth behavior:**
+- **Queries** — return safe defaults when unauthenticated (empty array, `null`, `false`)
+- **Mutations** — throw `"Not authenticated"` when unauthenticated
+
+---
+
+### Organization Functions
+
+#### `listOrganizations` (query)
+
+List all organizations the current user belongs to, with their role.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| *(none)* | | Auth is handled automatically |
+
+**Returns:** `Array<{ _id, _creationTime, name, slug, logo, metadata, ownerId, role }>` — empty array if unauthenticated.
+
+---
+
+#### `getOrganization` (query)
+
+Get a single organization by its ID.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization's ID |
+
+**Returns:** `{ _id, _creationTime, name, slug, logo, metadata, ownerId } | null`
+
+---
+
+#### `getOrganizationBySlug` (query)
+
+Get a single organization by its unique slug.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `slug` | `string` | The organization's slug |
+
+**Returns:** `{ _id, _creationTime, name, slug, logo, metadata, ownerId } | null`
+
+---
+
+#### `createOrganization` (mutation)
+
+Create a new organization. The authenticated user becomes the owner.
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `name` | `string` | Yes | Organization name |
+| `slug` | `string` | No | URL-safe slug (auto-generated from name if omitted) |
+| `logo` | `string` | No | Logo URL |
+| `metadata` | `any` | No | Custom metadata |
+
+**Returns:** `string` — the new organization's ID.
+
+**Throws:** `"Not authenticated"` if unauthenticated.
+
+---
+
+#### `updateOrganization` (mutation)
+
+Update an organization's details. Requires admin or owner role.
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `organizationId` | `string` | Yes | The organization to update |
+| `name` | `string` | No | New name |
+| `slug` | `string` | No | New slug |
+| `logo` | `string \| null` | No | New logo URL, or `null` to remove |
+| `metadata` | `any` | No | New metadata |
+
+**Returns:** `void`
+
+---
+
+#### `deleteOrganization` (mutation)
+
+Delete an organization and all its members, teams, and invitations. Owner only.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization to delete |
+
+**Returns:** `void`
+
+---
+
+### Member Functions
+
+#### `listMembers` (query)
+
+List all members of an organization. If `getUser` is configured, each member is enriched with `user: { name?, email? }`.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization to list members for |
+
+**Returns:** `Array<{ _id, _creationTime, organizationId, userId, role, user? }>`
+
+---
+
+#### `getMember` (query)
+
+Get a specific member by organization and user ID. Enriched with `user` if `getUser` is configured.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+| `userId` | `string` | The user ID to look up |
+
+**Returns:** `{ _id, _creationTime, organizationId, userId, role, user? } | null`
+
+---
+
+#### `getCurrentMember` (query)
+
+Get the authenticated user's membership in an organization.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+
+**Returns:** `{ _id, _creationTime, organizationId, userId, role } | null` — `null` if unauthenticated or not a member.
+
+---
+
+#### `checkPermission` (query)
+
+Check if the authenticated user has at least a certain role in an organization.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+| `minRole` | `"member" \| "admin" \| "owner"` | Minimum required role |
+
+**Returns:** `{ hasPermission: boolean, currentRole: "owner" | "admin" | "member" | null }`
+
+---
+
+#### `addMember` (mutation)
+
+Add a user to an organization. Requires admin or owner role.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+| `memberUserId` | `string` | The user ID to add |
+| `role` | `"admin" \| "member"` | Role to assign |
+
+**Returns:** `void`
+
+---
+
+#### `removeMember` (mutation)
+
+Remove a member from an organization. Cannot remove owners.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+| `memberUserId` | `string` | The user ID to remove |
+
+**Returns:** `void`
+
+---
+
+#### `updateMemberRole` (mutation)
+
+Change a member's role. Owner only.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+| `memberUserId` | `string` | The user ID to update |
+| `role` | `"owner" \| "admin" \| "member"` | New role |
+
+**Returns:** `void`
+
+---
+
+#### `leaveOrganization` (mutation)
+
+Leave an organization. Owners cannot leave (must transfer ownership first).
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization to leave |
+
+**Returns:** `void`
+
+---
+
+### Team Functions
+
+#### `listTeams` (query)
+
+List all teams in an organization.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+
+**Returns:** `Array<{ _id, _creationTime, name, organizationId, description }>`
+
+---
+
+#### `getTeam` (query)
+
+Get a team by its ID.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `teamId` | `string` | The team ID |
+
+**Returns:** `{ _id, _creationTime, name, organizationId, description } | null`
+
+---
+
+#### `listTeamMembers` (query)
+
+List all members of a team. If `getUser` is configured, each member is enriched with `user: { name?, email? }`.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `teamId` | `string` | The team ID |
+
+**Returns:** `Array<{ _id, _creationTime, teamId, userId, user? }>`
+
+---
+
+#### `isTeamMember` (query)
+
+Check if the authenticated user is a member of a team.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `teamId` | `string` | The team ID |
+
+**Returns:** `boolean` — `false` if unauthenticated.
+
+---
+
+#### `createTeam` (mutation)
+
+Create a new team in an organization. Requires admin or owner role.
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `organizationId` | `string` | Yes | The organization ID |
+| `name` | `string` | Yes | Team name |
+| `description` | `string` | No | Team description |
+
+**Returns:** `string` — the new team's ID.
+
+---
+
+#### `updateTeam` (mutation)
+
+Update a team's name or description. Requires admin or owner role.
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `teamId` | `string` | Yes | The team ID |
+| `name` | `string` | No | New name |
+| `description` | `string \| null` | No | New description, or `null` to remove |
+
+**Returns:** `void`
+
+---
+
+#### `deleteTeam` (mutation)
+
+Delete a team and all its memberships. Requires admin or owner role.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `teamId` | `string` | The team to delete |
+
+**Returns:** `void`
+
+---
+
+#### `addTeamMember` (mutation)
+
+Add a member to a team. The user must already be a member of the organization.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `teamId` | `string` | The team ID |
+| `memberUserId` | `string` | The user ID to add |
+
+**Returns:** `void`
+
+---
+
+#### `removeTeamMember` (mutation)
+
+Remove a member from a team.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `teamId` | `string` | The team ID |
+| `memberUserId` | `string` | The user ID to remove |
+
+**Returns:** `void`
+
+---
+
+### Invitation Functions
+
+#### `listInvitations` (query)
+
+List all invitations for an organization (all statuses).
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+
+**Returns:** `Array<{ _id, _creationTime, organizationId, email, role, teamId, inviterId, status, expiresAt, isExpired }>`
+
+---
+
+#### `getInvitation` (query)
+
+Get a single invitation by its ID.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `invitationId` | `string` | The invitation ID |
+
+**Returns:** `{ _id, _creationTime, organizationId, email, role, teamId, inviterId, status, expiresAt, isExpired } | null`
+
+---
+
+#### `getPendingInvitations` (query)
+
+Get all pending (non-expired) invitations for an email address.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `email` | `string` | The email address |
+
+**Returns:** `Array<{ _id, _creationTime, organizationId, email, role, teamId, inviterId, expiresAt, isExpired }>`
+
+---
+
+#### `inviteMember` (mutation)
+
+Create an invitation to join an organization. Requires admin or owner role. Triggers `onInvitationCreated` callback if configured.
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `organizationId` | `string` | Yes | The organization ID |
+| `email` | `string` | Yes | Email to invite |
+| `role` | `"admin" \| "member"` | Yes | Role to assign upon acceptance |
+| `teamId` | `string` | No | Team to add the user to upon acceptance |
+
+**Returns:** `{ invitationId: string, email: string, expiresAt: number }`
+
+---
+
+#### `acceptInvitation` (mutation)
+
+Accept a pending invitation. The authenticated user is added to the organization with the invited role.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `invitationId` | `string` | The invitation to accept |
+
+**Returns:** `void`
+
+---
+
+#### `resendInvitation` (mutation)
+
+Resend an invitation (resets expiration). Requires admin or owner role. Triggers `onInvitationResent` callback if configured.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `invitationId` | `string` | The invitation to resend |
+
+**Returns:** `{ invitationId: string, email: string }`
+
+---
+
+#### `cancelInvitation` (mutation)
+
+Cancel a pending invitation. Requires admin or owner role.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `invitationId` | `string` | The invitation to cancel |
+
+**Returns:** `void`
+
+---
+
 ## React UI Components
 
 The package includes pre-built React components for common tenant management UI patterns. These components are built with [shadcn/ui](https://ui.shadcn.com) (Radix UI + Tailwind CSS) and ship with default `lucide-react` icons. They are fully accessible, support dark mode via CSS variables, and automatically adopt your app's theme.
@@ -406,50 +830,6 @@ const isAdmin = await ctx.runQuery(
   }
 );
 ```
-
-## API Reference
-
-### Organization Functions
-
-- `listOrganizations` - List all organizations the user belongs to
-- `getOrganization` - Get organization by ID
-- `getOrganizationBySlug` - Get organization by slug
-- `createOrganization` - Create a new organization
-- `updateOrganization` - Update organization name, slug, logo, metadata
-- `deleteOrganization` - Delete an organization (owner only)
-
-### Member Functions
-
-- `listMembers` - List all members of an organization
-- `getMember` - Get a specific member
-- `getCurrentMember` - Get current user's membership
-- `checkPermission` - Check if user has at least a certain role
-- `addMember` - Add a member to an organization
-- `removeMember` - Remove a member (cannot remove owners)
-- `updateMemberRole` - Change a member's role (owner only)
-- `leaveOrganization` - Leave an organization
-
-### Team Functions
-
-- `listTeams` - List all teams in an organization
-- `getTeam` - Get team by ID
-- `listTeamMembers` - List all members of a team
-- `isTeamMember` - Check if current user is a team member
-- `createTeam` - Create a new team
-- `updateTeam` - Update team name and description
-- `deleteTeam` - Delete a team
-- `addTeamMember` - Add a member to a team
-- `removeTeamMember` - Remove a member from a team
-
-### Invitation Functions
-
-- `listInvitations` - List all invitations for an organization
-- `getInvitation` - Get invitation by ID
-- `getPendingInvitations` - Get pending invitations for an email
-- `inviteMember` - Create a new invitation
-- `acceptInvitation` - Accept an invitation
-- `resendInvitation` - Resend an invitation
-- `cancelInvitation` - Cancel an invitation
 
 ## License
 
