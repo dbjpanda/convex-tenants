@@ -18,7 +18,14 @@
       "@djpanda/convex-tenants": ["../src/client/index.ts"],
       "@djpanda/convex-tenants/convex.config.js": ["../src/component/convex.config.ts"],
       "@djpanda/convex-tenants/convex.config": ["../src/component/convex.config.ts"],
-      "@djpanda/convex-tenants/*": ["../src/*"]
+      "@djpanda/convex-tenants/*": ["../src/*"],
+      "convex": ["./node_modules/convex"],
+      "convex/server": ["./node_modules/convex/server"],
+      "convex/values": ["./node_modules/convex/values"],
+      "convex/react": ["./node_modules/convex/react"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react-dom": ["./node_modules/@types/react-dom"]
     }
   },
   "include": ["./src", "vite.config.ts"]
