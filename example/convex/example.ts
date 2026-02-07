@@ -1,21 +1,14 @@
 import { mutation, query } from "./_generated/server.js";
 import { components } from "./_generated/api.js";
 import { makeTenantsAPI } from "@djpanda/convex-tenants";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
-import type { Auth } from "convex/server";
 
 /**
- * Demo user ID - used when no authentication is configured
- * In a real app, you would use proper authentication
- */
-const DEMO_USER_ID = "demo-user-123";
-
-/**
- * Example: Using the Tenants component with makeTenantsAPI
+ * Example: Using the Tenants component with makeTenantsAPI + Convex Auth
  *
  * One destructure exports everything — the recommended DX pattern.
- * In a real app you'd use `getAuthUserId` from `@convex-dev/auth/server`
- * instead of the demo fallback.
+ * Authentication is handled via @convex-dev/auth (email + password).
  */
 export const {
   // Organizations
@@ -32,20 +25,17 @@ export const {
   inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
 } = makeTenantsAPI(components.tenants, {
   auth: async (ctx) => {
-    return await getAuthUserId(ctx);
+    const userId = await getAuthUserId(ctx);
+    return userId ?? null;
   },
 
-  getUser: async (_ctx, userId) => {
-    // In a real app, you'd fetch user data from your users table
-    if (userId === DEMO_USER_ID) {
-      return {
-        name: "Demo User",
-        email: "demo@example.com",
-      };
-    }
+  getUser: async (ctx, userId) => {
+    // Query the Convex Auth users table for user details
+    const user = await ctx.db.get(userId as any);
+    if (!user) return null;
     return {
-      name: `User ${userId.slice(0, 6)}`,
-      email: `${userId.slice(0, 6)}@example.com`,
+      name: (user as any).name ?? (user as any).email ?? "Unknown",
+      email: (user as any).email ?? undefined,
     };
   },
 
@@ -62,7 +52,7 @@ export const {
 
 // ================================
 // Strict Auth API (for testing auth enforcement, enrichment, and callbacks)
-// Returns null when no identity — unlike the demo API which falls back to DEMO_USER_ID.
+// Returns null when no identity — unlike the main API which uses getAuthUserId.
 // ================================
 
 const strictApi = makeTenantsAPI(components.tenants, {
@@ -134,11 +124,11 @@ export const getCallbackLogs = query({
 });
 
 // ================================
-// Demo API functions that use demo user
+// Direct component API functions (for testing / demo)
 // ================================
 
 /**
- * Create organization using demo user (no auth required)
+ * Create organization using authenticated user
  */
 export const directCreateOrganization = mutation({
   args: {
@@ -146,7 +136,8 @@ export const directCreateOrganization = mutation({
     slug: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = await getDemoUserId(ctx);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
     return await ctx.runMutation(components.tenants.mutations.createOrganization, {
       userId,
@@ -157,38 +148,16 @@ export const directCreateOrganization = mutation({
 });
 
 /**
- * List organizations for demo user (no auth required)
+ * List organizations for authenticated user
  */
 export const directListOrganizations = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getDemoUserId(ctx);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
 
     return await ctx.runQuery(components.tenants.queries.listUserOrganizations, {
       userId,
     });
   },
 });
-
-// ================================
-// Auth helpers
-// ================================
-
-/**
- * Get authenticated user ID, or null if not authenticated
- */
-async function getAuthUserId(ctx: { auth: Auth }): Promise<string> {
-  const identity = await ctx.auth.getUserIdentity();
-  // Use demo user if not authenticated
-  return identity?.subject ?? DEMO_USER_ID;
-}
-
-/**
- * Get demo user ID for demo purposes
- * In production, you would require real authentication
- */
-async function getDemoUserId(ctx: { auth: Auth }): Promise<string> {
-  const identity = await ctx.auth.getUserIdentity();
-  // Use real user if authenticated, otherwise use demo user
-  return identity?.subject ?? DEMO_USER_ID;
-}

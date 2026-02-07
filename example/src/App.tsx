@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
 import {
   TenantsProvider,
@@ -10,19 +12,31 @@ import {
   MembersSection,
   TeamsSection,
 } from "@djpanda/convex-tenants/react";
-import { Building2, Users, UsersRound } from "lucide-react";
+import { Building2, Users, UsersRound, LogOut, Loader2 } from "lucide-react";
+import { SignIn } from "./SignIn.jsx";
 
 /**
- * Example App — zero loading logic needed.
+ * Example App with Convex Auth (email + password).
  *
- * Every component handles its own skeleton states:
- * - OrganizationSwitcher shows a skeleton trigger while orgs load
- * - MembersSection shows a full card skeleton with table rows
- * - TeamsSection shows a skeleton grid with card placeholders
- *
- * The developer only needs to render the components.
+ * - Unauthenticated users see the sign-in/sign-up form
+ * - Authenticated users see the tenant management UI
+ * - Every component handles its own skeleton loading automatically
  */
 function App() {
+  const { isLoading, isAuthenticated } = useConvexAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/40">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <SignIn />;
+  }
+
   return (
     <TenantsProvider
       api={api.example as any}
@@ -42,11 +56,13 @@ function App() {
 function AppContent() {
   const { currentOrganization, organizations, isOrganizationsLoading } =
     useTenants();
+  const { signOut } = useAuthActions();
   const [activeTab, setActiveTab] = useState<"members" | "teams">("members");
 
-  // Only check if orgs have finished loading AND there are none
   const showEmptyState =
-    !isOrganizationsLoading && !currentOrganization && organizations.length === 0;
+    !isOrganizationsLoading &&
+    !currentOrganization &&
+    organizations.length === 0;
 
   return (
     <div className="min-h-screen bg-muted/40">
@@ -62,14 +78,23 @@ function AppContent() {
             </p>
           </div>
 
-          {/* Shows its own skeleton while loading */}
-          <OrganizationSwitcher className="w-64" />
+          <div className="flex items-center gap-3">
+            <OrganizationSwitcher className="w-64" />
+
+            <button
+              onClick={() => void signOut()}
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              title="Sign out"
+            >
+              <LogOut className="size-4" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8">
         {showEmptyState ? (
-          /* No Organization — Show Create Prompt */
           <div className="rounded-xl border bg-background p-16 text-center shadow-sm">
             <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-muted">
               <Building2 className="size-10 text-muted-foreground" />
@@ -110,7 +135,6 @@ function AppContent() {
               </div>
             </div>
 
-            {/* Components handle their own skeleton loading — no gates needed */}
             {activeTab === "members" && (
               <MembersSection
                 showTeamSelection
@@ -132,7 +156,7 @@ function AppContent() {
           <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
             @djpanda/convex-tenants
           </code>{" "}
-          &middot; shadcn/ui + Tailwind CSS
+          &middot; shadcn/ui + Convex Auth
         </p>
       </footer>
     </div>
