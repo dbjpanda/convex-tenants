@@ -42,6 +42,16 @@ export const {
     console.log(`[Example] Invitation created for ${invitation.email}`);
     console.log(`  Organization: ${invitation.organizationName}`);
     console.log(`  Role: ${invitation.role}`);
+    console.log(`  Invited by: ${invitation.inviterName ?? "Unknown"}`);
+    console.log(`  Expires: ${new Date(invitation.expiresAt).toISOString()}`);
+  },
+
+  onInvitationResent: async (_ctx, invitation) => {
+    // In a real app, you'd resend the invitation email
+    console.log(`[Example] Invitation resent to ${invitation.email}`);
+    console.log(`  Organization: ${invitation.organizationName}`);
+    console.log(`  Role: ${invitation.role}`);
+    console.log(`  Resent by: ${invitation.inviterName ?? "Unknown"}`);
     console.log(`  Expires: ${new Date(invitation.expiresAt).toISOString()}`);
   },
 
