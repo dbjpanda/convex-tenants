@@ -28,6 +28,7 @@ jobs:
       - name: Install and build
         run: |
           npm i
+          cd example && npm i && cd ..
           npm run build
       - name: Publish package for testing branch
         run: npx pkg-pr-new publish || echo "Have you set up pkg-pr-new for this repo?"
