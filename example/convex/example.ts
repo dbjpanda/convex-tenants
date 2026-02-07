@@ -88,6 +88,79 @@ export const resendInvitation = api.resendInvitation;
 export const cancelInvitation = api.cancelInvitation;
 
 // ================================
+// Strict Auth API (for testing auth enforcement, enrichment, and callbacks)
+// Returns null when no identity — unlike the demo API which falls back to DEMO_USER_ID.
+// ================================
+
+const strictApi = makeTenantsAPI(components.tenants, {
+  auth: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+
+  getUser: async (_ctx, userId) => ({
+    name: `User ${userId}`,
+    email: `${userId}@test.com`,
+  }),
+
+  onInvitationCreated: async (ctx, invitation) => {
+    await ctx.db.insert("callbackLog", {
+      type: "invitationCreated",
+      data: {
+        invitationId: invitation.invitationId,
+        email: invitation.email,
+        organizationId: invitation.organizationId,
+        organizationName: invitation.organizationName,
+        role: invitation.role,
+        inviterName: invitation.inviterName ?? null,
+        expiresAt: invitation.expiresAt,
+      },
+    });
+  },
+
+  onInvitationResent: async (ctx, invitation) => {
+    await ctx.db.insert("callbackLog", {
+      type: "invitationResent",
+      data: {
+        invitationId: invitation.invitationId,
+        email: invitation.email,
+        organizationId: invitation.organizationId,
+        organizationName: invitation.organizationName,
+        role: invitation.role,
+        inviterName: invitation.inviterName ?? null,
+        expiresAt: invitation.expiresAt,
+      },
+    });
+  },
+});
+
+// Strict Auth Exports — queries return safe defaults, mutations throw when unauthenticated
+export const strictListOrganizations = strictApi.listOrganizations;
+export const strictCreateOrganization = strictApi.createOrganization;
+export const strictGetCurrentMember = strictApi.getCurrentMember;
+export const strictCheckPermission = strictApi.checkPermission;
+export const strictIsTeamMember = strictApi.isTeamMember;
+export const strictAddMember = strictApi.addMember;
+export const strictCreateTeam = strictApi.createTeam;
+export const strictAddTeamMember = strictApi.addTeamMember;
+export const strictListMembers = strictApi.listMembers;
+export const strictGetMember = strictApi.getMember;
+export const strictListTeamMembers = strictApi.listTeamMembers;
+export const strictInviteMember = strictApi.inviteMember;
+export const strictAcceptInvitation = strictApi.acceptInvitation;
+export const strictResendInvitation = strictApi.resendInvitation;
+export const strictLeaveOrganization = strictApi.leaveOrganization;
+export const strictCancelInvitation = strictApi.cancelInvitation;
+
+// Query to read callback invocations (for testing onInvitationCreated/onInvitationResent)
+export const getCallbackLogs = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("callbackLog").collect();
+  },
+});
+
+// ================================
 // Demo API functions that use demo user
 // ================================
 

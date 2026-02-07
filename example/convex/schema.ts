@@ -1,5 +1,10 @@
-import { defineSchema } from "convex/server";
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 
 export default defineSchema({
-  // Any tables used by the example app go here.
+  // Used by tests to verify onInvitationCreated/onInvitationResent callbacks
+  callbackLog: defineTable({
+    type: v.string(),
+    data: v.any(),
+  }),
 });
