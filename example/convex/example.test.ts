@@ -23,7 +23,7 @@ describe("tenants example", () => {
       issuer: "https://example.com",
     });
 
-    const orgId = await asUser.mutation(api.example.directCreateOrganization, {
+    const orgId = await asUser.mutation(api.testHelpers.directCreateOrganization, {
       name: "Test Org",
       slug: "test-org",
     });
@@ -40,7 +40,7 @@ describe("tenants example", () => {
       issuer: "https://example.com",
     });
 
-    const orgs = await asUser.query(api.example.directListOrganizations, {});
+    const orgs = await asUser.query(api.testHelpers.directListOrganizations, {});
 
     expect(orgs).toEqual([]);
   });
@@ -53,14 +53,14 @@ describe("tenants example", () => {
       issuer: "https://example.com",
     });
 
-    const orgId = await asUser.mutation(api.example.directCreateOrganization, {
+    const orgId = await asUser.mutation(api.testHelpers.directCreateOrganization, {
       name: "My Org",
       slug: "my-org",
     });
 
     expect(orgId).toBeDefined();
 
-    const orgs = await asUser.query(api.example.directListOrganizations, {});
+    const orgs = await asUser.query(api.testHelpers.directListOrganizations, {});
 
     expect(orgs).toHaveLength(1);
     expect(orgs[0].name).toBe("My Org");
@@ -71,6 +71,8 @@ describe("tenants example", () => {
 
 // ============================================================================
 // makeTenantsAPI tests — auth enforcement, enrichment, callbacks
+// Uses testHelpers.ts which has a strict auth API (ctx.auth.getUserIdentity)
+// compatible with convex-test's withIdentity().
 // ============================================================================
 
 describe("makeTenantsAPI", () => {
@@ -90,7 +92,7 @@ describe("makeTenantsAPI", () => {
     test("listOrganizations returns empty array when unauthenticated", async () => {
       const t = initConvexTest();
 
-      const orgs = await t.query(api.example.strictListOrganizations, {});
+      const orgs = await t.query(api.testHelpers.strictListOrganizations, {});
 
       expect(orgs).toEqual([]);
     });
@@ -98,7 +100,7 @@ describe("makeTenantsAPI", () => {
     test("getCurrentMember returns null when unauthenticated", async () => {
       const t = initConvexTest();
 
-      const member = await t.query(api.example.strictGetCurrentMember, {
+      const member = await t.query(api.testHelpers.strictGetCurrentMember, {
         organizationId: "nonexistent",
       });
 
@@ -108,7 +110,7 @@ describe("makeTenantsAPI", () => {
     test("checkPermission returns no permission when unauthenticated", async () => {
       const t = initConvexTest();
 
-      const result = await t.query(api.example.strictCheckPermission, {
+      const result = await t.query(api.testHelpers.strictCheckPermission, {
         organizationId: "nonexistent",
         minRole: "member",
       });
@@ -119,7 +121,7 @@ describe("makeTenantsAPI", () => {
     test("isTeamMember returns false when unauthenticated", async () => {
       const t = initConvexTest();
 
-      const result = await t.query(api.example.strictIsTeamMember, {
+      const result = await t.query(api.testHelpers.strictIsTeamMember, {
         teamId: "nonexistent",
       });
 
@@ -136,7 +138,7 @@ describe("makeTenantsAPI", () => {
       const t = initConvexTest();
 
       await expect(
-        t.mutation(api.example.strictCreateOrganization, { name: "Test Org" })
+        t.mutation(api.testHelpers.strictCreateOrganization, { name: "Test Org" })
       ).rejects.toThrow("Not authenticated");
     });
 
@@ -144,7 +146,7 @@ describe("makeTenantsAPI", () => {
       const t = initConvexTest();
 
       await expect(
-        t.mutation(api.example.strictInviteMember, {
+        t.mutation(api.testHelpers.strictInviteMember, {
           organizationId: "nonexistent",
           email: "test@example.com",
           role: "member",
@@ -156,7 +158,7 @@ describe("makeTenantsAPI", () => {
       const t = initConvexTest();
 
       await expect(
-        t.mutation(api.example.strictLeaveOrganization, {
+        t.mutation(api.testHelpers.strictLeaveOrganization, {
           organizationId: "nonexistent",
         })
       ).rejects.toThrow("Not authenticated");
@@ -177,11 +179,11 @@ describe("makeTenantsAPI", () => {
 
       // Create org and add a member
       const orgId = await asAlice.mutation(
-        api.example.strictCreateOrganization,
+        api.testHelpers.strictCreateOrganization,
         { name: "Enrichment Org" }
       );
 
-      await asAlice.mutation(api.example.strictAddMember, {
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
         organizationId: orgId,
         memberUserId: "bob",
         role: "member",
@@ -191,7 +193,7 @@ describe("makeTenantsAPI", () => {
       // The `user` field is added dynamically by getUser enrichment,
       // so we cast to `any` for the assertion.
       const members: any[] = await asAlice.query(
-        api.example.strictListMembers,
+        api.testHelpers.strictListMembers,
         { organizationId: orgId }
       );
 
@@ -224,11 +226,11 @@ describe("makeTenantsAPI", () => {
       });
 
       const orgId = await asAlice.mutation(
-        api.example.strictCreateOrganization,
+        api.testHelpers.strictCreateOrganization,
         { name: "Get Member Org" }
       );
 
-      const member: any = await asAlice.query(api.example.strictGetMember, {
+      const member: any = await asAlice.query(api.testHelpers.strictGetMember, {
         organizationId: orgId,
         userId: "alice",
       });
@@ -249,29 +251,29 @@ describe("makeTenantsAPI", () => {
 
       // Create org, add member, create team, add to team
       const orgId = await asAlice.mutation(
-        api.example.strictCreateOrganization,
+        api.testHelpers.strictCreateOrganization,
         { name: "Team Enrichment Org" }
       );
 
-      await asAlice.mutation(api.example.strictAddMember, {
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
         organizationId: orgId,
         memberUserId: "charlie",
         role: "member",
       });
 
-      const teamId = await asAlice.mutation(api.example.strictCreateTeam, {
+      const teamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
         organizationId: orgId,
         name: "Engineering",
       });
 
-      await asAlice.mutation(api.example.strictAddTeamMember, {
+      await asAlice.mutation(api.testHelpers.strictAddTeamMember, {
         teamId,
         memberUserId: "charlie",
       });
 
       // List team members — should have user data
       const teamMembers: any[] = await asAlice.query(
-        api.example.strictListTeamMembers,
+        api.testHelpers.strictListTeamMembers,
         { teamId }
       );
 
@@ -296,18 +298,18 @@ describe("makeTenantsAPI", () => {
       });
 
       const orgId = await asAlice.mutation(
-        api.example.strictCreateOrganization,
+        api.testHelpers.strictCreateOrganization,
         { name: "Callback Test Org" }
       );
 
-      const result = await asAlice.mutation(api.example.strictInviteMember, {
+      const result = await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
         email: "invited@example.com",
         role: "admin",
       });
 
       // Verify the callback wrote to the callbackLog table
-      const logs = await t.query(api.example.getCallbackLogs, {});
+      const logs = await t.query(api.testHelpers.getCallbackLogs, {});
 
       expect(logs).toHaveLength(1);
       expect(logs[0].type).toBe("invitationCreated");
@@ -328,17 +330,17 @@ describe("makeTenantsAPI", () => {
       });
 
       const orgId = await asBob.mutation(
-        api.example.strictCreateOrganization,
+        api.testHelpers.strictCreateOrganization,
         { name: "Inviter Name Org" }
       );
 
-      await asBob.mutation(api.example.strictInviteMember, {
+      await asBob.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
         email: "someone@example.com",
         role: "member",
       });
 
-      const logs = await t.query(api.example.getCallbackLogs, {});
+      const logs = await t.query(api.testHelpers.getCallbackLogs, {});
 
       expect(logs).toHaveLength(1);
       // inviterName comes from getUser which returns `User ${userId}`
@@ -359,12 +361,12 @@ describe("makeTenantsAPI", () => {
       });
 
       const orgId = await asAlice.mutation(
-        api.example.strictCreateOrganization,
+        api.testHelpers.strictCreateOrganization,
         { name: "Resend Org" }
       );
 
       const { invitationId } = await asAlice.mutation(
-        api.example.strictInviteMember,
+        api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
           email: "resend@example.com",
@@ -373,12 +375,12 @@ describe("makeTenantsAPI", () => {
       );
 
       // Resend the invitation
-      await asAlice.mutation(api.example.strictResendInvitation, {
+      await asAlice.mutation(api.testHelpers.strictResendInvitation, {
         invitationId,
       });
 
       // Should have 2 logs: invitationCreated + invitationResent
-      const logs = await t.query(api.example.getCallbackLogs, {});
+      const logs = await t.query(api.testHelpers.getCallbackLogs, {});
 
       expect(logs).toHaveLength(2);
 
