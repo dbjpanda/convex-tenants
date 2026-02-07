@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import schema from "./schema.js";
 import { api } from "./_generated/api.js";
 import authzTest from "@djpanda/convex-authz/test";
@@ -75,13 +75,13 @@ describe("tenants component", () => {
       const t = createTestInstance();
 
       // Create two organizations
-      const org1Id = await t.mutation(api.mutations.createOrganization, {
+      await t.mutation(api.mutations.createOrganization, {
         userId: "user_123",
         name: "Org One",
         slug: "org-one",
       });
 
-      const org2Id = await t.mutation(api.mutations.createOrganization, {
+      await t.mutation(api.mutations.createOrganization, {
         userId: "user_123",
         name: "Org Two",
         slug: "org-two",

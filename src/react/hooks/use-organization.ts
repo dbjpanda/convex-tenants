@@ -39,7 +39,8 @@ export function useOrganization(options: UseOrganizationOptions) {
   const { activeOrganizationId, setActiveOrganizationId } = useOrganizationStore();
   
   // Get user's organizations
-  const organizations = useQuery(listOrganizationsQuery) ?? [];
+  const organizationsRaw = useQuery(listOrganizationsQuery);
+  const organizations = useMemo(() => organizationsRaw ?? [], [organizationsRaw]);
   
   // Create organization mutation
   const createOrgMutation = useMutation(createOrganizationMutation);

@@ -9,7 +9,7 @@ import {
   RefreshCw,
   XCircle,
 } from "lucide-react";
-import { cn, formatDate, getInvitationLink, copyToClipboard } from "../utils.js";
+import { cn, getInvitationLink, copyToClipboard } from "../utils.js";
 import { Button } from "../ui/button.js";
 import { Badge } from "../ui/badge.js";
 import {

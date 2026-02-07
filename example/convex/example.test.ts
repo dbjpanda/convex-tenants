@@ -804,13 +804,7 @@ describe("makeTenantsAPI", () => {
         memberUserId: "bob",
       });
 
-      // Verify bob is a team member
-      const isMemberBefore = await asAlice.query(
-        api.testHelpers.strictIsTeamMember,
-        { teamId }
-      );
-      // Note: isTeamMember checks the current user (alice), not bob.
-      // Let's check via listTeamMembers instead.
+      // Check via listTeamMembers that bob is a team member
       const membersBefore: any[] = await asAlice.query(
         api.testHelpers.strictListTeamMembers,
         { teamId }

@@ -1,14 +1,8 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import { Users, Plus } from "lucide-react";
-import { cn } from "../utils.js";
-import {
-  useTenants,
-  type Member as ContextMember,
-  type Invitation as ContextInvitation,
-  type Team as ContextTeam,
-} from "../providers/tenants-context.js";
+import { useTenants } from "../providers/tenants-context.js";
 import { InviteMemberDialog } from "./invite-member-dialog.js";
 import { MembersTable } from "./members-table.js";
 import { Button } from "../ui/button.js";
@@ -125,6 +119,45 @@ export function MembersSection({
 
   const isDataLoading = isMembersLoading || isInvitationsLoading;
 
+  // Transform members for the table (hooks must be called before any early return)
+  const transformedMembers: Member[] = useMemo(() => members.map((m) => ({
+    _id: m._id,
+    _creationTime: m._creationTime,
+    userId: m.userId,
+    organizationId: m.organizationId,
+    role: m.role,
+    user: m.user || {
+      name: m.userId,
+      email: `${m.userId}@example.com`,
+    },
+    teams: m.teams || [],
+  })), [members]);
+
+  // Transform invitations for the table
+  const transformedInvitations: Invitation[] = useMemo(() => invitations.map((inv) => ({
+    _id: inv._id,
+    _creationTime: inv._creationTime,
+    email: inv.email,
+    organizationId: inv.organizationId,
+    role: inv.role,
+    teamId: inv.teamId ?? null,
+    inviterId: inv.inviterId,
+    expiresAt: inv.expiresAt,
+    status: inv.status as "pending" | "accepted" | "cancelled" | "expired",
+    isExpired: inv.isExpired ?? inv.status === "expired",
+  })), [invitations]);
+
+  // Transform teams
+  const transformedTeams: Team[] = useMemo(() => teams.map((t) => ({
+    _id: t._id,
+    _creationTime: t._creationTime,
+    name: t.name,
+    organizationId: t.organizationId,
+    description: t.description ?? null,
+    slug: t.slug,
+    metadata: undefined,
+  })), [teams]);
+
   // Show full card skeleton while organizations load, or "select org" when done loading with none selected
   if (isOrganizationsLoading || !currentOrganization) {
     return (
@@ -140,45 +173,6 @@ export function MembersSection({
     </div>
   );
   const PlusIcon = plusIcon ?? <Plus className="size-4" />;
-
-  // Transform members for the table
-  const transformedMembers: Member[] = members.map((m) => ({
-    _id: m._id,
-    _creationTime: m._creationTime,
-    userId: m.userId,
-    organizationId: m.organizationId,
-    role: m.role,
-    user: m.user || {
-      name: m.userId,
-      email: `${m.userId}@example.com`,
-    },
-    teams: m.teams || [],
-  }));
-
-  // Transform invitations for the table
-  const transformedInvitations: Invitation[] = invitations.map((inv) => ({
-    _id: inv._id,
-    _creationTime: inv._creationTime,
-    email: inv.email,
-    organizationId: inv.organizationId,
-    role: inv.role,
-    teamId: inv.teamId ?? null,
-    inviterId: inv.inviterId,
-    expiresAt: inv.expiresAt,
-    status: inv.status as "pending" | "accepted" | "cancelled" | "expired",
-    isExpired: inv.isExpired ?? inv.expiresAt < Date.now(),
-  }));
-
-  // Transform teams
-  const transformedTeams: Team[] = teams.map((t) => ({
-    _id: t._id,
-    _creationTime: t._creationTime,
-    name: t.name,
-    organizationId: t.organizationId,
-    description: t.description ?? null,
-    slug: t.slug,
-    metadata: undefined,
-  }));
 
   return (
     <Card className={className}>
@@ -260,7 +254,7 @@ export function MembersSection({
 
 function MembersSectionSkeleton({
   className,
-  title,
+  title: _title,
   noOrg,
 }: {
   className?: string;

@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, type ReactNode, useCallback } from "react";
+import { useState, type ReactNode, useCallback, useContext } from "react";
 import { Plus, Building2 } from "lucide-react";
-import { cn } from "../utils.js";
-import { useTenants } from "../providers/tenants-context.js";
+import { TenantsContext } from "../providers/tenants-context.js";
 import { Button } from "../ui/button.js";
 import {
   Dialog,
@@ -95,13 +94,8 @@ export function CreateOrganizationDialog({
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Try to use context, fall back to props
-  let contextValue: ReturnType<typeof useTenants> | null = null;
-  try {
-    contextValue = useTenants();
-  } catch {
-    // Not inside TenantsProvider, will use props
-  }
+  // Try to use context, fall back to props (useContext returns null if no provider)
+  const contextValue = useContext(TenantsContext);
 
   const createOrganization = createOrganizationProp ?? contextValue?.createOrganization;
   const onToast = onToastProp ?? contextValue?.onToast;

@@ -106,7 +106,7 @@ describe("Scenario: Multi-Organization Isolation", () => {
     const t = createTestInstance();
 
     // Setup
-    const acmeId = await t.mutation(api.mutations.createOrganization, {
+    await t.mutation(api.mutations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
@@ -144,13 +144,13 @@ describe("Scenario: Multi-Organization Isolation", () => {
     });
 
     // Create teams in each org
-    const acmeTeamId = await t.mutation(api.mutations.createTeam, {
+    await t.mutation(api.mutations.createTeam, {
       userId: "alice",
       organizationId: acmeId,
       name: "ACME Engineering",
     });
 
-    const betaTeamId = await t.mutation(api.mutations.createTeam, {
+    await t.mutation(api.mutations.createTeam, {
       userId: "frank",
       organizationId: betaId,
       name: "Beta Product",
@@ -679,7 +679,7 @@ describe("Scenario: User with Multiple Org Memberships", () => {
   it("user can have different roles in different orgs", async () => {
     const t = createTestInstance();
 
-    const org1Id = await t.mutation(api.mutations.createOrganization, {
+    await t.mutation(api.mutations.createOrganization, {
       userId: "alice",
       name: "Org One",
       slug: "org-one",

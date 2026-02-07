@@ -175,7 +175,7 @@ export function TenantsProvider({
   // ============================================================================
 
   const organizationsRaw = useQuery(api.listOrganizations);
-  const organizations = organizationsRaw ?? [];
+  const organizations = useMemo(() => organizationsRaw ?? [], [organizationsRaw]);
 
   // Get current organization
   const currentOrganization = useMemo(() => {
@@ -198,19 +198,19 @@ export function TenantsProvider({
     api.listMembers,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
-  const members = membersRaw ?? [];
+  const members = useMemo(() => membersRaw ?? [], [membersRaw]);
 
   const invitationsRaw = useQuery(
     api.listInvitations,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
-  const invitations = invitationsRaw ?? [];
+  const invitations = useMemo(() => invitationsRaw ?? [], [invitationsRaw]);
 
   const teamsRaw = useQuery(
     api.listTeams,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
-  const teams = teamsRaw ?? [];
+  const teams = useMemo(() => teamsRaw ?? [], [teamsRaw]);
 
   // ============================================================================
   // Mutations

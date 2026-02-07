@@ -2,7 +2,6 @@
 
 import { type ReactNode } from "react";
 import { Users, Plus } from "lucide-react";
-import { cn } from "../utils.js";
 import { useTenants } from "../providers/tenants-context.js";
 import { TeamsGrid } from "./teams-grid.js";
 import { CreateTeamDialog } from "./create-team-dialog.js";
@@ -180,7 +179,7 @@ export function TeamsSection({
 
 function TeamsSectionSkeleton({
   className,
-  title,
+  title: _title,
   noOrg,
 }: {
   className?: string;

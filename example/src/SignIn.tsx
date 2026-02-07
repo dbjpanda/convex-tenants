@@ -19,7 +19,7 @@ export function SignIn() {
 
     try {
       await signIn("password", formData);
-    } catch (err: any) {
+    } catch {
       setError(
         flow === "signIn"
           ? "Invalid email or password. Please try again."
