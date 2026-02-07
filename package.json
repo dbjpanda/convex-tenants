@@ -43,7 +43,7 @@
     "preversion": "npm ci && npm run build:clean && run-p test lint typecheck",
     "alpha": "npm version prerelease --preid alpha && npm publish --tag alpha && git push --follow-tags",
     "release": "npm version patch && git push --follow-tags",
-    "version": "vim -c 'normal o' -c 'normal o## '$npm_package_version CHANGELOG.md && prettier -w CHANGELOG.md && git add CHANGELOG.md"
+    "version": "node -e \"const fs=require('fs');const c=fs.readFileSync('CHANGELOG.md','utf8');const h='# Changelog';const entry='## '+process.env.npm_package_version;fs.writeFileSync('CHANGELOG.md',c.replace(h,h+'\\n\\n'+entry))\" && prettier -w CHANGELOG.md && git add CHANGELOG.md"
   },
   "files": [
     "dist",
