@@ -52,22 +52,40 @@ const strictApi = makeTenantsAPI(components.tenants, {
   },
 });
 
-// Strict Auth Exports — queries return safe defaults, mutations throw when unauthenticated
+// Strict Auth Exports — all 30 makeTenantsAPI functions
+// Organizations
 export const strictListOrganizations = strictApi.listOrganizations;
+export const strictGetOrganization = strictApi.getOrganization;
+export const strictGetOrganizationBySlug = strictApi.getOrganizationBySlug;
 export const strictCreateOrganization = strictApi.createOrganization;
-export const strictGetCurrentMember = strictApi.getCurrentMember;
-export const strictCheckPermission = strictApi.checkPermission;
-export const strictIsTeamMember = strictApi.isTeamMember;
-export const strictAddMember = strictApi.addMember;
-export const strictCreateTeam = strictApi.createTeam;
-export const strictAddTeamMember = strictApi.addTeamMember;
+export const strictUpdateOrganization = strictApi.updateOrganization;
+export const strictDeleteOrganization = strictApi.deleteOrganization;
+// Members
 export const strictListMembers = strictApi.listMembers;
 export const strictGetMember = strictApi.getMember;
+export const strictGetCurrentMember = strictApi.getCurrentMember;
+export const strictCheckPermission = strictApi.checkPermission;
+export const strictAddMember = strictApi.addMember;
+export const strictRemoveMember = strictApi.removeMember;
+export const strictUpdateMemberRole = strictApi.updateMemberRole;
+export const strictLeaveOrganization = strictApi.leaveOrganization;
+// Teams
+export const strictListTeams = strictApi.listTeams;
+export const strictGetTeam = strictApi.getTeam;
 export const strictListTeamMembers = strictApi.listTeamMembers;
+export const strictIsTeamMember = strictApi.isTeamMember;
+export const strictCreateTeam = strictApi.createTeam;
+export const strictUpdateTeam = strictApi.updateTeam;
+export const strictDeleteTeam = strictApi.deleteTeam;
+export const strictAddTeamMember = strictApi.addTeamMember;
+export const strictRemoveTeamMember = strictApi.removeTeamMember;
+// Invitations
+export const strictListInvitations = strictApi.listInvitations;
+export const strictGetInvitation = strictApi.getInvitation;
+export const strictGetPendingInvitations = strictApi.getPendingInvitations;
 export const strictInviteMember = strictApi.inviteMember;
 export const strictAcceptInvitation = strictApi.acceptInvitation;
 export const strictResendInvitation = strictApi.resendInvitation;
-export const strictLeaveOrganization = strictApi.leaveOrganization;
 export const strictCancelInvitation = strictApi.cancelInvitation;
 
 // Query to read callback invocations (for testing onInvitationCreated/onInvitationResent)

@@ -397,4 +397,669 @@ describe("makeTenantsAPI", () => {
       expect(resentLog!.data.organizationId).toBe(orgId);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Organization queries/mutations — full coverage
+  // --------------------------------------------------------------------------
+
+  describe("organization functions", () => {
+    test("getOrganization returns org by ID", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Get Org Test" }
+      );
+
+      const org = await asAlice.query(api.testHelpers.strictGetOrganization, {
+        organizationId: orgId,
+      });
+
+      expect(org).not.toBeNull();
+      expect(org?.name).toBe("Get Org Test");
+      expect(org?._id).toBe(orgId);
+    });
+
+    test("getOrganization returns null for nonexistent ID", async () => {
+      const t = initConvexTest();
+
+      const org = await t.query(api.testHelpers.strictGetOrganization, {
+        organizationId: "nonexistent",
+      });
+
+      expect(org).toBeNull();
+    });
+
+    test("getOrganizationBySlug returns org by slug", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Slug Test Org",
+      });
+
+      const org = await t.query(api.testHelpers.strictGetOrganizationBySlug, {
+        slug: "slug-test-org",
+      });
+
+      expect(org).not.toBeNull();
+      expect(org?.name).toBe("Slug Test Org");
+    });
+
+    test("getOrganizationBySlug returns null for nonexistent slug", async () => {
+      const t = initConvexTest();
+
+      const org = await t.query(api.testHelpers.strictGetOrganizationBySlug, {
+        slug: "does-not-exist",
+      });
+
+      expect(org).toBeNull();
+    });
+
+    test("updateOrganization updates name and logo", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Before Update" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictUpdateOrganization, {
+        organizationId: orgId,
+        name: "After Update",
+        logo: "https://example.com/logo.png",
+      });
+
+      const org = await t.query(api.testHelpers.strictGetOrganization, {
+        organizationId: orgId,
+      });
+
+      expect(org?.name).toBe("After Update");
+      expect(org?.logo).toBe("https://example.com/logo.png");
+    });
+
+    test("updateOrganization throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictUpdateOrganization, {
+          organizationId: "nonexistent",
+          name: "New Name",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+
+    test("deleteOrganization removes org and its data", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "To Delete" }
+      );
+
+      // Add a team so we can verify cascading delete
+      await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Team A",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictDeleteOrganization, {
+        organizationId: orgId,
+      });
+
+      const org = await t.query(api.testHelpers.strictGetOrganization, {
+        organizationId: orgId,
+      });
+      expect(org).toBeNull();
+
+      const teams = await t.query(api.testHelpers.strictListTeams, {
+        organizationId: orgId,
+      });
+      expect(teams).toHaveLength(0);
+    });
+
+    test("deleteOrganization throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictDeleteOrganization, {
+          organizationId: "nonexistent",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Member mutations — full coverage
+  // --------------------------------------------------------------------------
+
+  describe("member functions", () => {
+    test("removeMember removes a member", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Remove Member Org" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictRemoveMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+      });
+
+      const member = await asAlice.query(api.testHelpers.strictGetMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member).toBeNull();
+    });
+
+    test("removeMember throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictRemoveMember, {
+          organizationId: "nonexistent",
+          memberUserId: "bob",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+
+    test("updateMemberRole changes role", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Role Update Org" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictUpdateMemberRole, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "admin",
+      });
+
+      const member = await asAlice.query(api.testHelpers.strictGetMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member?.role).toBe("admin");
+    });
+
+    test("updateMemberRole throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictUpdateMemberRole, {
+          organizationId: "nonexistent",
+          memberUserId: "bob",
+          role: "admin",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Team functions — full coverage
+  // --------------------------------------------------------------------------
+
+  describe("team functions", () => {
+    test("listTeams returns all teams in an organization", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Teams Org" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Engineering",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Design",
+      });
+
+      const teams = await t.query(api.testHelpers.strictListTeams, {
+        organizationId: orgId,
+      });
+
+      expect(teams).toHaveLength(2);
+      expect(teams.map((t: any) => t.name)).toContain("Engineering");
+      expect(teams.map((t: any) => t.name)).toContain("Design");
+    });
+
+    test("getTeam returns team by ID", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Get Team Org" }
+      );
+
+      const teamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Engineering",
+        description: "The eng team",
+      });
+
+      const team = await t.query(api.testHelpers.strictGetTeam, { teamId });
+
+      expect(team).not.toBeNull();
+      expect(team?.name).toBe("Engineering");
+      expect(team?.description).toBe("The eng team");
+    });
+
+    test("getTeam returns null for nonexistent ID", async () => {
+      const t = initConvexTest();
+
+      const team = await t.query(api.testHelpers.strictGetTeam, {
+        teamId: "nonexistent",
+      });
+
+      expect(team).toBeNull();
+    });
+
+    test("updateTeam changes name and description", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Update Team Org" }
+      );
+
+      const teamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Original",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictUpdateTeam, {
+        teamId,
+        name: "Updated",
+        description: "New description",
+      });
+
+      const team = await t.query(api.testHelpers.strictGetTeam, { teamId });
+      expect(team?.name).toBe("Updated");
+      expect(team?.description).toBe("New description");
+    });
+
+    test("updateTeam throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictUpdateTeam, {
+          teamId: "nonexistent",
+          name: "New Name",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+
+    test("deleteTeam removes team", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Delete Team Org" }
+      );
+
+      const teamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "To Delete",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictDeleteTeam, { teamId });
+
+      const team = await t.query(api.testHelpers.strictGetTeam, { teamId });
+      expect(team).toBeNull();
+    });
+
+    test("deleteTeam throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictDeleteTeam, {
+          teamId: "nonexistent",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+
+    test("removeTeamMember removes member from team", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Remove Team Member Org" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      const teamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Engineering",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictAddTeamMember, {
+        teamId,
+        memberUserId: "bob",
+      });
+
+      // Verify bob is a team member
+      const isMemberBefore = await asAlice.query(
+        api.testHelpers.strictIsTeamMember,
+        { teamId }
+      );
+      // Note: isTeamMember checks the current user (alice), not bob.
+      // Let's check via listTeamMembers instead.
+      const membersBefore: any[] = await asAlice.query(
+        api.testHelpers.strictListTeamMembers,
+        { teamId }
+      );
+      expect(membersBefore).toHaveLength(1);
+
+      await asAlice.mutation(api.testHelpers.strictRemoveTeamMember, {
+        teamId,
+        memberUserId: "bob",
+      });
+
+      const membersAfter: any[] = await asAlice.query(
+        api.testHelpers.strictListTeamMembers,
+        { teamId }
+      );
+      expect(membersAfter).toHaveLength(0);
+    });
+
+    test("removeTeamMember throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictRemoveTeamMember, {
+          teamId: "nonexistent",
+          memberUserId: "bob",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Invitation functions — full coverage
+  // --------------------------------------------------------------------------
+
+  describe("invitation functions", () => {
+    test("listInvitations returns all invitations for an org", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "List Invitations Org" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        email: "user1@example.com",
+        role: "member",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        email: "user2@example.com",
+        role: "admin",
+      });
+
+      const invitations = await t.query(api.testHelpers.strictListInvitations, {
+        organizationId: orgId,
+      });
+
+      expect(invitations).toHaveLength(2);
+      expect(invitations.map((i: any) => i.email)).toContain(
+        "user1@example.com"
+      );
+      expect(invitations.map((i: any) => i.email)).toContain(
+        "user2@example.com"
+      );
+    });
+
+    test("getInvitation returns invitation by ID", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Get Invitation Org" }
+      );
+
+      const { invitationId } = await asAlice.mutation(
+        api.testHelpers.strictInviteMember,
+        {
+          organizationId: orgId,
+          email: "invited@example.com",
+          role: "member",
+        }
+      );
+
+      const invitation = await t.query(api.testHelpers.strictGetInvitation, {
+        invitationId,
+      });
+
+      expect(invitation).not.toBeNull();
+      expect(invitation?.email).toBe("invited@example.com");
+      expect(invitation?.role).toBe("member");
+      expect(invitation?.status).toBe("pending");
+      expect(invitation?.organizationId).toBe(orgId);
+    });
+
+    test("getInvitation returns null for nonexistent ID", async () => {
+      const t = initConvexTest();
+
+      const invitation = await t.query(api.testHelpers.strictGetInvitation, {
+        invitationId: "nonexistent",
+      });
+
+      expect(invitation).toBeNull();
+    });
+
+    test("getPendingInvitations returns invitations for email across orgs", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+      const asBob = t.withIdentity({
+        subject: "bob",
+        issuer: "https://test.com",
+      });
+
+      const org1Id = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Pending Org 1" }
+      );
+
+      const org2Id = await asBob.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Pending Org 2" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: org1Id,
+        email: "target@example.com",
+        role: "member",
+      });
+
+      await asBob.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: org2Id,
+        email: "target@example.com",
+        role: "admin",
+      });
+
+      const pending = await t.query(
+        api.testHelpers.strictGetPendingInvitations,
+        { email: "target@example.com" }
+      );
+
+      expect(pending).toHaveLength(2);
+    });
+
+    test("acceptInvitation adds user as member with invited role", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+      const asBob = t.withIdentity({
+        subject: "bob",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Accept Invitation Org" }
+      );
+
+      const { invitationId } = await asAlice.mutation(
+        api.testHelpers.strictInviteMember,
+        {
+          organizationId: orgId,
+          email: "bob@example.com",
+          role: "admin",
+        }
+      );
+
+      await asBob.mutation(api.testHelpers.strictAcceptInvitation, {
+        invitationId,
+      });
+
+      // Verify bob is now a member with admin role
+      const member = await t.query(api.testHelpers.strictGetMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member).not.toBeNull();
+      expect(member?.role).toBe("admin");
+
+      // Verify invitation status changed
+      const invitation = await t.query(api.testHelpers.strictGetInvitation, {
+        invitationId,
+      });
+      expect(invitation?.status).toBe("accepted");
+    });
+
+    test("acceptInvitation throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictAcceptInvitation, {
+          invitationId: "nonexistent",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+
+    test("cancelInvitation sets status to cancelled", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Cancel Invitation Org" }
+      );
+
+      const { invitationId } = await asAlice.mutation(
+        api.testHelpers.strictInviteMember,
+        {
+          organizationId: orgId,
+          email: "cancel@example.com",
+          role: "member",
+        }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictCancelInvitation, {
+        invitationId,
+      });
+
+      const invitation = await t.query(api.testHelpers.strictGetInvitation, {
+        invitationId,
+      });
+      expect(invitation?.status).toBe("cancelled");
+    });
+
+    test("cancelInvitation throws when unauthenticated", async () => {
+      const t = initConvexTest();
+
+      await expect(
+        t.mutation(api.testHelpers.strictCancelInvitation, {
+          invitationId: "nonexistent",
+        })
+      ).rejects.toThrow("Not authenticated");
+    });
+  });
 });
