@@ -1,14 +1,15 @@
 # @djpanda/convex-tenants
 
-A multi-tenant organization and team management component for [Convex](https://convex.dev) with built-in authorization via `@djpanda/convex-authz`.
+A multi-tenant organization and team management component for [Convex](https://convex.dev) with flexible, developer-defined authorization via [`@djpanda/convex-authz`](https://github.com/dbjpanda/convex-authz).
 
 ## Features
 
 - **Organizations**: Create, update, delete organizations with unique slugs
-- **Members**: Add, remove, update member roles (owner, admin, member)
+- **Members**: Add, remove, update member roles — roles are fully flexible strings you define
 - **Teams**: Create teams within organizations and manage team membership
 - **Invitations**: Invite users by email with customizable expiration
-- **Built-in Authorization**: Automatic role and permission sync via the authz child component
+- **Flexible Authorization**: Define your own roles and permissions in `authz.ts` using `@djpanda/convex-authz`
+- **Permission Map**: Customize which permission guards each operation, or disable checks entirely
 - **React Hooks**: Ready-to-use hooks for React applications
 - **UI Components**: Pre-built React components for organization management
 
@@ -26,37 +27,75 @@ npm install clsx tailwind-merge
 
 ## Quick Start
 
-### 1. Configure the component
+### 1. Configure the components
 
-In your `convex/convex.config.ts`:
+In your `convex/convex.config.ts`, register **both** `tenants` and `authz` as sibling components:
 
 ```typescript
 import { defineApp } from "convex/server";
 import tenants from "@djpanda/convex-tenants/convex.config";
+import authz from "@djpanda/convex-authz/convex.config";
 
 const app = defineApp();
 app.use(tenants);
-// Note: authz is automatically included as a child of tenants
+app.use(authz);
 
 export default app;
 ```
 
-### 2. Create your tenants API
+> **Important:** `authz` is a separate, global component — not a child of `tenants`. This means other parts of your app can also use `authz` for permission checks outside of the tenants context.
+
+### 2. Define your authorization config
+
+Create `convex/authz.ts` to define the permissions and roles for your application. The tenants package exports `TENANTS_PERMISSIONS` and `TENANTS_ROLES` as convenient defaults you can extend:
+
+```typescript
+import { Authz, definePermissions, defineRoles } from "@djpanda/convex-authz";
+import { TENANTS_PERMISSIONS, TENANTS_ROLES } from "@djpanda/convex-tenants";
+import { components } from "./_generated/api";
+
+// Step 1: Define permissions — include tenants defaults + your app-specific resources
+const permissions = definePermissions(TENANTS_PERMISSIONS, {
+  // Add app-specific resources:
+  // billing: { manage: true, view: true, export: true },
+  // projects: { create: true, read: true, update: true, delete: true },
+});
+
+// Step 2: Define roles — include tenants defaults + your app-specific extensions
+const roles = defineRoles(permissions, TENANTS_ROLES, {
+  // Extend existing roles with app-specific permissions:
+  // owner: { billing: ["manage", "view", "export"] },
+  // admin: { billing: ["view"] },
+
+  // Add completely new roles:
+  // billing_admin: {
+  //   organizations: ["read"],
+  //   billing: ["manage", "view", "export"],
+  // },
+});
+
+// Step 3: Create the Authz client
+export const authz = new Authz(components.authz, { permissions, roles });
+```
+
+> **Tip:** You don't have to use `TENANTS_PERMISSIONS` and `TENANTS_ROLES`. You can define everything from scratch — just make sure your permissions cover the operations in the [Permission Map](#permission-map).
+
+### 3. Create your tenants API
 
 In your `convex/tenants.ts`:
 
 ```typescript
 import { makeTenantsAPI } from "@djpanda/convex-tenants";
-import { components, internal } from "./_generated/api";
+import { components } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { authz } from "./authz";
 
-// All APIs are auto-exported in a single destructure — no userId passed from client!
 export const {
   // Organizations
   listOrganizations, getOrganization, getOrganizationBySlug,
   createOrganization, updateOrganization, deleteOrganization,
   // Members
-  listMembers, getMember, getCurrentMember, checkPermission,
+  listMembers, getMember, getCurrentMember,
   addMember, removeMember, updateMemberRole, leaveOrganization,
   // Teams
   listTeams, getTeam, listTeamMembers, isTeamMember,
@@ -64,9 +103,15 @@ export const {
   // Invitations
   listInvitations, getInvitation, getPendingInvitations,
   inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
+  // Authorization
+  checkPermission, getUserPermissions, getUserRoles,
+  grantPermission, denyPermission, getAuditLog,
 } = makeTenantsAPI(components.tenants, {
+  authz,                  // Required: your Authz instance from authz.ts
+  creatorRole: "owner",   // Role assigned when creating an org (must match authz.ts)
+
   auth: async (ctx) => {
-    return await getAuthUserId(ctx);
+    return await getAuthUserId(ctx) ?? null;
   },
 
   getUser: async (ctx, userId) => {
@@ -96,7 +141,7 @@ export const {
 >   makeTenantsAPI(components.tenants, { ... });
 > ```
 
-### 3. Use in your React app
+### 4. Use in your React app
 
 ```tsx
 import { useMutation, useQuery } from "convex/react";
@@ -129,8 +174,19 @@ All functions below are returned by `makeTenantsAPI()`. Each becomes a Convex qu
 
 ```typescript
 makeTenantsAPI(components.tenants, {
+  // Required: your Authz instance from authz.ts
+  authz: Authz | IndexedAuthz,
+
   // Required: returns the authenticated user's ID, or null if unauthenticated
   auth: (ctx) => Promise<string | null>,
+
+  // Optional: role assigned when a user creates an organization (default: "owner")
+  // Must match a role defined in your authz.ts
+  creatorRole: string,
+
+  // Optional: override permission strings for each guarded operation
+  // See the Permission Map section below
+  permissionMap: Partial<TenantsPermissionMap>,
 
   // Optional: enrich member/team-member results with user details
   getUser: (ctx, userId) => Promise<{ name?: string; email?: string } | null>,
@@ -205,7 +261,7 @@ List all organizations the current user belongs to, with their role.
 
 #### `getOrganization` (query)
 
-Get a single organization by its ID.
+Get a single organization by its ID. Requires membership.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -217,7 +273,7 @@ Get a single organization by its ID.
 
 #### `getOrganizationBySlug` (query)
 
-Get a single organization by its unique slug.
+Get a single organization by its unique slug. Requires membership.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -229,7 +285,7 @@ Get a single organization by its unique slug.
 
 #### `createOrganization` (mutation)
 
-Create a new organization. The authenticated user becomes the owner. Triggers `onOrganizationCreated` callback.
+Create a new organization. The authenticated user is assigned the `creatorRole` (default `"owner"`). Triggers `onOrganizationCreated` callback. The creator's role is synced to authz.
 
 | Arg | Type | Required | Description |
 |-----|------|----------|-------------|
@@ -246,7 +302,7 @@ Create a new organization. The authenticated user becomes the owner. Triggers `o
 
 #### `updateOrganization` (mutation)
 
-Update an organization's details. Requires admin or owner role.
+Update an organization's details. Requires `organizations:update` permission (configurable via permission map).
 
 | Arg | Type | Required | Description |
 |-----|------|----------|-------------|
@@ -262,7 +318,7 @@ Update an organization's details. Requires admin or owner role.
 
 #### `deleteOrganization` (mutation)
 
-Delete an organization and all its members, teams, and invitations. Owner only. Triggers `onOrganizationDeleted` callback.
+Delete an organization and all its members, teams, and invitations. Requires `organizations:delete` permission (configurable via permission map). Triggers `onOrganizationDeleted` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -311,28 +367,15 @@ Get the authenticated user's membership in an organization.
 
 ---
 
-#### `checkPermission` (query)
-
-Check if the authenticated user has at least a certain role in an organization.
-
-| Arg | Type | Description |
-|-----|------|-------------|
-| `organizationId` | `string` | The organization ID |
-| `minRole` | `"member" \| "admin" \| "owner"` | Minimum required role |
-
-**Returns:** `{ hasPermission: boolean, currentRole: "owner" | "admin" | "member" | null }`
-
----
-
 #### `addMember` (mutation)
 
-Add a user to an organization. Requires admin or owner role. Triggers `onMemberAdded` callback.
+Add a user to an organization with a given role. Requires `members:add` permission (configurable via permission map). The role is synced to authz. Triggers `onMemberAdded` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
 | `organizationId` | `string` | The organization ID |
 | `memberUserId` | `string` | The user ID to add |
-| `role` | `"admin" \| "member"` | Role to assign |
+| `role` | `string` | Role to assign (must match a role in your `authz.ts`) |
 
 **Returns:** `void`
 
@@ -340,7 +383,7 @@ Add a user to an organization. Requires admin or owner role. Triggers `onMemberA
 
 #### `removeMember` (mutation)
 
-Remove a member from an organization. Cannot remove owners. Triggers `onMemberRemoved` callback.
+Remove a member from an organization. Requires `members:remove` permission. The structural owner (`ownerId`) cannot be removed. Role is revoked from authz. Triggers `onMemberRemoved` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -353,13 +396,13 @@ Remove a member from an organization. Cannot remove owners. Triggers `onMemberRe
 
 #### `updateMemberRole` (mutation)
 
-Change a member's role. Owner only. Triggers `onMemberRoleChanged` callback (includes `oldRole` and `newRole`).
+Change a member's role. Requires `members:updateRole` permission (configurable via permission map). Old role is revoked and new role is assigned in authz. Triggers `onMemberRoleChanged` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
 | `organizationId` | `string` | The organization ID |
 | `memberUserId` | `string` | The user ID to update |
-| `role` | `"owner" \| "admin" \| "member"` | New role |
+| `role` | `string` | New role (must match a role in your `authz.ts`) |
 
 **Returns:** `void`
 
@@ -367,7 +410,7 @@ Change a member's role. Owner only. Triggers `onMemberRoleChanged` callback (inc
 
 #### `leaveOrganization` (mutation)
 
-Leave an organization. Owners cannot leave (must transfer ownership first). Triggers `onMemberLeft` callback.
+Leave an organization. The structural owner (`ownerId`) cannot leave unless another member holds the same `creatorRole`. Role is revoked from authz. Triggers `onMemberLeft` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -429,7 +472,7 @@ Check if the authenticated user is a member of a team.
 
 #### `createTeam` (mutation)
 
-Create a new team in an organization. Requires admin or owner role. Triggers `onTeamCreated` callback.
+Create a new team in an organization. Requires `teams:create` permission (configurable via permission map). Triggers `onTeamCreated` callback.
 
 | Arg | Type | Required | Description |
 |-----|------|----------|-------------|
@@ -443,7 +486,7 @@ Create a new team in an organization. Requires admin or owner role. Triggers `on
 
 #### `updateTeam` (mutation)
 
-Update a team's name or description. Requires admin or owner role.
+Update a team's name or description. Requires `teams:update` permission (configurable via permission map).
 
 | Arg | Type | Required | Description |
 |-----|------|----------|-------------|
@@ -457,7 +500,7 @@ Update a team's name or description. Requires admin or owner role.
 
 #### `deleteTeam` (mutation)
 
-Delete a team and all its memberships. Requires admin or owner role. Triggers `onTeamDeleted` callback.
+Delete a team and all its memberships. Requires `teams:delete` permission (configurable via permission map). Triggers `onTeamDeleted` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -469,7 +512,7 @@ Delete a team and all its memberships. Requires admin or owner role. Triggers `o
 
 #### `addTeamMember` (mutation)
 
-Add a member to a team. The user must already be a member of the organization. Triggers `onTeamMemberAdded` callback.
+Add a member to a team. The user must already be a member of the organization. Requires `teams:addMember` permission (configurable via permission map). Triggers `onTeamMemberAdded` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -482,7 +525,7 @@ Add a member to a team. The user must already be a member of the organization. T
 
 #### `removeTeamMember` (mutation)
 
-Remove a member from a team. Triggers `onTeamMemberRemoved` callback.
+Remove a member from a team. Requires `teams:removeMember` permission (configurable via permission map). Triggers `onTeamMemberRemoved` callback.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -533,13 +576,13 @@ Get all pending (non-expired) invitations for an email address.
 
 #### `inviteMember` (mutation)
 
-Create an invitation to join an organization. Requires admin or owner role. Triggers `onInvitationCreated` callback if configured.
+Create an invitation to join an organization. Requires `invitations:create` permission (configurable via permission map). Triggers `onInvitationCreated` callback if configured.
 
 | Arg | Type | Required | Description |
 |-----|------|----------|-------------|
 | `organizationId` | `string` | Yes | The organization ID |
 | `email` | `string` | Yes | Email to invite |
-| `role` | `"admin" \| "member"` | Yes | Role to assign upon acceptance |
+| `role` | `string` | Yes | Role to assign upon acceptance (must match a role in `authz.ts`) |
 | `teamId` | `string` | No | Team to add the user to upon acceptance |
 
 **Returns:** `{ invitationId: string, email: string, expiresAt: number }`
@@ -560,7 +603,7 @@ Accept a pending invitation. The authenticated user is added to the organization
 
 #### `resendInvitation` (mutation)
 
-Resend an invitation (resets expiration). Requires admin or owner role. Triggers `onInvitationResent` callback if configured.
+Resend an invitation (resets expiration). Requires `invitations:resend` permission (configurable via permission map). Triggers `onInvitationResent` callback if configured.
 
 | Arg | Type | Description |
 |-----|------|-------------|
@@ -572,13 +615,211 @@ Resend an invitation (resets expiration). Requires admin or owner role. Triggers
 
 #### `cancelInvitation` (mutation)
 
-Cancel a pending invitation. Requires admin or owner role.
+Cancel a pending invitation. Requires `invitations:cancel` permission (configurable via permission map).
 
 | Arg | Type | Description |
 |-----|------|-------------|
 | `invitationId` | `string` | The invitation to cancel |
 
 **Returns:** `void`
+
+---
+
+### Authorization Functions
+
+These functions are powered by `@djpanda/convex-authz` and are automatically included in the `makeTenantsAPI()` return value.
+
+#### `checkPermission` (query)
+
+Check if the authenticated user has a specific permission in an organization.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+| `permission` | `string` | Permission to check (e.g. `"organizations:update"`) |
+
+**Returns:** `{ allowed: boolean, reason: string }`
+
+---
+
+#### `getUserPermissions` (query)
+
+Get all effective permissions for the authenticated user in an organization.
+
+| Arg | Type | Description |
+|-----|------|-------------|
+| `organizationId` | `string` | The organization ID |
+
+**Returns:** Effective permission set from `@djpanda/convex-authz`.
+
+---
+
+#### `getUserRoles` (query)
+
+Get all roles assigned to the authenticated user, optionally scoped to an organization.
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `organizationId` | `string` | No | Scope to a specific organization |
+
+**Returns:** Role assignments from `@djpanda/convex-authz`.
+
+---
+
+#### `grantPermission` (mutation)
+
+Grant a direct permission override to a user. Requires `permissions:grant` permission (configurable via permission map).
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `organizationId` | `string` | Yes | The organization ID (used for authorization check) |
+| `targetUserId` | `string` | Yes | User to grant the permission to |
+| `permission` | `string` | Yes | Permission to grant |
+| `scope` | `{ type, id }` | No | Optional scope (defaults to organization scope) |
+| `reason` | `string` | No | Audit reason |
+| `expiresAt` | `number` | No | Expiration timestamp |
+
+**Returns:** `string` — the permission override ID.
+
+---
+
+#### `denyPermission` (mutation)
+
+Deny a permission for a user (explicit override). Requires `permissions:deny` permission (configurable via permission map).
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `organizationId` | `string` | Yes | The organization ID (used for authorization check) |
+| `targetUserId` | `string` | Yes | User to deny the permission for |
+| `permission` | `string` | Yes | Permission to deny |
+| `scope` | `{ type, id }` | No | Optional scope (defaults to organization scope) |
+| `reason` | `string` | No | Audit reason |
+| `expiresAt` | `number` | No | Expiration timestamp |
+
+**Returns:** `string` — the permission override ID.
+
+---
+
+#### `getAuditLog` (query)
+
+Get audit log entries from the authz component.
+
+| Arg | Type | Required | Description |
+|-----|------|----------|-------------|
+| `userId` | `string` | No | Filter by user |
+| `action` | `string` | No | Filter by action type |
+| `limit` | `number` | No | Max entries to return |
+
+**Returns:** Audit log entries from `@djpanda/convex-authz`.
+
+---
+
+## Permission Map
+
+Every guarded mutation checks a permission string via `@djpanda/convex-authz` before executing. The default mapping is:
+
+| Operation | Default Permission |
+|-----------|-------------------|
+| `updateOrganization` | `organizations:update` |
+| `deleteOrganization` | `organizations:delete` |
+| `addMember` | `members:add` |
+| `removeMember` | `members:remove` |
+| `updateMemberRole` | `members:updateRole` |
+| `createTeam` | `teams:create` |
+| `updateTeam` | `teams:update` |
+| `deleteTeam` | `teams:delete` |
+| `addTeamMember` | `teams:addMember` |
+| `removeTeamMember` | `teams:removeMember` |
+| `inviteMember` | `invitations:create` |
+| `resendInvitation` | `invitations:resend` |
+| `cancelInvitation` | `invitations:cancel` |
+| `grantPermission` | `permissions:grant` |
+| `denyPermission` | `permissions:deny` |
+
+You can override any of these in the `permissionMap` option:
+
+```typescript
+makeTenantsAPI(components.tenants, {
+  authz,
+  auth: ...,
+  permissionMap: {
+    // Use a coarser permission for all team mutations
+    createTeam: "teams:manage",
+    updateTeam: "teams:manage",
+    deleteTeam: "teams:manage",
+    addTeamMember: "teams:manage",
+    removeTeamMember: "teams:manage",
+
+    // Skip the permission check entirely for this operation
+    updateOrganization: false,
+  },
+});
+```
+
+The `TENANTS_PERMISSIONS` and `TENANTS_ROLES` exports provide a set of permissions and roles that cover all default operations. You can import and extend them in your `authz.ts`, or define your own from scratch.
+
+---
+
+## Flexible Roles
+
+Roles in `@djpanda/convex-tenants` are **plain strings** — not a hardcoded enum. You define exactly which roles exist and what permissions each role has in your `authz.ts` file.
+
+### Customizing Roles
+
+The default `TENANTS_ROLES` provides `owner`, `admin`, and `member` roles. But you can:
+
+**Add new roles:**
+
+```typescript
+const roles = defineRoles(permissions, TENANTS_ROLES, {
+  billing_admin: {
+    organizations: ["read"],
+    billing: ["manage", "view", "export"],
+  },
+  viewer: {
+    organizations: ["read"],
+    members: ["list"],
+  },
+});
+```
+
+**Remove default roles** by defining roles from scratch (without `TENANTS_ROLES`):
+
+```typescript
+const roles = defineRoles(permissions, {
+  admin: {
+    organizations: ["create", "read", "update", "delete"],
+    members: ["add", "remove", "updateRole", "list"],
+    teams: ["create", "update", "delete", "addMember", "removeMember", "list"],
+    invitations: ["create", "cancel", "resend", "list"],
+  },
+  member: {
+    organizations: ["read"],
+    members: ["list"],
+    teams: ["list"],
+    invitations: ["list"],
+  },
+});
+```
+
+**Change the creator role:**
+
+```typescript
+makeTenantsAPI(components.tenants, {
+  authz,
+  creatorRole: "admin", // New orgs assign "admin" instead of "owner"
+  // ...
+});
+```
+
+### Structural Owner
+
+Each organization has a structural `ownerId` field set to the user who created it. This is a **data integrity constraint**, not an authorization check:
+
+- The structural owner cannot be removed from the organization
+- The structural owner cannot leave unless another member holds the `creatorRole`
+
+This ensures every organization always has at least one member. All permission-based authorization (who can update, who can delete, etc.) is handled entirely by `@djpanda/convex-authz`.
 
 ---
 
@@ -677,7 +918,7 @@ A Popover-based dropdown for switching between organizations with the ability to
 import { OrganizationSwitcher } from "@djpanda/convex-tenants/react";
 
 // With TenantsProvider (recommended) — no props needed
-<TenantsProvider api={api.example}>
+<TenantsProvider api={api.tenants}>
   <OrganizationSwitcher />
 </TenantsProvider>
 
@@ -732,7 +973,7 @@ Complete section components that combine headers, tables/grids, and dialogs. Mus
 ```tsx
 import { MembersSection, TeamsSection } from "@djpanda/convex-tenants/react";
 
-<TenantsProvider api={api.example}>
+<TenantsProvider api={api.tenants}>
   <MembersSection />
   <TeamsSection onTeamClick={(team) => navigate(`/teams/${team._id}`)} />
 </TenantsProvider>
@@ -836,37 +1077,16 @@ Reading the cookie server-side (e.g. Next.js middleware):
 const activeOrgId = request.cookies.get("tenants-active-org")?.value;
 ```
 
-## Role Hierarchy
+## Exported Constants
 
-The tenants component uses a role hierarchy for permission checks:
+The package exports several constants to help you set up authorization:
 
-- **owner**: Full control, can delete organization, transfer ownership
-- **admin**: Can manage members, teams, invitations, and settings
-- **member**: Basic read access to organization resources
-
-## Authorization Integration
-
-The tenants component automatically syncs roles and team memberships to the authz child component:
-
-- When a user joins an organization, their role is assigned in authz with organization scope
-- When a user's role changes, the authz role is updated
-- When a user joins/leaves a team, the team membership is synced as a ReBAC relationship
-
-This means you can use the authz component for fine-grained permission checks:
-
-```typescript
-// Check via the authz child component
-const isAdmin = await ctx.runQuery(
-  components.tenants.authz.rebac.hasDirectRelation,
-  {
-    subjectType: "user",
-    subjectId: userId,
-    relation: "admin",
-    objectType: "organization",
-    objectId: organizationId,
-  }
-);
-```
+| Export | Description |
+|--------|-------------|
+| `TENANTS_PERMISSIONS` | Default permissions for all tenants operations. Pass to `definePermissions()` from `@djpanda/convex-authz`. |
+| `TENANTS_ROLES` | Default roles (`owner`, `admin`, `member`) with appropriate permissions. Pass to `defineRoles()` from `@djpanda/convex-authz`. |
+| `DEFAULT_TENANTS_PERMISSION_MAP` | Maps operation names to permission strings. Use to inspect or extend the default mapping. |
+| `TENANTS_REQUIRED_PERMISSIONS` | Flat list of all permission strings used by default operations. Useful for validation. |
 
 ## License
 
