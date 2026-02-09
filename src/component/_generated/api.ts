@@ -51,6 +51,4 @@ export const internal: FilterApi<
   FunctionReference<any, "internal">
 > = anyApi as any;
 
-export const components = componentsGeneric() as unknown as {
-  authz: import("@djpanda/convex-authz/_generated/component.js").ComponentApi<"authz">;
-};
+export const components = componentsGeneric() as unknown as {};

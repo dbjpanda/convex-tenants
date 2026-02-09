@@ -2,15 +2,11 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import schema from "./schema.js";
 import { api } from "./_generated/api.js";
-import authzTest from "@djpanda/convex-authz/test";
 
 const modules = import.meta.glob("./**/*.ts");
 
-// Helper to create test instance with authz child registered
 function createTestInstance() {
-  const t = convexTest(schema, modules);
-  authzTest.register(t, "authz");
-  return t;
+  return convexTest(schema, modules);
 }
 
 describe("tenants component", () => {
@@ -369,7 +365,7 @@ describe("tenants component", () => {
       ).rejects.toThrow();
     });
 
-    it("should check member permission", async () => {
+    it("should return member role for role checking", async () => {
       const t = createTestInstance();
 
       const orgId = await t.mutation(api.mutations.createOrganization, {
@@ -385,30 +381,28 @@ describe("tenants component", () => {
         role: "member",
       });
 
-      // Owner has all permissions
-      const ownerCheck = await t.query(api.queries.checkMemberPermission, {
+      // Owner role
+      const owner = await t.query(api.queries.getMember, {
         organizationId: orgId,
         userId: "user_123",
-        minRole: "owner",
       });
-      expect(ownerCheck.hasPermission).toBe(true);
-      expect(ownerCheck.currentRole).toBe("owner");
+      expect(owner).not.toBeNull();
+      expect(owner!.role).toBe("owner");
 
-      // Member has member but not admin
-      const memberAdminCheck = await t.query(api.queries.checkMemberPermission, {
+      // Member role
+      const member = await t.query(api.queries.getMember, {
         organizationId: orgId,
         userId: "user_456",
-        minRole: "admin",
       });
-      expect(memberAdminCheck.hasPermission).toBe(false);
-      expect(memberAdminCheck.currentRole).toBe("member");
+      expect(member).not.toBeNull();
+      expect(member!.role).toBe("member");
 
-      const memberMemberCheck = await t.query(api.queries.checkMemberPermission, {
+      // Non-member returns null
+      const stranger = await t.query(api.queries.getMember, {
         organizationId: orgId,
-        userId: "user_456",
-        minRole: "member",
+        userId: "unknown_user",
       });
-      expect(memberMemberCheck.hasPermission).toBe(true);
+      expect(stranger).toBeNull();
     });
 
     it("should allow member to leave organization", async () => {
@@ -919,10 +913,10 @@ describe("tenants component", () => {
   });
 
   // ============================================================================
-  // Permission Tests
+  // Permission Tests (simple role-hierarchy check)
   // ============================================================================
-  describe("permissions", () => {
-    it("admins cannot perform owner-only operations", async () => {
+  describe("membership access", () => {
+    it("non-members return null from getMember", async () => {
       const t = createTestInstance();
 
       const orgId = await t.mutation(api.mutations.createOrganization, {
@@ -931,33 +925,40 @@ describe("tenants component", () => {
         slug: "test-org",
       });
 
-      await t.mutation(api.mutations.addMember, {
-        userId: "user_123",
+      const member = await t.query(api.queries.getMember, {
         organizationId: orgId,
-        memberUserId: "user_456",
-        role: "admin",
+        userId: "stranger_user",
       });
 
-      // Admin trying to delete org should fail
-      await expect(
-        t.mutation(api.mutations.deleteOrganization, {
-          userId: "user_456",
-          organizationId: orgId,
-        })
-      ).rejects.toThrow();
+      expect(member).toBeNull();
+    });
+  });
 
-      // Admin trying to update member role should fail
+  // ============================================================================
+  // Error Path Coverage — component-level validation
+  // ============================================================================
+  describe("error paths", () => {
+    // -- Member operations --
+
+    it("removeMember throws for nonexistent member", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
       await expect(
-        t.mutation(api.mutations.updateMemberRole, {
-          userId: "user_456",
+        t.mutation(api.mutations.removeMember, {
+          userId: "user_123",
           organizationId: orgId,
-          memberUserId: "user_123",
-          role: "member",
+          memberUserId: "nonexistent_user",
         })
-      ).rejects.toThrow();
+      ).rejects.toThrow("Member not found");
     });
 
-    it("members cannot perform admin operations", async () => {
+    it("updateMemberRole throws for nonexistent member", async () => {
       const t = createTestInstance();
 
       const orgId = await t.mutation(api.mutations.createOrganization, {
@@ -966,34 +967,121 @@ describe("tenants component", () => {
         slug: "test-org",
       });
 
+      await expect(
+        t.mutation(api.mutations.updateMemberRole, {
+          userId: "user_123",
+          organizationId: orgId,
+          memberUserId: "nonexistent_user",
+          role: "admin",
+        })
+      ).rejects.toThrow("Member not found");
+    });
+
+    it("leaveOrganization throws for non-member", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      await expect(
+        t.mutation(api.mutations.leaveOrganization, {
+          userId: "non_member",
+          organizationId: orgId,
+        })
+      ).rejects.toThrow("You are not a member of this organization");
+    });
+
+    it("leaveOrganization cleans up team memberships", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const teamId = await t.mutation(api.mutations.createTeam, {
+        userId: "user_123",
+        organizationId: orgId,
+        name: "Engineering",
+      });
+
+      // Add bob as a member and team member
       await t.mutation(api.mutations.addMember, {
         userId: "user_123",
         organizationId: orgId,
-        memberUserId: "user_456",
+        memberUserId: "bob",
         role: "member",
       });
 
-      // Member trying to create team should fail
-      await expect(
-        t.mutation(api.mutations.createTeam, {
-          userId: "user_456",
-          organizationId: orgId,
-          name: "New Team",
-        })
-      ).rejects.toThrow();
+      await t.mutation(api.mutations.addTeamMember, {
+        userId: "user_123",
+        teamId,
+        memberUserId: "bob",
+      });
 
-      // Member trying to invite should fail
-      await expect(
-        t.mutation(api.mutations.inviteMember, {
-          userId: "user_456",
-          organizationId: orgId,
-          email: "new@example.com",
-          role: "member",
-        })
-      ).rejects.toThrow();
+      // Verify bob is in team
+      const isMemberBefore = await t.query(api.queries.isTeamMember, {
+        teamId,
+        userId: "bob",
+      });
+      expect(isMemberBefore).toBe(true);
+
+      // Bob leaves
+      await t.mutation(api.mutations.leaveOrganization, {
+        userId: "bob",
+        organizationId: orgId,
+      });
+
+      // Verify bob is no longer in team
+      const isMemberAfter = await t.query(api.queries.isTeamMember, {
+        teamId,
+        userId: "bob",
+      });
+      expect(isMemberAfter).toBe(false);
     });
 
-    it("non-members have no access", async () => {
+    // -- Team operations --
+
+    it("updateTeam throws for nonexistent team", async () => {
+      const t = createTestInstance();
+
+      await expect(
+        t.mutation(api.mutations.updateTeam, {
+          userId: "user_123",
+          teamId: "nonexistent" as any,
+          name: "New Name",
+        })
+      ).rejects.toThrow("Team not found");
+    });
+
+    it("deleteTeam throws for nonexistent team", async () => {
+      const t = createTestInstance();
+
+      await expect(
+        t.mutation(api.mutations.deleteTeam, {
+          userId: "user_123",
+          teamId: "nonexistent" as any,
+        })
+      ).rejects.toThrow("Team not found");
+    });
+
+    it("addTeamMember throws for nonexistent team", async () => {
+      const t = createTestInstance();
+
+      await expect(
+        t.mutation(api.mutations.addTeamMember, {
+          userId: "user_123",
+          teamId: "nonexistent" as any,
+          memberUserId: "bob",
+        })
+      ).rejects.toThrow("Team not found");
+    });
+
+    it("addTeamMember throws for duplicate team member", async () => {
       const t = createTestInstance();
 
       const orgId = await t.mutation(api.mutations.createOrganization, {
@@ -1002,14 +1090,261 @@ describe("tenants component", () => {
         slug: "test-org",
       });
 
-      const check = await t.query(api.queries.checkMemberPermission, {
+      const teamId = await t.mutation(api.mutations.createTeam, {
+        userId: "user_123",
         organizationId: orgId,
-        userId: "stranger_user",
-        minRole: "member",
+        name: "Engineering",
       });
 
-      expect(check.hasPermission).toBe(false);
-      expect(check.currentRole).toBeNull();
+      // Add bob as org member first
+      await t.mutation(api.mutations.addMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      // Add bob to team
+      await t.mutation(api.mutations.addTeamMember, {
+        userId: "user_123",
+        teamId,
+        memberUserId: "bob",
+      });
+
+      // Try to add bob again — should throw
+      await expect(
+        t.mutation(api.mutations.addTeamMember, {
+          userId: "user_123",
+          teamId,
+          memberUserId: "bob",
+        })
+      ).rejects.toThrow("User is already a member of this team");
+    });
+
+    it("removeTeamMember throws for non-team-member", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const teamId = await t.mutation(api.mutations.createTeam, {
+        userId: "user_123",
+        organizationId: orgId,
+        name: "Engineering",
+      });
+
+      await expect(
+        t.mutation(api.mutations.removeTeamMember, {
+          userId: "user_123",
+          teamId,
+          memberUserId: "nonexistent",
+        })
+      ).rejects.toThrow("User is not a member of this team");
+    });
+
+    // -- Invitation operations --
+
+    it("acceptInvitation throws for nonexistent invitation", async () => {
+      const t = createTestInstance();
+
+      await expect(
+        t.mutation(api.mutations.acceptInvitation, {
+          invitationId: "nonexistent" as any,
+          acceptingUserId: "bob",
+        })
+      ).rejects.toThrow("Invitation not found");
+    });
+
+    it("acceptInvitation throws for already accepted invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.mutations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        email: "bob@test.com",
+        role: "member",
+      });
+
+      // Accept once
+      await t.mutation(api.mutations.acceptInvitation, {
+        invitationId,
+        acceptingUserId: "bob",
+      });
+
+      // Accept again — should throw
+      await expect(
+        t.mutation(api.mutations.acceptInvitation, {
+          invitationId,
+          acceptingUserId: "charlie",
+        })
+      ).rejects.toThrow("Invitation has already been accepted");
+    });
+
+    it("acceptInvitation throws for expired invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      // Create invitation with very short expiry (1ms in the past)
+      const { invitationId } = await t.mutation(api.mutations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        email: "expired@test.com",
+        role: "member",
+        expiresAt: Date.now() - 1000, // Already expired
+      });
+
+      await expect(
+        t.mutation(api.mutations.acceptInvitation, {
+          invitationId,
+          acceptingUserId: "bob",
+        })
+      ).rejects.toThrow("Invitation has expired");
+    });
+
+    it("resendInvitation throws for nonexistent invitation", async () => {
+      const t = createTestInstance();
+
+      await expect(
+        t.mutation(api.mutations.resendInvitation, {
+          userId: "user_123",
+          invitationId: "nonexistent" as any,
+        })
+      ).rejects.toThrow("Invitation not found");
+    });
+
+    it("resendInvitation throws for cancelled invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.mutations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        email: "cancel@test.com",
+        role: "member",
+      });
+
+      // Cancel it
+      await t.mutation(api.mutations.cancelInvitation, {
+        userId: "user_123",
+        invitationId,
+      });
+
+      // Try to resend — should throw
+      await expect(
+        t.mutation(api.mutations.resendInvitation, {
+          userId: "user_123",
+          invitationId,
+        })
+      ).rejects.toThrow("Cannot resend cancelled invitation");
+    });
+
+    it("resendInvitation throws for expired invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.mutations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        email: "expired@test.com",
+        role: "member",
+        expiresAt: Date.now() - 1000, // Already expired
+      });
+
+      await expect(
+        t.mutation(api.mutations.resendInvitation, {
+          userId: "user_123",
+          invitationId,
+        })
+      ).rejects.toThrow("Invitation has expired");
+    });
+
+    it("cancelInvitation throws for nonexistent invitation", async () => {
+      const t = createTestInstance();
+
+      await expect(
+        t.mutation(api.mutations.cancelInvitation, {
+          userId: "user_123",
+          invitationId: "nonexistent" as any,
+        })
+      ).rejects.toThrow("Invitation not found");
+    });
+
+    it("cancelInvitation throws for already cancelled invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.mutations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        email: "double-cancel@test.com",
+        role: "member",
+      });
+
+      // Cancel once
+      await t.mutation(api.mutations.cancelInvitation, {
+        userId: "user_123",
+        invitationId,
+      });
+
+      // Cancel again — should throw
+      await expect(
+        t.mutation(api.mutations.cancelInvitation, {
+          userId: "user_123",
+          invitationId,
+        })
+      ).rejects.toThrow("Invitation has already been cancelled");
+    });
+
+    // -- Slug update --
+
+    it("updateOrganization with slug updates the slug", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.mutations.createOrganization, {
+        userId: "user_123",
+        name: "Slug Org",
+        slug: "original-slug",
+      });
+
+      await t.mutation(api.mutations.updateOrganization, {
+        userId: "user_123",
+        organizationId: orgId,
+        slug: "new-slug",
+      });
+
+      const org = await t.query(api.queries.getOrganization, {
+        organizationId: orgId,
+      });
+      expect(org?.slug).toBe("new-slug");
     });
   });
 });

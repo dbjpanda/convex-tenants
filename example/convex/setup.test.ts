@@ -3,6 +3,7 @@ import { test } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema.js";
 import component from "@djpanda/convex-tenants/test";
+import authzComponent from "@djpanda/convex-authz/test";
 
 const modules = import.meta.glob("./**/*.*s");
 // When users want to write tests that use your component, they need to
@@ -10,6 +11,7 @@ const modules = import.meta.glob("./**/*.*s");
 export function initConvexTest() {
   const t = convexTest(schema, modules);
   component.register(t);
+  authzComponent.register(t, "authz");
   return t;
 }
 

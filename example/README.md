@@ -4,10 +4,11 @@ A complete working example demonstrating how to use `@djpanda/convex-tenants` in
 
 ## What's included
 
-- **Convex backend** (`convex/example.ts`) — single-destructure API export pattern with demo auth
+- **Authorization** (`convex/authz.ts`) — permissions, roles, and Authz client using `@djpanda/convex-authz`
+- **Convex backend** (`convex/tenants.ts`) — single-destructure API export pattern with demo auth
 - **React frontend** (`src/App.tsx`) — `TenantsProvider`, `OrganizationSwitcher`, `MembersSection`, `TeamsSection`
 - **Theming** (`src/index.css`) — shadcn/ui CSS variables for light and dark mode
-- **Tests** (`convex/example.test.ts`) — integration tests for auth enforcement, user enrichment, and callbacks
+- **Tests** (`convex/tenants.test.ts`) — integration tests for auth enforcement, user enrichment, and callbacks
 
 ## Setup
 
@@ -27,14 +28,17 @@ This will:
 
 ## How it works
 
-### Backend (`convex/example.ts`)
+### Backend (`convex/tenants.ts`)
 
 ```typescript
+import { authz } from "./authz";
+
 // One destructure exports everything:
 export const {
   listOrganizations, createOrganization, listMembers, inviteMember,
-  // ... all 27 functions
+  // ... all functions
 } = makeTenantsAPI(components.tenants, {
+  authz,
   auth: async (ctx) => await getAuthUserId(ctx),
   getUser: async (ctx, userId) => { /* fetch user data */ },
   onInvitationCreated: async (ctx, invitation) => { /* send email */ },
@@ -53,7 +57,7 @@ import {
 
 function App() {
   return (
-    <TenantsProvider api={api.example} onToast={(msg, type) => toast(msg)}>
+    <TenantsProvider api={api.tenants} onToast={(msg, type) => toast(msg)}>
       <OrganizationSwitcher />   {/* Dropdown — icons included */}
       <MembersSection />          {/* Table + invite dialog */}
       <TeamsSection />            {/* Grid + create dialog */}

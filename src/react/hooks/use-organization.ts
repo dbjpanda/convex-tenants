@@ -12,7 +12,7 @@ export interface Organization {
   logo: string | null;
   metadata?: any;
   ownerId: string;
-  role: "owner" | "admin" | "member";
+  role: string;
 }
 
 export interface UseOrganizationOptions {
@@ -90,16 +90,9 @@ export function useOrganization(options: UseOrganizationOptions) {
     [createOrgMutation, setActiveOrganizationId]
   );
 
-  // Check if user is owner or admin of current org
-  const isOwnerOrAdmin = useMemo(() => {
-    if (!currentOrganization) return false;
-    return currentOrganization.role === "owner" || currentOrganization.role === "admin";
-  }, [currentOrganization]);
-
-  // Check if user is owner of current org
-  const isOwner = useMemo(() => {
-    if (!currentOrganization) return false;
-    return currentOrganization.role === "owner";
+  // Current user's role in the active organization
+  const currentRole = useMemo(() => {
+    return currentOrganization?.role ?? null;
   }, [currentOrganization]);
 
   return {
@@ -114,9 +107,8 @@ export function useOrganization(options: UseOrganizationOptions) {
     switchOrganization,
     createOrganization,
     
-    // Role checks
-    isOwnerOrAdmin,
-    isOwner,
+    // Role (developer compares against their own role names)
+    currentRole,
     
     // Helper flags
     hasOrganizations: organizations.length > 0,

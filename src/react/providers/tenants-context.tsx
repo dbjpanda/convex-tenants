@@ -14,7 +14,7 @@ export interface Organization {
   logo: string | null;
   metadata?: any;
   ownerId: string;
-  role: "owner" | "admin" | "member";
+  role: string;
 }
 
 export interface Member {
@@ -22,7 +22,7 @@ export interface Member {
   _creationTime: number;
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "member";
+  role: string;
   user?: {
     name?: string;
     email?: string;
@@ -35,7 +35,7 @@ export interface Invitation {
   _creationTime: number;
   email: string;
   organizationId: string;
-  role: "admin" | "member";
+  role: string;
   teamId?: string | null;
   inviterId: string;
   expiresAt: number;
@@ -71,9 +71,8 @@ export interface TenantsContextValue {
   isInvitationsLoading: boolean;
   isTeamsLoading: boolean;
 
-  // Role checks
-  isOwner: boolean;
-  isOwnerOrAdmin: boolean;
+  // Current user's role in the active organization
+  currentRole: string | null;
 
   // Organization actions
   switchOrganization: (organizationId: string) => void;
@@ -88,13 +87,13 @@ export interface TenantsContextValue {
   removeMember: (memberUserId: string) => Promise<void>;
   updateMemberRole: (
     memberUserId: string,
-    role: "owner" | "admin" | "member"
+    role: string
   ) => Promise<void>;
 
   // Invitation actions
   inviteMember: (data: {
     email: string;
-    role: "admin" | "member";
+    role: string;
     teamId?: string;
   }) => Promise<{ invitationId: string; email: string; expiresAt: number } | null>;
   resendInvitation: (invitationId: string) => Promise<void>;

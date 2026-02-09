@@ -56,7 +56,7 @@ export interface InviteMemberDialogProps {
    */
   onInvite: (data: {
     email: string;
-    role: "admin" | "member";
+    role: string;
     teamId?: string;
   }) => Promise<{ invitationId: string; email: string; expiresAt: number } | null | undefined>;
 
@@ -144,7 +144,7 @@ export function InviteMemberDialog({
 }: InviteMemberDialogProps) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "member">("member");
+  const [role, setRole] = useState("member");
   const [teamId, setTeamId] = useState<string | undefined>(undefined);
   const [isInviting, setIsInviting] = useState(false);
   const [invitationId, setInvitationId] = useState<string | null>(null);
@@ -252,7 +252,7 @@ export function InviteMemberDialog({
                 <Label htmlFor="role">Role</Label>
                 <Select
                   value={role}
-                  onValueChange={(v) => setRole(v as "admin" | "member")}
+                  onValueChange={(v) => setRole(v)}
                   disabled={isInviting}
                 >
                   <SelectTrigger id="role">

@@ -8,7 +8,7 @@ export interface Invitation {
   _creationTime: number;
   organizationId: string;
   email: string;
-  role: "admin" | "member";
+  role: string;
   teamId: string | null;
   inviterId: string;
   status: "pending" | "accepted" | "cancelled" | "expired";
@@ -40,7 +40,7 @@ export interface UseInvitationsOptions {
   inviteMemberMutation: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; email: string; role: "admin" | "member"; teamId?: string },
+    { organizationId: string; email: string; role: string; teamId?: string },
     { invitationId: string; email: string; expiresAt: number }
   >;
   
@@ -90,7 +90,7 @@ export function useInvitations(options: UseInvitationsOptions) {
   const inviteMember = useCallback(
     async (data: {
       email: string;
-      role: "admin" | "member";
+      role: string;
       teamId?: string;
     }) => {
       if (!organizationId) {

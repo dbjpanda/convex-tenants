@@ -1,12 +1,8 @@
 import { v, ConvexError } from "convex/values";
 import { mutation } from "./_generated/server";
-import { components } from "./_generated/api";
 import {
-  requireRole,
   ensureUniqueSlug,
-  isSoleOwner,
   isInvitationExpired,
-  toAuthzRole,
 } from "./helpers";
 import type { Id } from "./_generated/dataModel";
 
@@ -21,6 +17,7 @@ export const createOrganization = mutation({
     slug: v.string(),
     logo: v.optional(v.string()),
     metadata: v.optional(v.any()),
+    creatorRole: v.optional(v.string()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
@@ -36,19 +33,11 @@ export const createOrganization = mutation({
       ownerId: args.userId,
     });
 
-    // Add creator as owner
+    // Add creator as member with the specified role
     await ctx.db.insert("members", {
       organizationId,
       userId: args.userId,
-      role: "owner",
-    });
-
-    // Sync role to authz - assign org:owner role
-    await ctx.runMutation(components.authz.mutations.assignRole, {
-      userId: args.userId,
-      role: toAuthzRole("owner"),
-      scope: { type: "organization", id: organizationId as string },
-      assignedBy: args.userId,
+      role: args.creatorRole ?? "owner",
     });
 
     return organizationId as string;
@@ -67,9 +56,6 @@ export const updateOrganization = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
-
-    // Check permissions (admin or owner)
-    await requireRole(ctx, orgId, args.userId, "admin");
 
     const updates: any = {};
     if (args.name !== undefined) updates.name = args.name;
@@ -96,26 +82,8 @@ export const deleteOrganization = mutation({
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
 
-    // Check permissions (owner only)
-    await requireRole(ctx, orgId, args.userId, "owner");
-
-    // Get all members to revoke their roles
-    const members = await ctx.db
-      .query("members")
-      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
-      .collect();
-
-    // Revoke authz roles for all members
-    for (const member of members) {
-      await ctx.runMutation(components.authz.mutations.revokeRole, {
-        userId: member.userId,
-        role: toAuthzRole(member.role),
-        scope: { type: "organization", id: args.organizationId },
-      });
-    }
-
     // Delete all related data
-    // 1. Delete all team members
+    // 1. Delete all team members and teams
     const teams = await ctx.db
       .query("teams")
       .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
@@ -128,14 +96,6 @@ export const deleteOrganization = mutation({
         .collect();
 
       for (const tm of teamMembers) {
-        // Revoke team membership in authz
-        await ctx.runMutation(components.authz.rebac.removeRelation, {
-          subjectType: "user",
-          subjectId: tm.userId,
-          relation: "member",
-          objectType: "team",
-          objectId: team._id as string,
-        });
         await ctx.db.delete(tm._id);
       }
 
@@ -153,6 +113,11 @@ export const deleteOrganization = mutation({
     }
 
     // 3. Delete all members
+    const members = await ctx.db
+      .query("members")
+      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+      .collect();
+
     for (const member of members) {
       await ctx.db.delete(member._id);
     }
@@ -173,14 +138,11 @@ export const addMember = mutation({
     userId: v.string(),
     organizationId: v.string(),
     memberUserId: v.string(),
-    role: v.union(v.literal("admin"), v.literal("member")),
+    role: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
-
-    // Check permissions (admin or owner)
-    await requireRole(ctx, orgId, args.userId, "admin");
 
     // Check if user is already a member
     const existing = await ctx.db
@@ -204,14 +166,6 @@ export const addMember = mutation({
       role: args.role,
     });
 
-    // Sync role to authz
-    await ctx.runMutation(components.authz.mutations.assignRole, {
-      userId: args.memberUserId,
-      role: toAuthzRole(args.role),
-      scope: { type: "organization", id: args.organizationId },
-      assignedBy: args.userId,
-    });
-
     return null;
   },
 });
@@ -225,9 +179,6 @@ export const removeMember = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
-
-    // Check permissions (admin or owner)
-    await requireRole(ctx, orgId, args.userId, "admin");
 
     // Get the member to remove
     const member = await ctx.db
@@ -244,15 +195,16 @@ export const removeMember = mutation({
       });
     }
 
-    // Cannot remove an owner
-    if (member.role === "owner") {
+    // Cannot remove the structural owner (tracked via ownerId)
+    const org = await ctx.db.get(orgId);
+    if (org && args.memberUserId === org.ownerId) {
       throw new ConvexError({
         code: "FORBIDDEN",
-        message: "Cannot remove an owner. Transfer ownership first.",
+        message: "Cannot remove the organization owner. Transfer ownership first.",
       });
     }
 
-    // Remove from all teams and revoke team memberships in authz
+    // Remove from all teams
     const teams = await ctx.db
       .query("teams")
       .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
@@ -267,23 +219,9 @@ export const removeMember = mutation({
         .unique();
 
       if (teamMembership) {
-        await ctx.runMutation(components.authz.rebac.removeRelation, {
-          subjectType: "user",
-          subjectId: args.memberUserId,
-          relation: "member",
-          objectType: "team",
-          objectId: team._id as string,
-        });
         await ctx.db.delete(teamMembership._id);
       }
     }
-
-    // Revoke role in authz
-    await ctx.runMutation(components.authz.mutations.revokeRole, {
-      userId: args.memberUserId,
-      role: toAuthzRole(member.role),
-      scope: { type: "organization", id: args.organizationId },
-    });
 
     // Remove member
     await ctx.db.delete(member._id);
@@ -297,14 +235,11 @@ export const updateMemberRole = mutation({
     userId: v.string(),
     organizationId: v.string(),
     memberUserId: v.string(),
-    role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
+    role: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
-
-    // Check permissions (owner only)
-    await requireRole(ctx, orgId, args.userId, "owner");
 
     // Get the member to update
     const member = await ctx.db
@@ -321,24 +256,8 @@ export const updateMemberRole = mutation({
       });
     }
 
-    const previousRole = member.role;
-
     // Update role
     await ctx.db.patch(member._id, { role: args.role });
-
-    // Sync role change to authz - revoke old role, assign new role
-    await ctx.runMutation(components.authz.mutations.revokeRole, {
-      userId: args.memberUserId,
-      role: toAuthzRole(previousRole),
-      scope: { type: "organization", id: args.organizationId },
-    });
-
-    await ctx.runMutation(components.authz.mutations.assignRole, {
-      userId: args.memberUserId,
-      role: toAuthzRole(args.role),
-      scope: { type: "organization", id: args.organizationId },
-      assignedBy: args.userId,
-    });
 
     return null;
   },
@@ -353,13 +272,13 @@ export const leaveOrganization = mutation({
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
 
-    // Check if user is the sole owner
-    const isSole = await isSoleOwner(ctx, orgId, args.userId);
-    if (isSole) {
+    // The structural owner (ownerId) cannot leave
+    const org = await ctx.db.get(orgId);
+    if (org && args.userId === org.ownerId) {
       throw new ConvexError({
         code: "FORBIDDEN",
         message:
-          "Cannot leave organization as the sole owner. Transfer ownership or delete the organization first.",
+          "Cannot leave organization as the owner. Transfer ownership or delete the organization first.",
       });
     }
 
@@ -378,7 +297,7 @@ export const leaveOrganization = mutation({
       });
     }
 
-    // Remove from all teams and revoke team memberships in authz
+    // Remove from all teams
     const teams = await ctx.db
       .query("teams")
       .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
@@ -393,23 +312,9 @@ export const leaveOrganization = mutation({
         .unique();
 
       if (teamMembership) {
-        await ctx.runMutation(components.authz.rebac.removeRelation, {
-          subjectType: "user",
-          subjectId: args.userId,
-          relation: "member",
-          objectType: "team",
-          objectId: team._id as string,
-        });
         await ctx.db.delete(teamMembership._id);
       }
     }
-
-    // Revoke role in authz
-    await ctx.runMutation(components.authz.mutations.revokeRole, {
-      userId: args.userId,
-      role: toAuthzRole(member.role),
-      scope: { type: "organization", id: args.organizationId },
-    });
 
     // Remove member
     await ctx.db.delete(member._id);
@@ -433,9 +338,6 @@ export const createTeam = mutation({
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
 
-    // Check permissions (admin or owner)
-    await requireRole(ctx, orgId, args.userId, "admin");
-
     // Create team
     const teamId = await ctx.db.insert("teams", {
       name: args.name,
@@ -458,7 +360,7 @@ export const updateTeam = mutation({
   handler: async (ctx, args) => {
     const teamId = args.teamId as Id<"teams">;
 
-    // Get team to check organization
+    // Get team
     const team = await ctx.db.get(teamId);
     if (!team) {
       throw new ConvexError({
@@ -466,9 +368,6 @@ export const updateTeam = mutation({
         message: "Team not found",
       });
     }
-
-    // Check permissions (admin or owner)
-    await requireRole(ctx, team.organizationId, args.userId, "admin");
 
     const updates: any = {};
     if (args.name !== undefined) updates.name = args.name;
@@ -489,7 +388,7 @@ export const deleteTeam = mutation({
   handler: async (ctx, args) => {
     const teamId = args.teamId as Id<"teams">;
 
-    // Get team to check organization
+    // Get team
     const team = await ctx.db.get(teamId);
     if (!team) {
       throw new ConvexError({
@@ -498,23 +397,13 @@ export const deleteTeam = mutation({
       });
     }
 
-    // Check permissions (admin or owner)
-    await requireRole(ctx, team.organizationId, args.userId, "admin");
-
-    // Delete all team members and revoke their team memberships in authz
+    // Delete all team members
     const teamMembers = await ctx.db
       .query("teamMembers")
       .withIndex("by_team", (q) => q.eq("teamId", teamId))
       .collect();
 
     for (const tm of teamMembers) {
-      await ctx.runMutation(components.authz.rebac.removeRelation, {
-        subjectType: "user",
-        subjectId: tm.userId,
-        relation: "member",
-        objectType: "team",
-        objectId: args.teamId,
-      });
       await ctx.db.delete(tm._id);
     }
 
@@ -543,9 +432,6 @@ export const addTeamMember = mutation({
         message: "Team not found",
       });
     }
-
-    // Check permissions (admin or owner)
-    await requireRole(ctx, team.organizationId, args.userId, "admin");
 
     // Verify the user is a member of the organization
     const orgMember = await ctx.db
@@ -585,15 +471,6 @@ export const addTeamMember = mutation({
       userId: args.memberUserId,
     });
 
-    // Sync team membership to authz
-    await ctx.runMutation(components.authz.rebac.addRelation, {
-      subjectType: "user",
-      subjectId: args.memberUserId,
-      relation: "member",
-      objectType: "team",
-      objectId: args.teamId,
-    });
-
     return null;
   },
 });
@@ -607,18 +484,6 @@ export const removeTeamMember = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const teamId = args.teamId as Id<"teams">;
-
-    // Get team to check organization
-    const team = await ctx.db.get(teamId);
-    if (!team) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Team not found",
-      });
-    }
-
-    // Check permissions (admin or owner)
-    await requireRole(ctx, team.organizationId, args.userId, "admin");
 
     // Get team member record
     const teamMember = await ctx.db
@@ -634,15 +499,6 @@ export const removeTeamMember = mutation({
         message: "User is not a member of this team",
       });
     }
-
-    // Remove team membership in authz
-    await ctx.runMutation(components.authz.rebac.removeRelation, {
-      subjectType: "user",
-      subjectId: args.memberUserId,
-      relation: "member",
-      objectType: "team",
-      objectId: args.teamId,
-    });
 
     // Remove from team
     await ctx.db.delete(teamMember._id);
@@ -660,7 +516,7 @@ export const inviteMember = mutation({
     userId: v.string(),
     organizationId: v.string(),
     email: v.string(),
-    role: v.union(v.literal("admin"), v.literal("member")),
+    role: v.string(),
     teamId: v.optional(v.string()),
     expiresAt: v.optional(v.number()),
   },
@@ -671,9 +527,6 @@ export const inviteMember = mutation({
   }),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
-
-    // Check permissions (admin or owner)
-    await requireRole(ctx, orgId, args.userId, "admin");
 
     // Check for existing pending invitation
     const existing = await ctx.db
@@ -771,28 +624,11 @@ export const acceptInvitation = mutation({
       role: invitation.role,
     });
 
-    // Sync role to authz
-    await ctx.runMutation(components.authz.mutations.assignRole, {
-      userId: args.acceptingUserId,
-      role: toAuthzRole(invitation.role),
-      scope: { type: "organization", id: invitation.organizationId as string },
-      assignedBy: invitation.inviterId,
-    });
-
     // Add to team if specified
     if (invitation.teamId) {
       await ctx.db.insert("teamMembers", {
         teamId: invitation.teamId,
         userId: args.acceptingUserId,
-      });
-
-      // Sync team membership to authz
-      await ctx.runMutation(components.authz.rebac.addRelation, {
-        subjectType: "user",
-        subjectId: args.acceptingUserId,
-        relation: "member",
-        objectType: "team",
-        objectId: invitation.teamId as string,
       });
     }
 
@@ -824,11 +660,6 @@ export const resendInvitation = mutation({
       });
     }
 
-    // Check if user has permission (admin/owner or the inviter)
-    if (invitation.inviterId !== args.userId) {
-      await requireRole(ctx, invitation.organizationId, args.userId, "admin");
-    }
-
     // Check if still pending
     if (invitation.status !== "pending") {
       throw new ConvexError({
@@ -839,7 +670,6 @@ export const resendInvitation = mutation({
 
     // Check if expired
     if (isInvitationExpired(invitation)) {
-      // Update status to expired
       await ctx.db.patch(invitationId, { status: "expired" });
       throw new ConvexError({
         code: "EXPIRED",
@@ -871,11 +701,6 @@ export const cancelInvitation = mutation({
         code: "NOT_FOUND",
         message: "Invitation not found",
       });
-    }
-
-    // Check if user has permission (admin/owner or the inviter)
-    if (invitation.inviterId !== args.userId) {
-      await requireRole(ctx, invitation.organizationId, args.userId, "admin");
     }
 
     // Check if already accepted or cancelled

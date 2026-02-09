@@ -23,7 +23,7 @@ export default defineSchema({
   members: defineTable({
     organizationId: v.id("organizations"),
     userId: v.string(), // References parent app's users table
-    role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
+    role: v.string(), // Flexible: developer defines roles in authz.ts
   })
     .index("by_organization", ["organizationId"])
     .index("by_user", ["userId"])
@@ -49,7 +49,7 @@ export default defineSchema({
   invitations: defineTable({
     organizationId: v.id("organizations"),
     email: v.string(),
-    role: v.union(v.literal("admin"), v.literal("member")),
+    role: v.string(), // Flexible: developer defines roles in authz.ts
     teamId: v.union(v.null(), v.id("teams")),
     inviterId: v.string(), // References parent app's users table
     status: v.union(

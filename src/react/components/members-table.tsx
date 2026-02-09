@@ -94,7 +94,7 @@ export interface MembersTableProps {
    */
   onUpdateMemberRole?: (
     memberUserId: string,
-    role: "owner" | "admin" | "member"
+    role: string
   ) => Promise<void>;
 
   /**
@@ -141,7 +141,7 @@ interface UnifiedMember {
   _id: string;
   email: string;
   name: string;
-  role: "owner" | "admin" | "member";
+  role: string;
   teams: Array<{ _id: string; name: string }>;
   userId: string;
 }
@@ -151,7 +151,7 @@ interface UnifiedInvitation {
   _id: string;
   email: string;
   name: null;
-  role: "admin" | "member";
+  role: string;
   teamId: string | null;
   expiresAt: number;
   status: "pending" | "accepted" | "cancelled" | "expired";
@@ -293,7 +293,7 @@ export function MembersTable({
 
   const handleUpdateRole = async (
     memberUserId: string,
-    role: "owner" | "admin" | "member"
+    role: string
   ) => {
     try {
       await onUpdateMemberRole?.(memberUserId, role);
@@ -419,18 +419,17 @@ export function MembersTable({
         <Badge className="border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">Active</Badge>
       </TableCell>
       <TableCell className="py-3">
-        {isOwner && item.role !== "owner" ? (
+        {isOwner ? (
           <Select
             value={item.role}
-            onValueChange={(v) => handleUpdateRole(item.userId, v as any)}
+            onValueChange={(v) => handleUpdateRole(item.userId, v)}
           >
             <SelectTrigger className="h-7 w-[100px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="owner">Owner</SelectItem>
+              {/* Role options — customize via the roles prop or override this component */}
+              <SelectItem value={item.role}>{item.role}</SelectItem>
             </SelectContent>
           </Select>
         ) : (

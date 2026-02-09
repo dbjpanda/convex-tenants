@@ -39,7 +39,7 @@ function App() {
 
   return (
     <TenantsProvider
-      api={api.example as any}
+      api={api.tenants as any}
       onToast={(message, type) => {
         if (type === "error") {
           alert(`Error: ${message}`);

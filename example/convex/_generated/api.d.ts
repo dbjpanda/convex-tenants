@@ -9,8 +9,9 @@
  */
 
 import type * as auth from "../auth.js";
-import type * as example from "../example.js";
+import type * as authz from "../authz.js";
 import type * as http from "../http.js";
+import type * as tenants from "../tenants.js";
 import type * as testHelpers from "../testHelpers.js";
 
 import type {
@@ -21,8 +22,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
-  example: typeof example;
+  authz: typeof authz;
   http: typeof http;
+  tenants: typeof tenants;
   testHelpers: typeof testHelpers;
 }>;
 
@@ -54,4 +56,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   tenants: import("@djpanda/convex-tenants/_generated/component.js").ComponentApi<"tenants">;
+  authz: import("@djpanda/convex-authz/_generated/component.js").ComponentApi<"authz">;
 };

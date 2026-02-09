@@ -9,8 +9,10 @@ import { mutation, query } from "./_generated/server.js";
 import { components } from "./_generated/api.js";
 import { makeTenantsAPI } from "@djpanda/convex-tenants";
 import { v } from "convex/values";
+import { authz } from "./authz.js";
 
 const strictApi = makeTenantsAPI(components.tenants, {
+  authz,
   auth: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     return identity?.subject ?? null;
@@ -81,7 +83,6 @@ export const strictDeleteOrganization = strictApi.deleteOrganization;
 export const strictListMembers = strictApi.listMembers;
 export const strictGetMember = strictApi.getMember;
 export const strictGetCurrentMember = strictApi.getCurrentMember;
-export const strictCheckPermission = strictApi.checkPermission;
 export const strictAddMember = strictApi.addMember;
 export const strictRemoveMember = strictApi.removeMember;
 export const strictUpdateMemberRole = strictApi.updateMemberRole;
@@ -104,6 +105,14 @@ export const strictInviteMember = strictApi.inviteMember;
 export const strictAcceptInvitation = strictApi.acceptInvitation;
 export const strictResendInvitation = strictApi.resendInvitation;
 export const strictCancelInvitation = strictApi.cancelInvitation;
+
+// Authorization
+export const strictCheckPermission = strictApi.checkPermission;
+export const strictGetUserPermissions = strictApi.getUserPermissions;
+export const strictGetUserRoles = strictApi.getUserRoles;
+export const strictGrantPermission = strictApi.grantPermission;
+export const strictDenyPermission = strictApi.denyPermission;
+export const strictGetAuditLog = strictApi.getAuditLog;
 
 // Query to read callback invocations (for testing onInvitationCreated/onInvitationResent)
 export const getCallbackLogs = query({

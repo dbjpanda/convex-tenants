@@ -1,19 +1,20 @@
 import { components } from "./_generated/api.js";
 import { makeTenantsAPI } from "@djpanda/convex-tenants";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { authz } from "./authz.js";
 
 /**
  * Example: Using the Tenants component with makeTenantsAPI + Convex Auth
  *
- * One destructure exports everything — the recommended DX pattern.
- * Authentication is handled via @convex-dev/auth (email + password).
+ * Roles are fully flexible — defined in `authz.ts` using @djpanda/convex-authz.
+ * The `creatorRole` option controls what role is assigned when creating an org.
  */
 export const {
   // Organizations
   listOrganizations, getOrganization, getOrganizationBySlug,
   createOrganization, updateOrganization, deleteOrganization,
   // Members
-  listMembers, getMember, getCurrentMember, checkPermission,
+  listMembers, getMember, getCurrentMember,
   addMember, removeMember, updateMemberRole, leaveOrganization,
   // Teams
   listTeams, getTeam, listTeamMembers, isTeamMember,
@@ -21,7 +22,12 @@ export const {
   // Invitations
   listInvitations, getInvitation, getPendingInvitations,
   inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
+  // Authorization
+  checkPermission, getUserPermissions, getUserRoles,
+  grantPermission, denyPermission, getAuditLog,
 } = makeTenantsAPI(components.tenants, {
+  authz,
+  creatorRole: "owner", // role assigned on org creation (matches authz.ts)
   auth: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     return userId ?? null;

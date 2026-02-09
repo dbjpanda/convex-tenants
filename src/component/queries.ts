@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { getMemberRole, isInvitationExpired } from "./helpers";
+import { isInvitationExpired } from "./helpers";
 import type { Id } from "./_generated/dataModel";
 
 /**
@@ -19,7 +19,7 @@ export const listUserOrganizations = query({
       logo: v.union(v.null(), v.string()),
       metadata: v.optional(v.any()),
       ownerId: v.string(),
-      role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
+      role: v.string(),
     })
   ),
   handler: async (ctx, args) => {
@@ -137,7 +137,7 @@ export const listOrganizationMembers = query({
       _creationTime: v.number(),
       organizationId: v.string(),
       userId: v.string(),
-      role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
+      role: v.string(),
     })
   ),
   handler: async (ctx, args) => {
@@ -173,7 +173,7 @@ export const getMember = query({
       _creationTime: v.number(),
       organizationId: v.string(),
       userId: v.string(),
-      role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
+      role: v.string(),
     })
   ),
   handler: async (ctx, args) => {
@@ -306,7 +306,7 @@ export const listInvitations = query({
       _creationTime: v.number(),
       organizationId: v.string(),
       email: v.string(),
-      role: v.union(v.literal("admin"), v.literal("member")),
+      role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
       status: v.union(
@@ -356,7 +356,7 @@ export const getInvitation = query({
       _creationTime: v.number(),
       organizationId: v.string(),
       email: v.string(),
-      role: v.union(v.literal("admin"), v.literal("member")),
+      role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
       status: v.union(
@@ -401,7 +401,7 @@ export const getPendingInvitationsForEmail = query({
       _creationTime: v.number(),
       organizationId: v.string(),
       email: v.string(),
-      role: v.union(v.literal("admin"), v.literal("member")),
+      role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
       expiresAt: v.number(),
@@ -433,46 +433,6 @@ export const getPendingInvitationsForEmail = query({
 });
 
 /**
- * Check if a user has at least a certain role in an organization
- */
-export const checkMemberPermission = query({
-  args: {
-    organizationId: v.string(),
-    userId: v.string(),
-    minRole: v.union(v.literal("member"), v.literal("admin"), v.literal("owner")),
-  },
-  returns: v.object({
-    hasPermission: v.boolean(),
-    currentRole: v.union(
-      v.null(),
-      v.union(v.literal("owner"), v.literal("admin"), v.literal("member"))
-    ),
-  }),
-  handler: async (ctx, args) => {
-    const role = await getMemberRole(
-      ctx,
-      args.organizationId as Id<"organizations">,
-      args.userId
-    );
-
-    if (!role) {
-      return { hasPermission: false, currentRole: null };
-    }
-
-    const ROLE_HIERARCHY = {
-      owner: 3,
-      admin: 2,
-      member: 1,
-    } as const;
-
-    const hasPermission =
-      ROLE_HIERARCHY[role] >= ROLE_HIERARCHY[args.minRole];
-
-    return { hasPermission, currentRole: role };
-  },
-});
-
-/**
  * Check if a user is a member of a team
  */
 export const isTeamMember = query({
@@ -492,3 +452,4 @@ export const isTeamMember = query({
     return membership !== null;
   },
 });
+

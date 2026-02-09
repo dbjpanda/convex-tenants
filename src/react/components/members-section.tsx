@@ -104,8 +104,7 @@ export function MembersSection({
     invitations,
     teams,
     isOrganizationsLoading,
-    isOwnerOrAdmin,
-    isOwner,
+    currentRole,
     isMembersLoading,
     isInvitationsLoading,
     removeMember,
@@ -165,7 +164,7 @@ export function MembersSection({
     );
   }
 
-  const shouldShowInviteButton = showInviteButton ?? isOwnerOrAdmin;
+  const shouldShowInviteButton = showInviteButton ?? !!currentRole;
 
   const UsersIcon = usersIcon ?? (
     <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
@@ -227,8 +226,8 @@ export function MembersSection({
           invitations={transformedInvitations}
           teams={transformedTeams}
           isLoading={isDataLoading}
-          isOwner={isOwner}
-          isOwnerOrAdmin={isOwnerOrAdmin}
+          isOwner={!!currentRole}
+          isOwnerOrAdmin={!!currentRole}
           invitationPath={invitationPath}
           onRemoveMember={removeMember}
           onUpdateMemberRole={updateMemberRole}

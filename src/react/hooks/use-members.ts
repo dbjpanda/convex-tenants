@@ -8,7 +8,7 @@ export interface Member {
   _creationTime: number;
   organizationId: string;
   userId: string;
-  role: "owner" | "admin" | "member";
+  role: string;
   // User data from bridge (optional, if enriched)
   user?: {
     name?: string;
@@ -57,7 +57,7 @@ export interface UseMembersOptions {
   updateMemberRoleMutation: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; memberUserId: string; role: "owner" | "admin" | "member" },
+    { organizationId: string; memberUserId: string; role: string },
     null
   >;
 }
@@ -96,7 +96,7 @@ export function useMembers(options: UseMembersOptions) {
   );
 
   const updateMemberRole = useCallback(
-    async (memberUserId: string, role: "owner" | "admin" | "member") => {
+    async (memberUserId: string, role: string) => {
       if (!organizationId) {
         throw new Error("No organization selected");
       }

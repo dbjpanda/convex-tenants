@@ -47,7 +47,7 @@ export interface TenantsAPI {
   updateMemberRole: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; memberUserId: string; role: "owner" | "admin" | "member" },
+    { organizationId: string; memberUserId: string; role: string },
     null
   >;
 
@@ -61,7 +61,7 @@ export interface TenantsAPI {
   inviteMember: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; email: string; role: "admin" | "member"; teamId?: string },
+    { organizationId: string; email: string; role: string; teamId?: string },
     { invitationId: string; email: string; expiresAt: number } | null
   >;
   resendInvitation: FunctionReference<
@@ -238,11 +238,10 @@ export function TenantsProvider({
   const isLoading = isOrganizationsLoading || isMembersLoading || isInvitationsLoading || isTeamsLoading;
 
   // ============================================================================
-  // Role Checks
+  // Current Role
   // ============================================================================
 
-  const isOwner = currentOrganization?.role === "owner";
-  const isOwnerOrAdmin = currentOrganization?.role === "owner" || currentOrganization?.role === "admin";
+  const currentRole = currentOrganization?.role ?? null;
 
   // ============================================================================
   // Action Handlers
@@ -290,7 +289,7 @@ export function TenantsProvider({
   );
 
   const updateMemberRole = useCallback(
-    async (memberUserId: string, role: "owner" | "admin" | "member") => {
+    async (memberUserId: string, role: string) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         await updateMemberRoleMutation({
@@ -308,7 +307,7 @@ export function TenantsProvider({
   );
 
   const inviteMember = useCallback(
-    async (data: { email: string; role: "admin" | "member"; teamId?: string }) => {
+    async (data: { email: string; role: string; teamId?: string }) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         const result = await inviteMemberMutation({
@@ -428,9 +427,8 @@ export function TenantsProvider({
       isInvitationsLoading,
       isTeamsLoading,
 
-      // Role checks
-      isOwner,
-      isOwnerOrAdmin,
+      // Current role
+      currentRole,
 
       // Actions
       switchOrganization,
@@ -459,8 +457,7 @@ export function TenantsProvider({
       isMembersLoading,
       isInvitationsLoading,
       isTeamsLoading,
-      isOwner,
-      isOwnerOrAdmin,
+      currentRole,
       switchOrganization,
       createOrganization,
       removeMember,

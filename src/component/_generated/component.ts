@@ -37,7 +37,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           memberUserId: string;
           organizationId: string;
-          role: "admin" | "member";
+          role: string;
           userId: string;
         },
         null,
@@ -61,6 +61,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
+          creatorRole?: string;
           logo?: string;
           metadata?: any;
           name: string;
@@ -103,7 +104,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email: string;
           expiresAt?: number;
           organizationId: string;
-          role: "admin" | "member";
+          role: string;
           teamId?: string;
           userId: string;
         },
@@ -144,7 +145,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           memberUserId: string;
           organizationId: string;
-          role: "owner" | "admin" | "member";
+          role: string;
           userId: string;
         },
         null,
@@ -178,20 +179,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     queries: {
-      checkMemberPermission: FunctionReference<
-        "query",
-        "internal",
-        {
-          minRole: "member" | "admin" | "owner";
-          organizationId: string;
-          userId: string;
-        },
-        {
-          currentRole: null | "owner" | "admin" | "member";
-          hasPermission: boolean;
-        },
-        Name
-      >;
       getInvitation: FunctionReference<
         "query",
         "internal",
@@ -204,7 +191,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           inviterId: string;
           isExpired: boolean;
           organizationId: string;
-          role: "admin" | "member";
+          role: string;
           status: "pending" | "accepted" | "cancelled" | "expired";
           teamId: null | string;
         },
@@ -218,7 +205,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _creationTime: number;
           _id: string;
           organizationId: string;
-          role: "owner" | "admin" | "member";
+          role: string;
           userId: string;
         },
         Name
@@ -265,7 +252,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           inviterId: string;
           isExpired: boolean;
           organizationId: string;
-          role: "admin" | "member";
+          role: string;
           teamId: null | string;
         }>,
         Name
@@ -302,7 +289,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           inviterId: string;
           isExpired: boolean;
           organizationId: string;
-          role: "admin" | "member";
+          role: string;
           status: "pending" | "accepted" | "cancelled" | "expired";
           teamId: null | string;
         }>,
@@ -316,7 +303,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _creationTime: number;
           _id: string;
           organizationId: string;
-          role: "owner" | "admin" | "member";
+          role: string;
           userId: string;
         }>,
         Name
@@ -357,7 +344,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           metadata?: any;
           name: string;
           ownerId: string;
-          role: "owner" | "admin" | "member";
+          role: string;
           slug: string;
         }>,
         Name
