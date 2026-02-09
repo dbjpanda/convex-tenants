@@ -76,7 +76,7 @@
     }
   },
   "peerDependencies": {
-    "@djpanda/convex-authz": "^0.1.0",
+    "@djpanda/convex-authz": "0.1.7",
     "clsx": "^2.0.0",
     "convex": "^1.29.3",
     "react": "^18.3.1 || ^19.0.0",
@@ -99,7 +99,7 @@
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^1.1.1",
-    "@djpanda/convex-authz": "file:../authz",
+    "@djpanda/convex-authz": "0.1.7",
     "@edge-runtime/vm": "^5.0.0",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "9.39.1",
