@@ -99,7 +99,7 @@
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^1.1.1",
-    "@djpanda/convex-authz": "0.1.7",
+    "@djpanda/convex-authz": "^0.1.7",
     "@edge-runtime/vm": "^5.0.0",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "9.39.1",
