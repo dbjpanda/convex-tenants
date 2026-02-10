@@ -80,8 +80,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           description?: string;
+          metadata?: any;
           name: string;
           organizationId: string;
+          slug?: string;
           userId: string;
         },
         string,
@@ -107,6 +109,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           email: string;
           expiresAt?: number;
+          message?: string;
           organizationId: string;
           role: string;
           teamId?: string;
@@ -143,6 +146,18 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         { email: string; invitationId: string },
         Name
       >;
+      transferOwnership: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          newOwnerUserId: string;
+          organizationId: string;
+          previousOwnerRole?: string;
+          userId: string;
+        },
+        null,
+        Name
+      >;
       updateMemberRole: FunctionReference<
         "mutation",
         "internal",
@@ -164,6 +179,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           name?: string;
           organizationId: string;
           slug?: string;
+          status?: "active" | "suspended" | "archived";
           userId: string;
         },
         null,
@@ -174,7 +190,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           description?: null | string;
+          metadata?: any;
           name?: string;
+          slug?: string;
           teamId: string;
           userId: string;
         },
@@ -194,6 +212,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           expiresAt: number;
           inviterId: string;
           isExpired: boolean;
+          message?: string;
           organizationId: string;
           role: string;
           status: "pending" | "accepted" | "cancelled" | "expired";
@@ -226,6 +245,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           name: string;
           ownerId: string;
           slug: string;
+          status?: "active" | "suspended" | "archived";
         },
         Name
       >;
@@ -241,6 +261,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           name: string;
           ownerId: string;
           slug: string;
+          status?: "active" | "suspended" | "archived";
         },
         Name
       >;
@@ -269,8 +290,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _creationTime: number;
           _id: string;
           description: null | string;
+          metadata?: any;
           name: string;
           organizationId: string;
+          slug?: string;
         },
         Name
       >;
@@ -292,6 +315,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           expiresAt: number;
           inviterId: string;
           isExpired: boolean;
+          message?: string;
           organizationId: string;
           role: string;
           status: "pending" | "accepted" | "cancelled" | "expired";
@@ -332,8 +356,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _creationTime: number;
           _id: string;
           description: null | string;
+          metadata?: any;
           name: string;
           organizationId: string;
+          slug?: string;
         }>,
         Name
       >;
@@ -350,6 +376,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           ownerId: string;
           role: string;
           slug: string;
+          status?: "active" | "suspended" | "archived";
         }>,
         Name
       >;

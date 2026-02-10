@@ -51,6 +51,7 @@ export interface Organization {
   logo: string | null;
   metadata?: Record<string, unknown>;
   ownerId: string;
+  status?: "active" | "suspended" | "archived";
 }
 
 /**
@@ -88,8 +89,10 @@ export interface Team {
   _id: string;
   _creationTime: number;
   name: string;
+  slug?: string;
   organizationId: string;
   description: string | null;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -113,6 +116,7 @@ export interface Invitation {
   role: InvitationRole;
   teamId: string | null;
   inviterId: string;
+  message?: string;
   status: "pending" | "accepted" | "cancelled" | "expired";
   expiresAt: number;
   isExpired: boolean;
@@ -366,6 +370,7 @@ export class Tenants {
       slug?: string;
       logo?: string | null;
       metadata?: Record<string, unknown>;
+      status?: "active" | "suspended" | "archived";
     }
   ): Promise<void> {
     await this.authzRequireOperation(
@@ -377,6 +382,41 @@ export class Tenants {
       organizationId,
       ...updates,
     });
+  }
+
+  /**
+   * Transfer organization ownership to another member.
+   * Caller must be the current owner. Syncs roles in authz.
+   */
+  async transferOwnership(
+    ctx: MutationCtx,
+    userId: string,
+    organizationId: string,
+    newOwnerUserId: string,
+    options?: { previousOwnerRole?: string }
+  ): Promise<void> {
+    await this.authzRequireOperation(
+      ctx, userId, "updateOrganization", orgScope(organizationId)
+    );
+
+    const org = await this.getOrganization(ctx, organizationId);
+    if (!org || org.ownerId !== userId) {
+      throw new Error("Only the current owner can transfer ownership");
+    }
+
+    const previousRole = options?.previousOwnerRole ?? "admin";
+
+    await ctx.runMutation(this.component.mutations.transferOwnership, {
+      userId,
+      organizationId,
+      newOwnerUserId,
+      previousOwnerRole: previousRole,
+    });
+
+    // Sync authz: revoke owner from current, assign previousOwnerRole; assign owner to new
+    await this.authz.revokeRole(ctx, userId, "owner", orgScope(organizationId));
+    await this.authz.assignRole(ctx, userId, previousRole, orgScope(organizationId), undefined, userId);
+    await this.authz.assignRole(ctx, newOwnerUserId, "owner", orgScope(organizationId), undefined, userId);
   }
 
   async deleteOrganization(
@@ -612,7 +652,8 @@ export class Tenants {
     userId: string,
     organizationId: string,
     name: string,
-    description?: string
+    description?: string,
+    options?: { slug?: string; metadata?: Record<string, unknown> }
   ): Promise<string> {
     await this.authzRequireOperation(
       ctx, userId, "createTeam", orgScope(organizationId)
@@ -623,6 +664,8 @@ export class Tenants {
       organizationId,
       name,
       description,
+      slug: options?.slug,
+      metadata: options?.metadata,
     });
   }
 
@@ -632,7 +675,9 @@ export class Tenants {
     teamId: string,
     updates: {
       name?: string;
+      slug?: string;
       description?: string | null;
+      metadata?: Record<string, unknown>;
     }
   ): Promise<void> {
     const team = await this.getTeam(ctx, teamId);
@@ -941,6 +986,7 @@ export class Tenants {
     role: string,
     options?: {
       teamId?: string;
+      message?: string;
       expiresAt?: number;
     }
   ): Promise<{ invitationId: string; email: string; expiresAt: number }> {
@@ -959,6 +1005,7 @@ export class Tenants {
       email,
       role,
       teamId: options?.teamId,
+      message: options?.message,
       expiresAt,
     });
   }
@@ -1312,11 +1359,26 @@ export function makeTenantsAPI(
         slug: v.optional(v.string()),
         logo: v.optional(v.union(v.null(), v.string())),
         metadata: v.optional(v.any()),
+        status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await tenants.updateOrganization(ctx, userId, args.organizationId, {
-          name: args.name, slug: args.slug, logo: args.logo, metadata: args.metadata,
+          name: args.name, slug: args.slug, logo: args.logo, metadata: args.metadata, status: args.status,
+        });
+      },
+    }),
+
+    transferOwnership: mutationGeneric({
+      args: {
+        organizationId: v.string(),
+        newOwnerUserId: v.string(),
+        previousOwnerRole: v.optional(v.string()),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await tenants.transferOwnership(ctx, userId, args.organizationId, args.newOwnerUserId, {
+          previousOwnerRole: args.previousOwnerRole,
         });
       },
     }),
@@ -1501,10 +1563,19 @@ export function makeTenantsAPI(
     // Team Mutations
     // ================================
     createTeam: mutationGeneric({
-      args: { organizationId: v.string(), name: v.string(), description: v.optional(v.string()) },
+      args: {
+        organizationId: v.string(),
+        name: v.string(),
+        description: v.optional(v.string()),
+        slug: v.optional(v.string()),
+        metadata: v.optional(v.any()),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
-        const teamId = await tenants.createTeam(ctx, userId, args.organizationId, args.name, args.description);
+        const teamId = await tenants.createTeam(ctx, userId, args.organizationId, args.name, args.description, {
+          slug: args.slug,
+          metadata: args.metadata,
+        });
         if (options.onTeamCreated) {
           await options.onTeamCreated(ctx, {
             teamId, name: args.name, organizationId: args.organizationId, createdBy: userId,
@@ -1515,10 +1586,21 @@ export function makeTenantsAPI(
     }),
 
     updateTeam: mutationGeneric({
-      args: { teamId: v.string(), name: v.optional(v.string()), description: v.optional(v.union(v.null(), v.string())) },
+      args: {
+        teamId: v.string(),
+        name: v.optional(v.string()),
+        slug: v.optional(v.string()),
+        description: v.optional(v.union(v.null(), v.string())),
+        metadata: v.optional(v.any()),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
-        await tenants.updateTeam(ctx, userId, args.teamId, { name: args.name, description: args.description });
+        await tenants.updateTeam(ctx, userId, args.teamId, {
+          name: args.name,
+          slug: args.slug,
+          description: args.description,
+          metadata: args.metadata,
+        });
       },
     }),
 
@@ -1616,10 +1698,19 @@ export function makeTenantsAPI(
     // Invitation Mutations
     // ================================
     inviteMember: mutationGeneric({
-      args: { organizationId: v.string(), email: v.string(), role: v.string(), teamId: v.optional(v.string()) },
+      args: {
+        organizationId: v.string(),
+        email: v.string(),
+        role: v.string(),
+        teamId: v.optional(v.string()),
+        message: v.optional(v.string()),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
-        const result = await tenants.inviteMember(ctx, userId, args.organizationId, args.email, args.role, { teamId: args.teamId });
+        const result = await tenants.inviteMember(ctx, userId, args.organizationId, args.email, args.role, {
+          teamId: args.teamId,
+          message: args.message,
+        });
         if (options.onInvitationCreated) {
           const org = await tenants.getOrganization(ctx, args.organizationId);
           let inviterName: string | undefined;

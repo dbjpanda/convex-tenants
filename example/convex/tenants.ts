@@ -12,7 +12,7 @@ import { authz } from "./authz.js";
 export const {
   // Organizations
   listOrganizations, getOrganization, getOrganizationBySlug,
-  createOrganization, updateOrganization, deleteOrganization,
+  createOrganization, updateOrganization, transferOwnership, deleteOrganization,
   // Members
   listMembers, getMember, getCurrentMember,
   addMember, removeMember, updateMemberRole, leaveOrganization,

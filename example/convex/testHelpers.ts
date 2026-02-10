@@ -78,6 +78,7 @@ export const strictGetOrganization = strictApi.getOrganization;
 export const strictGetOrganizationBySlug = strictApi.getOrganizationBySlug;
 export const strictCreateOrganization = strictApi.createOrganization;
 export const strictUpdateOrganization = strictApi.updateOrganization;
+export const strictTransferOwnership = strictApi.transferOwnership;
 export const strictDeleteOrganization = strictApi.deleteOrganization;
 // Members
 export const strictListMembers = strictApi.listMembers;

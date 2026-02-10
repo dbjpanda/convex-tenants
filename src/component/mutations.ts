@@ -2,6 +2,7 @@ import { v, ConvexError } from "convex/values";
 import { mutation } from "./_generated/server";
 import {
   ensureUniqueSlug,
+  ensureUniqueTeamSlug,
   isInvitationExpired,
 } from "./helpers";
 import type { Id } from "./_generated/dataModel";
@@ -24,13 +25,14 @@ export const createOrganization = mutation({
     // Ensure slug is unique
     const uniqueSlug = await ensureUniqueSlug(ctx, args.slug);
 
-    // Create organization
+    // Create organization (status defaults to active)
     const organizationId = await ctx.db.insert("organizations", {
       name: args.name,
       slug: uniqueSlug,
       logo: args.logo ?? null,
       metadata: args.metadata,
       ownerId: args.userId,
+      status: "active",
     });
 
     // Add creator as member with the specified role
@@ -52,6 +54,7 @@ export const updateOrganization = mutation({
     slug: v.optional(v.string()),
     logo: v.optional(v.union(v.null(), v.string())),
     metadata: v.optional(v.any()),
+    status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -61,6 +64,7 @@ export const updateOrganization = mutation({
     if (args.name !== undefined) updates.name = args.name;
     if (args.logo !== undefined) updates.logo = args.logo;
     if (args.metadata !== undefined) updates.metadata = args.metadata;
+    if (args.status !== undefined) updates.status = args.status;
 
     // Handle slug update separately to ensure uniqueness
     if (args.slug !== undefined) {
@@ -69,6 +73,72 @@ export const updateOrganization = mutation({
     }
 
     await ctx.db.patch(orgId, updates);
+    return null;
+  },
+});
+
+export const transferOwnership = mutation({
+  args: {
+    userId: v.string(), // current owner
+    organizationId: v.string(),
+    newOwnerUserId: v.string(),
+    previousOwnerRole: v.optional(v.string()), // role to assign to current owner after transfer (default "admin")
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const orgId = args.organizationId as Id<"organizations">;
+
+    const org = await ctx.db.get(orgId);
+    if (!org) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
+    }
+    if (org.ownerId !== args.userId) {
+      throw new ConvexError({
+        code: "FORBIDDEN",
+        message: "Only the current owner can transfer ownership",
+      });
+    }
+
+    const newOwnerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", orgId).eq("userId", args.newOwnerUserId)
+      )
+      .unique();
+
+    if (!newOwnerMember) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "New owner must already be a member of the organization",
+      });
+    }
+
+    if (args.newOwnerUserId === args.userId) {
+      throw new ConvexError({
+        code: "INVALID_ARGUMENT",
+        message: "New owner must be a different user",
+      });
+    }
+
+    const previousRole = args.previousOwnerRole ?? "admin";
+
+    // Update organization owner
+    await ctx.db.patch(orgId, { ownerId: args.newOwnerUserId });
+
+    // Update current owner's member role to previousOwnerRole
+    const currentOwnerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", orgId).eq("userId", args.userId)
+      )
+      .unique();
+    if (currentOwnerMember) {
+      await ctx.db.patch(currentOwnerMember._id, { role: previousRole });
+    }
+
+    // Update new owner's member role to owner
+    await ctx.db.patch(newOwnerMember._id, { role: "owner" });
+
     return null;
   },
 });
@@ -332,17 +402,22 @@ export const createTeam = mutation({
     userId: v.string(),
     organizationId: v.string(),
     name: v.string(),
+    slug: v.optional(v.string()),
     description: v.optional(v.string()),
+    metadata: v.optional(v.any()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
+    const baseSlug = args.slug ?? (args.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "team");
+    const uniqueSlug = await ensureUniqueTeamSlug(ctx, orgId, baseSlug);
 
-    // Create team
     const teamId = await ctx.db.insert("teams", {
       name: args.name,
+      slug: uniqueSlug,
       organizationId: orgId,
       description: args.description ?? null,
+      metadata: args.metadata,
     });
 
     return teamId as string;
@@ -354,13 +429,14 @@ export const updateTeam = mutation({
     userId: v.string(),
     teamId: v.string(),
     name: v.optional(v.string()),
+    slug: v.optional(v.string()),
     description: v.optional(v.union(v.null(), v.string())),
+    metadata: v.optional(v.any()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const teamId = args.teamId as Id<"teams">;
 
-    // Get team
     const team = await ctx.db.get(teamId);
     if (!team) {
       throw new ConvexError({
@@ -372,6 +448,11 @@ export const updateTeam = mutation({
     const updates: any = {};
     if (args.name !== undefined) updates.name = args.name;
     if (args.description !== undefined) updates.description = args.description;
+    if (args.metadata !== undefined) updates.metadata = args.metadata;
+    if (args.slug !== undefined) {
+      const uniqueSlug = await ensureUniqueTeamSlug(ctx, team.organizationId, args.slug);
+      updates.slug = uniqueSlug;
+    }
 
     await ctx.db.patch(teamId, updates);
 
@@ -518,6 +599,7 @@ export const inviteMember = mutation({
     email: v.string(),
     role: v.string(),
     teamId: v.optional(v.string()),
+    message: v.optional(v.string()),
     expiresAt: v.optional(v.number()),
   },
   returns: v.object({
@@ -570,6 +652,7 @@ export const inviteMember = mutation({
       role: args.role,
       teamId: args.teamId ? (args.teamId as Id<"teams">) : null,
       inviterId: args.userId,
+      message: args.message,
       status: "pending",
       expiresAt,
     });

@@ -30,6 +30,31 @@ export interface TenantsAPI {
     { name: string; slug: string; logo?: string; metadata?: any },
     string
   >;
+  updateOrganization: FunctionReference<
+    "mutation",
+    "public",
+    {
+      organizationId: string;
+      name?: string;
+      slug?: string;
+      logo?: string | null;
+      metadata?: any;
+      status?: "active" | "suspended" | "archived";
+    },
+    null
+  >;
+  deleteOrganization: FunctionReference<
+    "mutation",
+    "public",
+    { organizationId: string },
+    null
+  >;
+  leaveOrganization: FunctionReference<
+    "mutation",
+    "public",
+    { organizationId: string },
+    null
+  >;
 
   // Member queries/mutations
   listMembers: FunctionReference<
@@ -61,7 +86,7 @@ export interface TenantsAPI {
   inviteMember: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; email: string; role: string; teamId?: string },
+    { organizationId: string; email: string; role: string; teamId?: string; message?: string },
     { invitationId: string; email: string; expiresAt: number } | null
   >;
   resendInvitation: FunctionReference<
@@ -87,7 +112,7 @@ export interface TenantsAPI {
   createTeam: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; name: string; description?: string },
+    { organizationId: string; name: string; description?: string; slug?: string; metadata?: any },
     string
   >;
   deleteTeam: FunctionReference<
@@ -168,7 +193,7 @@ export function TenantsProvider({
   children,
   onToast,
 }: TenantsProviderProps) {
-  const { activeOrganizationId, setActiveOrganizationId } = useOrganizationStore();
+  const { activeOrganizationId, setActiveOrganizationId, clearActiveOrganization } = useOrganizationStore();
 
   // ============================================================================
   // Queries
@@ -217,6 +242,9 @@ export function TenantsProvider({
   // ============================================================================
 
   const createOrgMutation = useMutation(api.createOrganization);
+  const updateOrganizationMutation = useMutation(api.updateOrganization);
+  const deleteOrganizationMutation = useMutation(api.deleteOrganization);
+  const leaveOrganizationMutation = useMutation(api.leaveOrganization);
   const removeMemberMutation = useMutation(api.removeMember);
   const updateMemberRoleMutation = useMutation(api.updateMemberRole);
   const inviteMemberMutation = useMutation(api.inviteMember);
@@ -271,6 +299,61 @@ export function TenantsProvider({
     [createOrgMutation, setActiveOrganizationId, onToast]
   );
 
+  const updateOrganization = useCallback(
+    async (data: {
+      name?: string;
+      slug?: string;
+      logo?: string | null;
+      metadata?: any;
+      status?: "active" | "suspended" | "archived";
+    }) => {
+      if (!currentOrganization) throw new Error("No organization selected");
+      try {
+        await updateOrganizationMutation({
+          organizationId: currentOrganization._id,
+          ...data,
+        });
+        onToast?.("Organization updated successfully", "success");
+      } catch (error: any) {
+        onToast?.(error.message || "Failed to update organization", "error");
+        throw error;
+      }
+    },
+    [currentOrganization, updateOrganizationMutation, onToast]
+  );
+
+  const deleteOrganization = useCallback(
+    async () => {
+      if (!currentOrganization) throw new Error("No organization selected");
+      try {
+        await deleteOrganizationMutation({ organizationId: currentOrganization._id });
+        clearActiveOrganization();
+        setActiveOrganizationId(organizations.find((o) => o._id !== currentOrganization._id)?._id ?? null);
+        onToast?.("Organization deleted", "success");
+      } catch (error: any) {
+        onToast?.(error.message || "Failed to delete organization", "error");
+        throw error;
+      }
+    },
+    [currentOrganization, deleteOrganizationMutation, organizations, setActiveOrganizationId, clearActiveOrganization, onToast]
+  );
+
+  const leaveOrganization = useCallback(
+    async () => {
+      if (!currentOrganization) throw new Error("No organization selected");
+      try {
+        await leaveOrganizationMutation({ organizationId: currentOrganization._id });
+        clearActiveOrganization();
+        setActiveOrganizationId(organizations.find((o) => o._id !== currentOrganization._id)?._id ?? null);
+        onToast?.("Left organization successfully", "success");
+      } catch (error: any) {
+        onToast?.(error.message || "Failed to leave organization", "error");
+        throw error;
+      }
+    },
+    [currentOrganization, leaveOrganizationMutation, organizations, setActiveOrganizationId, clearActiveOrganization, onToast]
+  );
+
   const removeMember = useCallback(
     async (memberUserId: string) => {
       if (!currentOrganization) throw new Error("No organization selected");
@@ -307,7 +390,7 @@ export function TenantsProvider({
   );
 
   const inviteMember = useCallback(
-    async (data: { email: string; role: string; teamId?: string }) => {
+    async (data: { email: string; role: string; teamId?: string; message?: string }) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         const result = await inviteMemberMutation({
@@ -351,7 +434,7 @@ export function TenantsProvider({
   );
 
   const createTeam = useCallback(
-    async (data: { name: string; description?: string }) => {
+    async (data: { name: string; description?: string; slug?: string; metadata?: any }) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         const teamId = await createTeamMutation({
@@ -433,6 +516,9 @@ export function TenantsProvider({
       // Actions
       switchOrganization,
       createOrganization,
+      updateOrganization,
+      deleteOrganization,
+      leaveOrganization,
       removeMember,
       updateMemberRole,
       inviteMember,
@@ -460,6 +546,9 @@ export function TenantsProvider({
       currentRole,
       switchOrganization,
       createOrganization,
+      updateOrganization,
+      deleteOrganization,
+      leaveOrganization,
       removeMember,
       updateMemberRole,
       inviteMember,

@@ -10,7 +10,30 @@ export interface OrganizationStore {
 // Internal store (module-level singleton)
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "tenants-active-organization";
+const DEFAULT_STORAGE_KEY = "tenants-active-organization";
+
+/** Configurable storage key (set before first use to avoid key collisions when multiple apps use the package). */
+let storageKey = DEFAULT_STORAGE_KEY;
+
+/**
+ * Configure the organization store (e.g. storage key for localStorage).
+ * Call before first use of useOrganizationStore().
+ *
+ * @example
+ * ```tsx
+ * import { configureOrganizationStore } from "@djpanda/convex-tenants/react";
+ * configureOrganizationStore({ storageKey: "my-app-active-org" });
+ * ```
+ */
+export function configureOrganizationStore(options: { storageKey?: string }): void {
+  if (options.storageKey !== undefined) {
+    storageKey = options.storageKey;
+  }
+}
+
+function getStorageKey(): string {
+  return storageKey;
+}
 
 type Listener = () => void;
 
@@ -25,7 +48,7 @@ const listeners = new Set<Listener>();
 function initFromStorage() {
   if (typeof window === "undefined") return;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(getStorageKey());
     if (stored) {
       const parsed = JSON.parse(stored);
       // Legacy zustand persist format: {"state":{"activeOrganizationId":"..."},"version":0}
@@ -55,7 +78,7 @@ function setState(newState: StoreState) {
   // Persist to localStorage
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(getStorageKey(), JSON.stringify(state));
     } catch {
       // Ignore storage errors (e.g. quota exceeded, private browsing)
     }

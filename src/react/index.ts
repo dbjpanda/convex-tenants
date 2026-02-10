@@ -33,7 +33,7 @@ export {
 } from "./hooks/index.js";
 
 // Stores
-export { useOrganizationStore, type OrganizationStore } from "./stores/organization-store.js";
+export { useOrganizationStore, configureOrganizationStore, type OrganizationStore } from "./stores/organization-store.js";
 
 // Components
 export {

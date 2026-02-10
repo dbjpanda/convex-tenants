@@ -15,9 +15,11 @@ export default defineSchema({
     logo: v.union(v.null(), v.string()),
     metadata: v.optional(v.any()),
     ownerId: v.string(), // References parent app's users table
+    status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))), // default active
   })
     .index("by_slug", ["slug"])
-    .index("by_owner", ["ownerId"]),
+    .index("by_owner", ["ownerId"])
+    .index("by_status", ["status"]),
 
   // Organization members table
   members: defineTable({
@@ -32,9 +34,13 @@ export default defineSchema({
   // Teams table
   teams: defineTable({
     name: v.string(),
+    slug: v.optional(v.string()), // URL-friendly, unique per organization
     organizationId: v.id("organizations"),
     description: v.union(v.null(), v.string()),
-  }).index("by_organization", ["organizationId"]),
+    metadata: v.optional(v.any()),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_and_slug", ["organizationId", "slug"]),
 
   // Team members table
   teamMembers: defineTable({
@@ -52,6 +58,7 @@ export default defineSchema({
     role: v.string(), // Flexible: developer defines roles in authz.ts
     teamId: v.union(v.null(), v.id("teams")),
     inviterId: v.string(), // References parent app's users table
+    message: v.optional(v.string()), // Optional custom message from inviter
     status: v.union(
       v.literal("pending"),
       v.literal("accepted"),

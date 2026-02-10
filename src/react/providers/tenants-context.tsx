@@ -14,6 +14,7 @@ export interface Organization {
   logo: string | null;
   metadata?: any;
   ownerId: string;
+  status?: "active" | "suspended" | "archived";
   role: string;
 }
 
@@ -38,6 +39,7 @@ export interface Invitation {
   role: string;
   teamId?: string | null;
   inviterId: string;
+  message?: string;
   expiresAt: number;
   status: "pending" | "accepted" | "cancelled" | "expired";
   isExpired: boolean;
@@ -50,6 +52,7 @@ export interface Team {
   slug?: string;
   description?: string | null;
   organizationId: string;
+  metadata?: any;
 }
 
 // ============================================================================
@@ -82,6 +85,15 @@ export interface TenantsContextValue {
     logo?: string;
     metadata?: any;
   }) => Promise<string | null>;
+  updateOrganization: (data: {
+    name?: string;
+    slug?: string;
+    logo?: string | null;
+    metadata?: any;
+    status?: "active" | "suspended" | "archived";
+  }) => Promise<void>;
+  deleteOrganization: () => Promise<void>;
+  leaveOrganization: () => Promise<void>;
 
   // Member actions
   removeMember: (memberUserId: string) => Promise<void>;
@@ -95,6 +107,7 @@ export interface TenantsContextValue {
     email: string;
     role: string;
     teamId?: string;
+    message?: string;
   }) => Promise<{ invitationId: string; email: string; expiresAt: number } | null>;
   resendInvitation: (invitationId: string) => Promise<void>;
   cancelInvitation: (invitationId: string) => Promise<void>;
@@ -103,6 +116,8 @@ export interface TenantsContextValue {
   createTeam: (data: {
     name: string;
     description?: string;
+    slug?: string;
+    metadata?: any;
   }) => Promise<string | null>;
   deleteTeam: (teamId: string) => Promise<void>;
   addTeamMember: (userId: string, teamId: string) => Promise<void>;

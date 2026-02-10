@@ -19,6 +19,7 @@ export const listUserOrganizations = query({
       logo: v.union(v.null(), v.string()),
       metadata: v.optional(v.any()),
       ownerId: v.string(),
+      status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
       role: v.string(),
     })
   ),
@@ -41,6 +42,7 @@ export const listUserOrganizations = query({
           logo: org.logo,
           metadata: org.metadata,
           ownerId: org.ownerId,
+          status: (org as { status?: "active" | "suspended" | "archived" }).status,
           role: membership.role,
         };
       })
@@ -67,12 +69,13 @@ export const getOrganization = query({
       logo: v.union(v.null(), v.string()),
       metadata: v.optional(v.any()),
       ownerId: v.string(),
+      status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
     })
   ),
   handler: async (ctx, args) => {
     const org = await ctx.db.get(args.organizationId as Id<"organizations">);
     if (!org) return null;
-
+    const o = org as { status?: "active" | "suspended" | "archived" };
     return {
       _id: org._id as string,
       _creationTime: org._creationTime,
@@ -81,6 +84,7 @@ export const getOrganization = query({
       logo: org.logo,
       metadata: org.metadata,
       ownerId: org.ownerId,
+      status: o.status,
     };
   },
 });
@@ -102,6 +106,7 @@ export const getOrganizationBySlug = query({
       logo: v.union(v.null(), v.string()),
       metadata: v.optional(v.any()),
       ownerId: v.string(),
+      status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
     })
   ),
   handler: async (ctx, args) => {
@@ -111,7 +116,7 @@ export const getOrganizationBySlug = query({
       .unique();
 
     if (!org) return null;
-
+    const o = org as { status?: "active" | "suspended" | "archived" };
     return {
       _id: org._id as string,
       _creationTime: org._creationTime,
@@ -120,6 +125,7 @@ export const getOrganizationBySlug = query({
       logo: org.logo,
       metadata: org.metadata,
       ownerId: org.ownerId,
+      status: o.status,
     };
   },
 });
@@ -210,8 +216,10 @@ export const listTeams = query({
       _id: v.string(),
       _creationTime: v.number(),
       name: v.string(),
+      slug: v.optional(v.string()),
       organizationId: v.string(),
       description: v.union(v.null(), v.string()),
+      metadata: v.optional(v.any()),
     })
   ),
   handler: async (ctx, args) => {
@@ -222,13 +230,18 @@ export const listTeams = query({
       )
       .collect();
 
-    return teams.map((team) => ({
-      _id: team._id as string,
-      _creationTime: team._creationTime,
-      name: team.name,
-      organizationId: team.organizationId as string,
-      description: team.description,
-    }));
+    return teams.map((team) => {
+      const t = team as { slug?: string; metadata?: any };
+      return {
+        _id: team._id as string,
+        _creationTime: team._creationTime,
+        name: team.name,
+        slug: t.slug,
+        organizationId: team.organizationId as string,
+        description: team.description,
+        metadata: t.metadata,
+      };
+    });
   },
 });
 
@@ -245,20 +258,24 @@ export const getTeam = query({
       _id: v.string(),
       _creationTime: v.number(),
       name: v.string(),
+      slug: v.optional(v.string()),
       organizationId: v.string(),
       description: v.union(v.null(), v.string()),
+      metadata: v.optional(v.any()),
     })
   ),
   handler: async (ctx, args) => {
     const team = await ctx.db.get(args.teamId as Id<"teams">);
     if (!team) return null;
-
+    const t = team as { slug?: string; metadata?: any };
     return {
       _id: team._id as string,
       _creationTime: team._creationTime,
       name: team.name,
+      slug: t.slug,
       organizationId: team.organizationId as string,
       description: team.description,
+      metadata: t.metadata,
     };
   },
 });
@@ -309,6 +326,7 @@ export const listInvitations = query({
       role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
+      message: v.optional(v.string()),
       status: v.union(
         v.literal("pending"),
         v.literal("accepted"),
@@ -327,18 +345,22 @@ export const listInvitations = query({
       )
       .collect();
 
-    return invitations.map((inv) => ({
-      _id: inv._id as string,
-      _creationTime: inv._creationTime,
-      organizationId: inv.organizationId as string,
-      email: inv.email,
-      role: inv.role,
-      teamId: inv.teamId ? (inv.teamId as string) : null,
-      inviterId: inv.inviterId,
-      status: inv.status,
-      expiresAt: inv.expiresAt,
-      isExpired: isInvitationExpired(inv),
-    }));
+    return invitations.map((inv) => {
+      const i = inv as { message?: string };
+      return {
+        _id: inv._id as string,
+        _creationTime: inv._creationTime,
+        organizationId: inv.organizationId as string,
+        email: inv.email,
+        role: inv.role,
+        teamId: inv.teamId ? (inv.teamId as string) : null,
+        inviterId: inv.inviterId,
+        message: i.message,
+        status: inv.status,
+        expiresAt: inv.expiresAt,
+        isExpired: isInvitationExpired(inv),
+      };
+    });
   },
 });
 
@@ -359,6 +381,7 @@ export const getInvitation = query({
       role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
+      message: v.optional(v.string()),
       status: v.union(
         v.literal("pending"),
         v.literal("accepted"),
@@ -372,7 +395,7 @@ export const getInvitation = query({
   handler: async (ctx, args) => {
     const invitation = await ctx.db.get(args.invitationId as Id<"invitations">);
     if (!invitation) return null;
-
+    const i = invitation as { message?: string };
     return {
       _id: invitation._id as string,
       _creationTime: invitation._creationTime,
@@ -381,6 +404,7 @@ export const getInvitation = query({
       role: invitation.role,
       teamId: invitation.teamId ? (invitation.teamId as string) : null,
       inviterId: invitation.inviterId,
+      message: i.message,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
       isExpired: isInvitationExpired(invitation),
