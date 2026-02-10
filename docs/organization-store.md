@@ -1,6 +1,6 @@
 # Organization Store
 
-The organization store holds the **active organization ID** for the current user. It is persisted in a cookie (`tenants-active-org` by default) for SSR compatibility and uses React's built-in `useSyncExternalStore` — no external dependencies.
+The organization store holds the **active organization ID** for the current user. State is persisted in **localStorage** (key `tenants-active-organization` by default) and uses React's built-in `useSyncExternalStore` — no external dependencies.
 
 ## Basic usage
 
@@ -20,23 +20,17 @@ function MyComponent() {
 
 ## Configurable storage key
 
-To avoid collisions when multiple apps or packages use the store on the same domain, you can set a custom cookie/key name. Call `configureOrganizationStore` **once** before any component uses the store (e.g. in your app entry or layout):
+To avoid key collisions when multiple apps use the package on the same domain, you can set a custom storage key. Call `configureOrganizationStore` **once** before any component uses the store (e.g. in your app entry or layout):
 
 ```tsx
 import { configureOrganizationStore } from "@djpanda/convex-tenants/react";
 
-// Optional: use a custom key for localStorage/cookie
-configureOrganizationStore({ storageKey: "my-app-active-org" });
+// Optional: use a custom key for localStorage
+configureOrganizationStore({ storageKey: "my-app-org" });
 ```
 
 If you use `TenantsProvider`, call `configureOrganizationStore` before rendering the provider.
 
-## Reading the cookie server-side
+## Reading the stored value
 
-For SSR or Next.js middleware:
-
-```ts
-const activeOrgId = request.cookies.get("tenants-active-org")?.value;
-```
-
-If you configured a custom `storageKey`, use that name instead of `"tenants-active-org"`.
+The store uses **localStorage**, so the active organization ID is only available in the browser. For SSR, pass the organization from the client or from your session/cookie layer. If you configured a custom `storageKey`, that key is used in localStorage.
