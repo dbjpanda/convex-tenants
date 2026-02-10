@@ -29,4 +29,4 @@ export {
   Tenants,
   makeTenantsAPI,
   generateSlug,
-} from "./api.js";
+} from "./api/index.js";
