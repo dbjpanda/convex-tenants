@@ -26,6 +26,7 @@ export const addMember = mutation({
       organizationId: orgId,
       userId: args.memberUserId,
       role: args.role,
+      status: "active",
     });
     return null;
   },
@@ -86,6 +87,55 @@ export const updateMemberRole = mutation({
       .unique();
     if (!member) throw new ConvexError({ code: "NOT_FOUND", message: "Member not found" });
     await ctx.db.patch(member._id, { role: args.role });
+    return null;
+  },
+});
+
+export const suspendMember = mutation({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+    memberUserId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const orgId = args.organizationId as Id<"organizations">;
+    const org = await ctx.db.get(orgId);
+    if (org && args.memberUserId === org.ownerId) {
+      throw new ConvexError({
+        code: "FORBIDDEN",
+        message: "Cannot suspend the organization owner. Transfer ownership first.",
+      });
+    }
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", orgId).eq("userId", args.memberUserId)
+      )
+      .unique();
+    if (!member) throw new ConvexError({ code: "NOT_FOUND", message: "Member not found" });
+    await ctx.db.patch(member._id, { status: "suspended", suspendedAt: Date.now() });
+    return null;
+  },
+});
+
+export const unsuspendMember = mutation({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+    memberUserId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const orgId = args.organizationId as Id<"organizations">;
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", orgId).eq("userId", args.memberUserId)
+      )
+      .unique();
+    if (!member) throw new ConvexError({ code: "NOT_FOUND", message: "Member not found" });
+    await ctx.db.patch(member._id, { status: "active" });
     return null;
   },
 });

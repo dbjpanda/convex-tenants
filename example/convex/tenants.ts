@@ -15,7 +15,7 @@ export const {
   createOrganization, updateOrganization, transferOwnership, deleteOrganization,
   // Members
   listMembers, getMember, getCurrentMember,
-  addMember, removeMember, updateMemberRole, leaveOrganization,
+  addMember, removeMember, updateMemberRole, suspendMember, unsuspendMember, leaveOrganization,
   // Teams
   listTeams, getTeam, listTeamMembers, isTeamMember,
   createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember,

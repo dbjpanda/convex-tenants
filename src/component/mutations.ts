@@ -12,6 +12,8 @@ export {
   addMember,
   removeMember,
   updateMemberRole,
+  suspendMember,
+  unsuspendMember,
   leaveOrganization,
 } from "./mutations/members.js";
 export {

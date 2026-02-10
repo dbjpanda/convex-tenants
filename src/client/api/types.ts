@@ -21,12 +21,16 @@ export interface OrganizationWithRole extends Organization {
   role: OrgRole;
 }
 
+export type MemberStatus = "active" | "suspended";
+
 export interface Member {
   _id: string;
   _creationTime: number;
   organizationId: string;
   userId: string;
   role: OrgRole;
+  status?: MemberStatus;
+  suspendedAt?: number;
 }
 
 export interface MemberWithUser extends Member {

@@ -4,11 +4,13 @@ import { query } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 
 /**
- * List all members of an organization (without user data enrichment)
+ * List all members of an organization (without user data enrichment).
+ * Optional status filter: "active" | "suspended" | "all". Default "active".
  */
 export const listOrganizationMembers = query({
   args: {
     organizationId: v.string(),
+    status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
   },
   returns: v.array(
     v.object({
@@ -17,6 +19,8 @@ export const listOrganizationMembers = query({
       organizationId: v.string(),
       userId: v.string(),
       role: v.string(),
+      status: v.optional(v.union(v.literal("active"), v.literal("suspended"))),
+      suspendedAt: v.optional(v.number()),
     })
   ),
   handler: async (ctx, args) => {
@@ -27,12 +31,20 @@ export const listOrganizationMembers = query({
       )
       .collect();
 
-    return members.map((member) => ({
+    const statusFilter = args.status ?? "active";
+    const filtered =
+      statusFilter === "all"
+        ? members
+        : members.filter((m) => (m.status ?? "active") === statusFilter);
+
+    return filtered.map((member) => ({
       _id: member._id as string,
       _creationTime: member._creationTime,
       organizationId: member.organizationId as string,
       userId: member.userId,
       role: member.role,
+      status: member.status,
+      suspendedAt: member.suspendedAt,
     }));
   },
 });
@@ -46,6 +58,7 @@ export const listOrganizationMembersPaginated = query({
   args: {
     organizationId: v.string(),
     paginationOpts: paginationOptsValidator,
+    status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
   },
   handler: async (ctx, args) => {
     const result = await ctx.db
@@ -55,15 +68,21 @@ export const listOrganizationMembersPaginated = query({
       )
       .order("desc")
       .paginate(args.paginationOpts);
-
+    const statusFilter = args.status ?? "active";
+    const filteredPage =
+      statusFilter === "all"
+        ? result.page
+        : result.page.filter((m) => (m.status ?? "active") === statusFilter);
     return {
       ...result,
-      page: result.page.map((member) => ({
+      page: filteredPage.map((member) => ({
         _id: member._id as string,
         _creationTime: member._creationTime,
         organizationId: member.organizationId as string,
         userId: member.userId,
         role: member.role,
+        status: member.status,
+        suspendedAt: member.suspendedAt,
       })),
     };
   },
@@ -71,9 +90,13 @@ export const listOrganizationMembersPaginated = query({
 
 /**
  * Count members in an organization.
+ * Optional status: "active" | "suspended" | "all". Default "active".
  */
 export const countOrganizationMembers = query({
-  args: { organizationId: v.string() },
+  args: {
+    organizationId: v.string(),
+    status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
+  },
   returns: v.number(),
   handler: async (ctx, args) => {
     const members = await ctx.db
@@ -82,7 +105,9 @@ export const countOrganizationMembers = query({
         q.eq("organizationId", args.organizationId as Id<"organizations">)
       )
       .collect();
-    return members.length;
+    const statusFilter = args.status ?? "active";
+    if (statusFilter === "all") return members.length;
+    return members.filter((m) => (m.status ?? "active") === statusFilter).length;
   },
 });
 
@@ -102,6 +127,8 @@ export const getMember = query({
       organizationId: v.string(),
       userId: v.string(),
       role: v.string(),
+      status: v.optional(v.union(v.literal("active"), v.literal("suspended"))),
+      suspendedAt: v.optional(v.number()),
     })
   ),
   handler: async (ctx, args) => {
@@ -122,6 +149,8 @@ export const getMember = query({
       organizationId: member.organizationId as string,
       userId: member.userId,
       role: member.role,
+      status: member.status,
+      suspendedAt: member.suspendedAt,
     };
   },
 });

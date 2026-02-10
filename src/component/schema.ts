@@ -26,6 +26,8 @@ export default defineSchema({
     organizationId: v.id("organizations"),
     userId: v.string(), // References parent app's users table
     role: v.string(), // Flexible: developer defines roles in authz.ts
+    status: v.optional(v.union(v.literal("active"), v.literal("suspended"))), // default active; suspended = soft disable
+    suspendedAt: v.optional(v.number()), // set when status becomes suspended
   })
     .index("by_organization", ["organizationId"])
     .index("by_user", ["userId"])

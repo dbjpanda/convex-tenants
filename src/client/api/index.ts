@@ -16,6 +16,7 @@ export {
   type Organization,
   type OrganizationWithRole,
   type Member,
+  type MemberStatus,
   type MemberWithUser,
   type Team,
   type TeamMember,

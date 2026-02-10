@@ -194,6 +194,20 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           null,
           Name
         >;
+        suspendMember: FunctionReference<
+          "mutation",
+          "internal",
+          { memberUserId: string; organizationId: string; userId: string },
+          null,
+          Name
+        >;
+        unsuspendMember: FunctionReference<
+          "mutation",
+          "internal",
+          { memberUserId: string; organizationId: string; userId: string },
+          null,
+          Name
+        >;
         updateMemberRole: FunctionReference<
           "mutation",
           "internal",
@@ -278,6 +292,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         { email: string; invitationId: string },
         Name
       >;
+      suspendMember: FunctionReference<
+        "mutation",
+        "internal",
+        { memberUserId: string; organizationId: string; userId: string },
+        null,
+        Name
+      >;
       teams: {
         addTeamMember: FunctionReference<
           "mutation",
@@ -341,6 +362,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null,
         Name
       >;
+      unsuspendMember: FunctionReference<
+        "mutation",
+        "internal",
+        { memberUserId: string; organizationId: string; userId: string },
+        null,
+        Name
+      >;
       updateMemberRole: FunctionReference<
         "mutation",
         "internal",
@@ -394,7 +422,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       countOrganizationMembers: FunctionReference<
         "query",
         "internal",
-        { organizationId: string },
+        { organizationId: string; status?: "active" | "suspended" | "all" },
         number,
         Name
       >;
@@ -433,6 +461,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           _id: string;
           organizationId: string;
           role: string;
+          status?: "active" | "suspended";
+          suspendedAt?: number;
           userId: string;
         },
         Name
@@ -628,12 +658,14 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       listOrganizationMembers: FunctionReference<
         "query",
         "internal",
-        { organizationId: string },
+        { organizationId: string; status?: "active" | "suspended" | "all" },
         Array<{
           _creationTime: number;
           _id: string;
           organizationId: string;
           role: string;
+          status?: "active" | "suspended";
+          suspendedAt?: number;
           userId: string;
         }>,
         Name
@@ -651,6 +683,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             maximumRowsRead?: number;
             numItems: number;
           };
+          status?: "active" | "suspended" | "all";
         },
         any,
         Name
@@ -737,7 +770,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         countOrganizationMembers: FunctionReference<
           "query",
           "internal",
-          { organizationId: string },
+          { organizationId: string; status?: "active" | "suspended" | "all" },
           number,
           Name
         >;
@@ -750,6 +783,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             _id: string;
             organizationId: string;
             role: string;
+            status?: "active" | "suspended";
+            suspendedAt?: number;
             userId: string;
           },
           Name
@@ -757,12 +792,14 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         listOrganizationMembers: FunctionReference<
           "query",
           "internal",
-          { organizationId: string },
+          { organizationId: string; status?: "active" | "suspended" | "all" },
           Array<{
             _creationTime: number;
             _id: string;
             organizationId: string;
             role: string;
+            status?: "active" | "suspended";
+            suspendedAt?: number;
             userId: string;
           }>,
           Name
@@ -780,6 +817,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               maximumRowsRead?: number;
               numItems: number;
             };
+            status?: "active" | "suspended" | "all";
           },
           any,
           Name

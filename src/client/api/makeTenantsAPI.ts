@@ -168,6 +168,18 @@ export function makeTenantsAPI(
     return member;
   }
 
+  async function requireActiveMembership(
+    ctx: QueryCtx,
+    userId: string,
+    organizationId: string
+  ): Promise<Member> {
+    const member = await requireMembership(ctx, userId, organizationId);
+    if ((member.status ?? "active") === "suspended") {
+      throw new Error("Your membership is suspended. You cannot perform this action.");
+    }
+    return member;
+  }
+
   async function requireActiveOrganization(
     ctx: QueryCtx,
     organizationId: string
@@ -258,6 +270,7 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         if (args.status !== "active") {
           await requireActiveOrganization(ctx, args.organizationId);
         }
@@ -275,6 +288,7 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         await tenants.transferOwnership(ctx, userId, args.organizationId, args.newOwnerUserId, {
           previousOwnerRole: args.previousOwnerRole,
@@ -286,6 +300,7 @@ export function makeTenantsAPI(
       args: { organizationId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
 
         let orgName = "Unknown";
@@ -305,12 +320,17 @@ export function makeTenantsAPI(
     }),
 
     listMembers: queryGeneric({
-      args: { organizationId: v.string() },
+      args: {
+        organizationId: v.string(),
+        status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
 
-        const members = await tenants.listMembers(ctx, args.organizationId);
+        const members = await tenants.listMembers(ctx, args.organizationId, {
+          status: args.status,
+        });
         if (options.getUser) {
           return await Promise.all(
             members.map(async (member) => ({
@@ -326,6 +346,7 @@ export function makeTenantsAPI(
       args: {
         organizationId: v.string(),
         paginationOpts: paginationOptsValidator,
+        status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
@@ -334,7 +355,8 @@ export function makeTenantsAPI(
         const result = await tenants.listMembersPaginated(
           ctx,
           args.organizationId,
-          args.paginationOpts
+          args.paginationOpts,
+          { status: args.status }
         );
         if (options.getUser && result.page.length > 0) {
           const page = await Promise.all(
@@ -350,11 +372,14 @@ export function makeTenantsAPI(
     }),
 
     countMembers: queryGeneric({
-      args: { organizationId: v.string() },
+      args: {
+        organizationId: v.string(),
+        status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        return await tenants.countMembers(ctx, args.organizationId);
+        return await tenants.countMembers(ctx, args.organizationId, { status: args.status });
       },
     }),
 
@@ -384,6 +409,7 @@ export function makeTenantsAPI(
       args: { organizationId: v.string(), memberUserId: v.string(), role: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         await tenants.addMember(ctx, userId, args.organizationId, args.memberUserId, args.role);
         if (options.onMemberAdded) {
@@ -398,6 +424,7 @@ export function makeTenantsAPI(
       args: { organizationId: v.string(), memberUserId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         await tenants.removeMember(ctx, userId, args.organizationId, args.memberUserId);
         if (options.onMemberRemoved) {
@@ -412,6 +439,7 @@ export function makeTenantsAPI(
       args: { organizationId: v.string(), memberUserId: v.string(), role: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         let oldRole: OrgRole | null = null;
         if (options.onMemberRoleChanged) {
@@ -432,11 +460,32 @@ export function makeTenantsAPI(
       args: { organizationId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         await tenants.leaveOrganization(ctx, userId, args.organizationId);
         if (options.onMemberLeft) {
           await options.onMemberLeft(ctx, { organizationId: args.organizationId, userId });
         }
+      },
+    }),
+
+    suspendMember: mutationGeneric({
+      args: { organizationId: v.string(), memberUserId: v.string() },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
+        await requireActiveOrganization(ctx, args.organizationId);
+        await tenants.suspendMember(ctx, userId, args.organizationId, args.memberUserId);
+      },
+    }),
+
+    unsuspendMember: mutationGeneric({
+      args: { organizationId: v.string(), memberUserId: v.string() },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
+        await requireActiveOrganization(ctx, args.organizationId);
+        await tenants.unsuspendMember(ctx, userId, args.organizationId, args.memberUserId);
       },
     }),
 
@@ -554,6 +603,7 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         const teamId = await tenants.createTeam(ctx, userId, args.organizationId, args.name, args.description, {
           slug: args.slug,
@@ -579,7 +629,10 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) await requireActiveOrganization(ctx, team.organizationId);
+        if (team) {
+          await requireActiveMembership(ctx, userId, team.organizationId);
+          await requireActiveOrganization(ctx, team.organizationId);
+        }
         await tenants.updateTeam(ctx, userId, args.teamId, {
           name: args.name,
           slug: args.slug,
@@ -594,7 +647,10 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const teamForOrg = await tenants.getTeam(ctx, args.teamId);
-        if (teamForOrg) await requireActiveOrganization(ctx, teamForOrg.organizationId);
+        if (teamForOrg) {
+          await requireActiveMembership(ctx, userId, teamForOrg.organizationId);
+          await requireActiveOrganization(ctx, teamForOrg.organizationId);
+        }
         let teamName = "Unknown";
         let teamOrgId = "";
         if (options.onTeamDeleted) {
@@ -616,7 +672,10 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) await requireActiveOrganization(ctx, team.organizationId);
+        if (team) {
+          await requireActiveMembership(ctx, userId, team.organizationId);
+          await requireActiveOrganization(ctx, team.organizationId);
+        }
         await tenants.addTeamMember(ctx, userId, args.teamId, args.memberUserId);
         if (options.onTeamMemberAdded) {
           await options.onTeamMemberAdded(ctx, { teamId: args.teamId, userId: args.memberUserId, addedBy: userId });
@@ -629,7 +688,10 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) await requireActiveOrganization(ctx, team.organizationId);
+        if (team) {
+          await requireActiveMembership(ctx, userId, team.organizationId);
+          await requireActiveOrganization(ctx, team.organizationId);
+        }
         await tenants.removeTeamMember(ctx, userId, args.teamId, args.memberUserId);
         if (options.onTeamMemberRemoved) {
           await options.onTeamMemberRemoved(ctx, { teamId: args.teamId, userId: args.memberUserId, removedBy: userId });
@@ -714,6 +776,7 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         const result = await tenants.inviteMember(ctx, userId, args.organizationId, args.email, args.role, {
           teamId: args.teamId,
@@ -781,7 +844,10 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const invitation = await tenants.getInvitation(ctx, args.invitationId);
-        if (invitation) await requireActiveOrganization(ctx, invitation.organizationId);
+        if (invitation) {
+          await requireActiveMembership(ctx, userId, invitation.organizationId);
+          await requireActiveOrganization(ctx, invitation.organizationId);
+        }
         const result = await tenants.resendInvitation(ctx, userId, args.invitationId);
         if (options.onInvitationResent) {
           const invForCallback = await tenants.getInvitation(ctx, args.invitationId);
@@ -808,7 +874,10 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const inv = await tenants.getInvitation(ctx, args.invitationId);
-        if (inv) await requireActiveOrganization(ctx, inv.organizationId);
+        if (inv) {
+          await requireActiveMembership(ctx, userId, inv.organizationId);
+          await requireActiveOrganization(ctx, inv.organizationId);
+        }
         await tenants.cancelInvitation(ctx, userId, args.invitationId);
       },
     }),
@@ -849,6 +918,7 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         return await tenants.grantPermission(
           ctx, userId, args.organizationId, args.targetUserId, args.permission,
@@ -868,6 +938,7 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         return await tenants.denyPermission(
           ctx, userId, args.organizationId, args.targetUserId, args.permission,

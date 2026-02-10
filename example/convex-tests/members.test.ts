@@ -124,5 +124,61 @@ describe("makeTenantsAPI - members", () => {
       });
       expect(await asAlice.query(api.testHelpers.strictCountMembers, { organizationId: orgId })).toBe(2);
     });
+
+    test("suspendMember and unsuspendMember soft-disable and re-enable member", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Suspend Org",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      let member = await asAlice.query(api.testHelpers.strictGetMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member?.status ?? "active").toBe("active");
+      expect(await asAlice.query(api.testHelpers.strictCountMembers, { organizationId: orgId })).toBe(2);
+
+      await asAlice.mutation(api.testHelpers.strictSuspendMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+      });
+
+      member = await asAlice.query(api.testHelpers.strictGetMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member?.status).toBe("suspended");
+      expect(member?.suspendedAt).toBeDefined();
+      expect(await asAlice.query(api.testHelpers.strictCountMembers, { organizationId: orgId })).toBe(1);
+      expect(await asAlice.query(api.testHelpers.strictCountMembers, { organizationId: orgId, status: "all" })).toBe(2);
+
+      await expect(
+        asBob.mutation(api.testHelpers.strictUpdateMemberRole, {
+          organizationId: orgId,
+          memberUserId: "bob",
+          role: "admin",
+        })
+      ).rejects.toThrow("Your membership is suspended");
+
+      await asAlice.mutation(api.testHelpers.strictUnsuspendMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+      });
+
+      member = await asAlice.query(api.testHelpers.strictGetMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member?.status).toBe("active");
+      expect(await asAlice.query(api.testHelpers.strictCountMembers, { organizationId: orgId })).toBe(2);
+    });
   });
 });

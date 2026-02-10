@@ -88,6 +88,8 @@ export const strictGetCurrentMember = strictApi.getCurrentMember;
 export const strictAddMember = strictApi.addMember;
 export const strictRemoveMember = strictApi.removeMember;
 export const strictUpdateMemberRole = strictApi.updateMemberRole;
+export const strictSuspendMember = strictApi.suspendMember;
+export const strictUnsuspendMember = strictApi.unsuspendMember;
 export const strictLeaveOrganization = strictApi.leaveOrganization;
 // Teams
 export const strictListTeams = strictApi.listTeams;

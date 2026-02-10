@@ -188,22 +188,38 @@ export class Tenants {
     await ctx.runMutation(this.component.mutations.deleteOrganization, { userId, organizationId });
   }
 
-  async listMembers(ctx: QueryCtx, organizationId: string): Promise<Member[]> {
-    return await ctx.runQuery(this.component.queries.listOrganizationMembers, { organizationId });
+  async listMembers(
+    ctx: QueryCtx,
+    organizationId: string,
+    options?: { status?: "active" | "suspended" | "all" }
+  ): Promise<Member[]> {
+    return await ctx.runQuery(this.component.queries.listOrganizationMembers, {
+      organizationId,
+      status: options?.status,
+    });
   }
 
-  async countMembers(ctx: QueryCtx, organizationId: string): Promise<number> {
-    return await ctx.runQuery(this.component.queries.countOrganizationMembers, { organizationId });
+  async countMembers(
+    ctx: QueryCtx,
+    organizationId: string,
+    options?: { status?: "active" | "suspended" | "all" }
+  ): Promise<number> {
+    return await ctx.runQuery(this.component.queries.countOrganizationMembers, {
+      organizationId,
+      status: options?.status,
+    });
   }
 
   async listMembersPaginated(
     ctx: QueryCtx,
     organizationId: string,
-    paginationOpts: { numItems: number; cursor: string | null }
+    paginationOpts: { numItems: number; cursor: string | null },
+    options?: { status?: "active" | "suspended" | "all" }
   ): Promise<{ page: Member[]; isDone: boolean; continueCursor: string }> {
     return await ctx.runQuery(this.component.queries.listOrganizationMembersPaginated, {
       organizationId,
       paginationOpts,
+      status: options?.status,
     });
   }
 
@@ -287,6 +303,34 @@ export class Tenants {
     await this.authz.assignRole(ctx, memberUserId, role, orgScope(organizationId), undefined, userId);
   }
 
+  async suspendMember(
+    ctx: MutationCtx,
+    userId: string,
+    organizationId: string,
+    memberUserId: string
+  ): Promise<void> {
+    await this.authzRequireOperation(ctx, userId, "suspendMember", orgScope(organizationId));
+    await ctx.runMutation(this.component.mutations.suspendMember, {
+      userId,
+      organizationId,
+      memberUserId,
+    });
+  }
+
+  async unsuspendMember(
+    ctx: MutationCtx,
+    userId: string,
+    organizationId: string,
+    memberUserId: string
+  ): Promise<void> {
+    await this.authzRequireOperation(ctx, userId, "unsuspendMember", orgScope(organizationId));
+    await ctx.runMutation(this.component.mutations.unsuspendMember, {
+      userId,
+      organizationId,
+      memberUserId,
+    });
+  }
+
   async leaveOrganization(
     ctx: MutationCtx,
     userId: string,
@@ -296,7 +340,7 @@ export class Tenants {
     if (!member) throw new Error("Not a member of this organization");
     const creatorRole = this.options.creatorRole ?? "owner";
     if (member.role === creatorRole) {
-      const members = await this.listMembers(ctx, organizationId);
+      const members = await this.listMembers(ctx, organizationId, { status: "active" });
       const ownerCount = members.filter((m) => m.role === creatorRole).length;
       if (ownerCount <= 1) {
         throw new Error("Cannot leave: you are the last owner. Transfer ownership first.");

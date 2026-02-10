@@ -83,6 +83,8 @@ export const DEFAULT_TENANTS_PERMISSION_MAP = {
   addMember: "members:add",
   removeMember: "members:remove",
   updateMemberRole: "members:updateRole",
+  suspendMember: "members:suspend",
+  unsuspendMember: "members:unsuspend",
   createTeam: "teams:create",
   updateTeam: "teams:update",
   deleteTeam: "teams:delete",
@@ -135,6 +137,8 @@ export const TENANTS_PERMISSIONS = definePermissions({
     add: true,
     remove: true,
     updateRole: true,
+    suspend: true,
+    unsuspend: true,
     list: true,
   },
   teams: {
@@ -181,7 +185,7 @@ export const TENANTS_PERMISSIONS = definePermissions({
 export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
   owner: {
     organizations: ["create", "read", "update", "delete"],
-    members: ["add", "remove", "updateRole", "list"],
+    members: ["add", "remove", "updateRole", "suspend", "unsuspend", "list"],
     teams: [
       "create",
       "update",
@@ -195,7 +199,7 @@ export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
   },
   admin: {
     organizations: ["read", "update"],
-    members: ["add", "remove", "list"],
+    members: ["add", "remove", "suspend", "unsuspend", "list"],
     teams: [
       "create",
       "update",
