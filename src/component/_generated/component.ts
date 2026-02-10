@@ -27,7 +27,11 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       acceptInvitation: FunctionReference<
         "mutation",
         "internal",
-        { acceptingUserId: string; invitationId: string },
+        {
+          acceptingEmail?: string;
+          acceptingUserId: string;
+          invitationId: string;
+        },
         null,
         Name
       >;

@@ -1107,20 +1107,20 @@ describe("makeTenantsAPI", () => {
 
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: org1Id,
-        email: "target@example.com",
+        email: "target@test.com",
         role: "member",
       });
 
       await asBob.mutation(api.testHelpers.strictInviteMember, {
         organizationId: org2Id,
-        email: "target@example.com",
+        email: "target@test.com",
         role: "admin",
       });
 
       // Must be authenticated to query pending invitations
       const pending = await asTarget.query(
         api.testHelpers.strictGetPendingInvitations,
-        { email: "target@example.com" }
+        { email: "target@test.com" }
       );
 
       expect(pending).toHaveLength(2);
@@ -1128,9 +1128,38 @@ describe("makeTenantsAPI", () => {
       // Unauthenticated callers are rejected
       await expect(
         t.query(api.testHelpers.strictGetPendingInvitations, {
-          email: "target@example.com",
+          email: "target@test.com",
         })
       ).rejects.toThrow("Not authenticated");
+    });
+
+    test("getPendingInvitations blocks querying another user's email", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+      const asTarget = t.withIdentity({
+        subject: "target",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Pending Strict Org" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        email: "alice@test.com",
+        role: "member",
+      });
+
+      await expect(
+        asTarget.query(api.testHelpers.strictGetPendingInvitations, {
+          email: "alice@test.com",
+        })
+      ).rejects.toThrow("Cannot query invitations for another email");
     });
 
     test("acceptInvitation adds user as member with invited role", async () => {
@@ -1153,7 +1182,7 @@ describe("makeTenantsAPI", () => {
         api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
-          email: "bob@example.com",
+          email: "bob@test.com",
           role: "admin",
         }
       );
@@ -1185,6 +1214,38 @@ describe("makeTenantsAPI", () => {
           invitationId: "nonexistent",
         })
       ).rejects.toThrow("Not authenticated");
+    });
+
+    test("acceptInvitation rejects when authenticated email does not match invitation email", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+      const asBob = t.withIdentity({
+        subject: "bob",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Accept Strict Org" }
+      );
+
+      const { invitationId } = await asAlice.mutation(
+        api.testHelpers.strictInviteMember,
+        {
+          organizationId: orgId,
+          email: "alice@test.com",
+          role: "member",
+        }
+      );
+
+      await expect(
+        asBob.mutation(api.testHelpers.strictAcceptInvitation, {
+          invitationId,
+        })
+      ).rejects.toThrow("Invitation email does not match authenticated user");
     });
 
     test("cancelInvitation sets status to cancelled", async () => {
@@ -1559,7 +1620,7 @@ describe("makeTenantsAPI", () => {
         api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
-          email: "bob@example.com",
+          email: "bob@test.com",
           role: "admin",
         }
       );
@@ -1575,7 +1636,7 @@ describe("makeTenantsAPI", () => {
       expect(logs[0].data.organizationName).toBe("Accept Hook Org");
       expect(logs[0].data.userId).toBe("bob");
       expect(logs[0].data.role).toBe("admin");
-      expect(logs[0].data.email).toBe("bob@example.com");
+      expect(logs[0].data.email).toBe("bob@test.com");
     });
   });
 
@@ -2009,7 +2070,7 @@ describe("makeTenantsAPI", () => {
       // Invite bob with teamId
       const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "bob@example.com",
+        email: "bob@test.com",
         role: "member",
         teamId,
       });
@@ -2031,6 +2092,32 @@ describe("makeTenantsAPI", () => {
         teamId,
       });
       expect(isMember).toBe(true);
+    });
+
+    test("inviteMember rejects teamId from another organization", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgAId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Org A",
+      });
+      const orgBId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Org B",
+      });
+
+      const orgBTeamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgBId,
+        name: "Org B Team",
+      });
+
+      await expect(
+        asAlice.mutation(api.testHelpers.strictInviteMember, {
+          organizationId: orgAId,
+          email: "bob@test.com",
+          role: "member",
+          teamId: orgBTeamId,
+        })
+      ).rejects.toThrow("Team must belong to the invitation organization");
     });
   });
 
@@ -2150,11 +2237,13 @@ describe("makeTenantsAPI", () => {
       const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
 
       // Create an org to generate audit entries
-      await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
         name: "Audit Org",
       });
 
-      const logs = await asAlice.query(api.testHelpers.strictGetAuditLog, {});
+      const logs = await asAlice.query(api.testHelpers.strictGetAuditLog, {
+        organizationId: orgId,
+      });
 
       expect(logs).toBeDefined();
       expect(Array.isArray(logs)).toBe(true);
@@ -2164,7 +2253,9 @@ describe("makeTenantsAPI", () => {
       const t = initConvexTest();
 
       await expect(
-        t.query(api.testHelpers.strictGetAuditLog, {})
+        t.query(api.testHelpers.strictGetAuditLog, {
+          organizationId: "nonexistent",
+        })
       ).rejects.toThrow("Not authenticated");
     });
 
@@ -2205,6 +2296,27 @@ describe("makeTenantsAPI", () => {
       ).rejects.toThrow("Not authenticated");
     });
 
+    test("grantPermission rejects cross-organization scope override", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgAId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Grant Scope Org A",
+      });
+      const orgBId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Grant Scope Org B",
+      });
+
+      await expect(
+        asAlice.mutation(api.testHelpers.strictGrantPermission, {
+          organizationId: orgAId,
+          targetUserId: "bob",
+          permission: "organizations:update",
+          scope: { type: "organization", id: orgBId },
+        })
+      ).rejects.toThrow("Permission scope organization mismatch");
+    });
+
     test("denyPermission denies permission for user", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
@@ -2240,6 +2352,27 @@ describe("makeTenantsAPI", () => {
           permission: "members:read",
         })
       ).rejects.toThrow("Not authenticated");
+    });
+
+    test("denyPermission rejects cross-organization scope override", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgAId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Deny Scope Org A",
+      });
+      const orgBId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Deny Scope Org B",
+      });
+
+      await expect(
+        asAlice.mutation(api.testHelpers.strictDenyPermission, {
+          organizationId: orgAId,
+          targetUserId: "bob",
+          permission: "organizations:update",
+          scope: { type: "organization", id: orgBId },
+        })
+      ).rejects.toThrow("Permission scope organization mismatch");
     });
   });
 });

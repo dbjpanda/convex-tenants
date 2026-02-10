@@ -527,12 +527,29 @@ export const inviteMember = mutation({
   }),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
+    const normalizedEmail = args.email.trim().toLowerCase();
+
+    if (args.teamId) {
+      const team = await ctx.db.get(args.teamId as Id<"teams">);
+      if (!team) {
+        throw new ConvexError({
+          code: "NOT_FOUND",
+          message: "Team not found",
+        });
+      }
+      if (team.organizationId !== orgId) {
+        throw new ConvexError({
+          code: "FORBIDDEN",
+          message: "Team must belong to the invitation organization",
+        });
+      }
+    }
 
     // Check for existing pending invitation
     const existing = await ctx.db
       .query("invitations")
       .withIndex("by_email_and_status", (q) =>
-        q.eq("email", args.email).eq("status", "pending")
+        q.eq("email", normalizedEmail).eq("status", "pending")
       )
       .first();
 
@@ -549,7 +566,7 @@ export const inviteMember = mutation({
     // Create invitation
     const invitationId = await ctx.db.insert("invitations", {
       organizationId: orgId,
-      email: args.email,
+      email: normalizedEmail,
       role: args.role,
       teamId: args.teamId ? (args.teamId as Id<"teams">) : null,
       inviterId: args.userId,
@@ -559,7 +576,7 @@ export const inviteMember = mutation({
 
     return {
       invitationId: invitationId as string,
-      email: args.email,
+      email: normalizedEmail,
       expiresAt,
     };
   },
@@ -569,6 +586,7 @@ export const acceptInvitation = mutation({
   args: {
     invitationId: v.string(),
     acceptingUserId: v.string(),
+    acceptingEmail: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -617,6 +635,17 @@ export const acceptInvitation = mutation({
       });
     }
 
+    if (
+      args.acceptingEmail &&
+      args.acceptingEmail.trim().toLowerCase() !==
+        invitation.email.trim().toLowerCase()
+    ) {
+      throw new ConvexError({
+        code: "FORBIDDEN",
+        message: "Invitation email does not match authenticated user",
+      });
+    }
+
     // Add user as member
     await ctx.db.insert("members", {
       organizationId: invitation.organizationId,
@@ -626,10 +655,27 @@ export const acceptInvitation = mutation({
 
     // Add to team if specified
     if (invitation.teamId) {
-      await ctx.db.insert("teamMembers", {
-        teamId: invitation.teamId,
-        userId: args.acceptingUserId,
-      });
+      const team = await ctx.db.get(invitation.teamId);
+      if (!team || team.organizationId !== invitation.organizationId) {
+        throw new ConvexError({
+          code: "INVALID_STATE",
+          message: "Invitation team is invalid for this organization",
+        });
+      }
+
+      const existingTeamMember = await ctx.db
+        .query("teamMembers")
+        .withIndex("by_team_and_user", (q) =>
+          q.eq("teamId", invitation.teamId as Id<"teams">).eq("userId", args.acceptingUserId)
+        )
+        .unique();
+
+      if (!existingTeamMember) {
+        await ctx.db.insert("teamMembers", {
+          teamId: invitation.teamId,
+          userId: args.acceptingUserId,
+        });
+      }
     }
 
     // Mark invitation as accepted

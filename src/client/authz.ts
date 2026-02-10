@@ -92,6 +92,7 @@ export const DEFAULT_TENANTS_PERMISSION_MAP = {
   cancelInvitation: "invitations:cancel",
   grantPermission: "permissions:grant",
   denyPermission: "permissions:deny",
+  getAuditLog: "permissions:grant",
 } as const;
 
 /**

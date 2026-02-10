@@ -127,6 +127,11 @@ function orgScope(organizationId: string): { type: string; id: string } {
   return { type: "organization", id: organizationId };
 }
 
+/** Normalize email for strict invitation comparisons. */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 /**
  * Generate a URL-safe slug from a name.
  */
@@ -251,6 +256,36 @@ export class Tenants {
     const permission = this.permissionMap[operation];
     if (permission === false) return; // Explicitly disabled
     await this.authz.require(ctx, userId, permission, scope);
+  }
+
+  /**
+   * Restrict direct permission overrides to org/team scopes in the same org.
+   */
+  private async resolvePermissionScope(
+    ctx: QueryCtx,
+    organizationId: string,
+    scope?: { type: string; id: string }
+  ): Promise<{ type: string; id: string }> {
+    if (!scope) {
+      return orgScope(organizationId);
+    }
+
+    if (scope.type === "organization") {
+      if (scope.id !== organizationId) {
+        throw new Error("Permission scope organization mismatch");
+      }
+      return scope;
+    }
+
+    if (scope.type === "team") {
+      const team = await this.getTeam(ctx, scope.id);
+      if (!team || team.organizationId !== organizationId) {
+        throw new Error("Permission scope team must belong to organization");
+      }
+      return scope;
+    }
+
+    throw new Error("Unsupported permission scope type");
   }
 
   // ================================
@@ -793,11 +828,16 @@ export class Tenants {
     await this.authzRequireOperation(
       ctx, userId, "grantPermission", orgScope(organizationId)
     );
+    const validatedScope = await this.resolvePermissionScope(
+      ctx,
+      organizationId,
+      options?.scope
+    );
     return await this.authz.grantPermission(
       ctx,
       targetUserId,
       permission,
-      options?.scope ?? orgScope(organizationId),
+      validatedScope,
       options?.reason,
       options?.expiresAt,
       userId
@@ -825,11 +865,16 @@ export class Tenants {
     await this.authzRequireOperation(
       ctx, userId, "denyPermission", orgScope(organizationId)
     );
+    const validatedScope = await this.resolvePermissionScope(
+      ctx,
+      organizationId,
+      options?.scope
+    );
     return await this.authz.denyPermission(
       ctx,
       targetUserId,
       permission,
-      options?.scope ?? orgScope(organizationId),
+      validatedScope,
       options?.reason,
       options?.expiresAt,
       userId
@@ -839,12 +884,20 @@ export class Tenants {
   /** Get audit log entries. */
   async getAuditLog(
     ctx: QueryCtx,
+    userId: string,
+    organizationId: string,
     options?: {
       userId?: string;
       action?: string;
       limit?: number;
     }
   ) {
+    await this.authzRequireOperation(
+      ctx,
+      userId,
+      "getAuditLog",
+      orgScope(organizationId)
+    );
     return await this.authz.getAuditLog(ctx, options);
   }
 
@@ -913,7 +966,8 @@ export class Tenants {
   async acceptInvitation(
     ctx: MutationCtx,
     invitationId: string,
-    acceptingUserId: string
+    acceptingUserId: string,
+    options?: { acceptingEmail?: string }
   ): Promise<void> {
     // Pre-query invitation for authz sync
     const invitation = await this.getInvitation(ctx, invitationId);
@@ -921,6 +975,7 @@ export class Tenants {
     await ctx.runMutation(this.component.mutations.acceptInvitation, {
       invitationId,
       acceptingUserId,
+      acceptingEmail: options?.acceptingEmail,
     });
 
     // Sync: assign role in authz
@@ -1534,10 +1589,26 @@ export function makeTenantsAPI(
     getPendingInvitations: queryGeneric({
       args: { email: v.string() },
       handler: async (ctx, args) => {
-        // Require auth — without it anyone who knows an email could enumerate
-        // pending invitations.
-        await requireAuth(ctx);
-        return await tenants.getPendingInvitations(ctx, args.email);
+        const userId = await requireAuth(ctx);
+        if (!options.getUser) {
+          throw new Error(
+            "getUser callback with email is required for getPendingInvitations"
+          );
+        }
+
+        const user = await options.getUser(ctx, userId);
+        const userEmail = user?.email;
+        if (!userEmail) {
+          throw new Error(
+            "Authenticated user email is required for getPendingInvitations"
+          );
+        }
+
+        if (normalizeEmail(args.email) !== normalizeEmail(userEmail)) {
+          throw new Error("Cannot query invitations for another email");
+        }
+
+        return await tenants.getPendingInvitations(ctx, normalizeEmail(userEmail));
       },
     }),
 
@@ -1570,6 +1641,20 @@ export function makeTenantsAPI(
       args: { invitationId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        if (!options.getUser) {
+          throw new Error(
+            "getUser callback with email is required for invitation acceptance"
+          );
+        }
+
+        const user = await options.getUser(ctx, userId);
+        const acceptingEmail = user?.email;
+        if (!acceptingEmail) {
+          throw new Error(
+            "Authenticated user email is required for invitation acceptance"
+          );
+        }
+
         let invitationData: { organizationId: string; role: InvitationRole; email: string } | null = null;
         if (options.onInvitationAccepted) {
           const inv = await tenants.getInvitation(ctx, args.invitationId);
@@ -1577,7 +1662,9 @@ export function makeTenantsAPI(
             invitationData = { organizationId: inv.organizationId, role: inv.role, email: inv.email };
           }
         }
-        await tenants.acceptInvitation(ctx, args.invitationId, userId);
+        await tenants.acceptInvitation(ctx, args.invitationId, userId, {
+          acceptingEmail,
+        });
         if (options.onInvitationAccepted && invitationData) {
           const org = await tenants.getOrganization(ctx, invitationData.organizationId);
           await options.onInvitationAccepted(ctx, {
@@ -1687,10 +1774,20 @@ export function makeTenantsAPI(
     }),
 
     getAuditLog: queryGeneric({
-      args: { userId: v.optional(v.string()), action: v.optional(v.string()), limit: v.optional(v.number()) },
+      args: {
+        organizationId: v.string(),
+        userId: v.optional(v.string()),
+        action: v.optional(v.string()),
+        limit: v.optional(v.number()),
+      },
       handler: async (ctx, args) => {
-        await requireAuth(ctx);
-        return await tenants.getAuditLog(ctx, { userId: args.userId, action: args.action, limit: args.limit });
+        const userId = await requireAuth(ctx);
+        return await tenants.getAuditLog(
+          ctx,
+          userId,
+          args.organizationId,
+          { userId: args.userId, action: args.action, limit: args.limit }
+        );
       },
     }),
   };
