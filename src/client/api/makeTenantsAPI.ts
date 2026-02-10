@@ -139,6 +139,13 @@ export function makeTenantsAPI(
     ) => Promise<void>;
 
     defaultInvitationExpiration?: number;
+
+    /** Max organizations per user (enforced in createOrganization). Omit for no limit. */
+    maxOrganizations?: number;
+    /** Max members per organization (enforced in addMember). Omit for no limit. */
+    maxMembers?: number;
+    /** Max teams per organization (enforced in createTeam). Omit for no limit. */
+    maxTeams?: number;
   }
 ) {
   const tenants = new Tenants(component, {
@@ -240,6 +247,14 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        if (typeof options.maxOrganizations === "number") {
+          const orgs = await tenants.listOrganizations(ctx, userId);
+          if (orgs.length >= options.maxOrganizations) {
+            throw new Error(
+              `Maximum number of organizations (${options.maxOrganizations}) reached.`
+            );
+          }
+        }
         const organizationId = await tenants.createOrganization(
           ctx, userId, args.name,
           { slug: args.slug, logo: args.logo, metadata: args.metadata }
@@ -411,6 +426,14 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        if (typeof options.maxMembers === "number") {
+          const count = await tenants.countMembers(ctx, args.organizationId, { status: "all" });
+          if (count >= options.maxMembers) {
+            throw new Error(
+              `Maximum number of members (${options.maxMembers}) for this organization reached.`
+            );
+          }
+        }
         await tenants.addMember(ctx, userId, args.organizationId, args.memberUserId, args.role);
         if (options.onMemberAdded) {
           await options.onMemberAdded(ctx, {
@@ -605,6 +628,14 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        if (typeof options.maxTeams === "number") {
+          const count = await tenants.countTeams(ctx, args.organizationId);
+          if (count >= options.maxTeams) {
+            throw new Error(
+              `Maximum number of teams (${options.maxTeams}) for this organization reached.`
+            );
+          }
+        }
         const teamId = await tenants.createTeam(ctx, userId, args.organizationId, args.name, args.description, {
           slug: args.slug,
           metadata: args.metadata,
@@ -778,17 +809,18 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        let inviterName: string | undefined;
+        if (options.getUser) {
+          const user = await options.getUser(ctx, userId);
+          inviterName = user?.name;
+        }
         const result = await tenants.inviteMember(ctx, userId, args.organizationId, args.email, args.role, {
           teamId: args.teamId,
           message: args.message,
+          inviterName,
         });
         if (options.onInvitationCreated) {
           const org = await tenants.getOrganization(ctx, args.organizationId);
-          let inviterName: string | undefined;
-          if (options.getUser) {
-            const user = await options.getUser(ctx, userId);
-            inviterName = user?.name;
-          }
           await options.onInvitationCreated(ctx, {
             invitationId: result.invitationId, email: result.email,
             organizationId: args.organizationId, organizationName: org?.name ?? "Unknown",

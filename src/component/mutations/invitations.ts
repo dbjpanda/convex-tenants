@@ -12,6 +12,7 @@ export const inviteMember = mutation({
     role: v.string(),
     teamId: v.optional(v.string()),
     message: v.optional(v.string()),
+    inviterName: v.optional(v.string()),
     expiresAt: v.optional(v.number()),
   },
   returns: v.object({
@@ -51,6 +52,7 @@ export const inviteMember = mutation({
       role: args.role,
       teamId: args.teamId ? (args.teamId as Id<"teams">) : null,
       inviterId: args.userId,
+      inviterName: args.inviterName,
       message: args.message,
       status: "pending",
       expiresAt,

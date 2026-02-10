@@ -31,6 +31,7 @@ export interface Member {
   role: OrgRole;
   status?: MemberStatus;
   suspendedAt?: number;
+  joinedAt?: number;
 }
 
 export interface MemberWithUser extends Member {
@@ -62,6 +63,7 @@ export interface Invitation {
   role: InvitationRole;
   teamId: string | null;
   inviterId: string;
+  inviterName?: string;
   message?: string;
   status: "pending" | "accepted" | "cancelled" | "expired";
   expiresAt: number;

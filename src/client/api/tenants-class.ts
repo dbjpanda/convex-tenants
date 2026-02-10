@@ -587,7 +587,20 @@ export class Tenants {
     options?: { userId?: string; action?: string; limit?: number }
   ) {
     await this.authzRequireOperation(ctx, userId, "getAuditLog", orgScope(organizationId));
-    return await this.authz.getAuditLog(ctx, options);
+    const scope = orgScope(organizationId);
+    const result = await this.authz.getAuditLog(ctx, options);
+    const matchesScope = (entry: { scope?: { type?: string; id?: string } }) =>
+      entry.scope?.type === scope.type && entry.scope?.id === scope.id;
+    if (Array.isArray(result)) {
+      return result.filter((entry: { scope?: { type?: string; id?: string } }) => matchesScope(entry));
+    }
+    if (result && Array.isArray((result as { entries?: unknown[] }).entries)) {
+      return {
+        ...result,
+        entries: (result as { entries: { scope?: { type?: string; id?: string } }[] }).entries.filter(matchesScope),
+      };
+    }
+    return result;
   }
 
   async listInvitations(ctx: QueryCtx, organizationId: string): Promise<Invitation[]> {
@@ -626,7 +639,7 @@ export class Tenants {
     organizationId: string,
     email: string,
     role: string,
-    options?: { teamId?: string; message?: string; expiresAt?: number }
+    options?: { teamId?: string; message?: string; inviterName?: string; expiresAt?: number }
   ): Promise<{ invitationId: string; email: string; expiresAt: number }> {
     await this.authzRequireOperation(ctx, userId, "inviteMember", orgScope(organizationId));
     const expiresAt =
@@ -639,6 +652,7 @@ export class Tenants {
       role,
       teamId: options?.teamId,
       message: options?.message,
+      inviterName: options?.inviterName,
       expiresAt,
     });
   }

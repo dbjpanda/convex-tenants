@@ -20,6 +20,7 @@ export const listInvitations = query({
       role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
+      inviterName: v.optional(v.string()),
       message: v.optional(v.string()),
       status: v.union(
         v.literal("pending"),
@@ -40,7 +41,7 @@ export const listInvitations = query({
       .collect();
 
     return invitations.map((inv) => {
-      const i = inv as { message?: string };
+      const i = inv as { message?: string; inviterName?: string };
       return {
         _id: inv._id as string,
         _creationTime: inv._creationTime,
@@ -49,6 +50,7 @@ export const listInvitations = query({
         role: inv.role,
         teamId: inv.teamId ? (inv.teamId as string) : null,
         inviterId: inv.inviterId,
+        inviterName: i.inviterName,
         message: i.message,
         status: inv.status,
         expiresAt: inv.expiresAt,
@@ -96,7 +98,7 @@ export const listInvitationsPaginated = query({
     return {
       ...result,
       page: result.page.map((inv) => {
-        const i = inv as { message?: string };
+        const i = inv as { message?: string; inviterName?: string };
         return {
           _id: inv._id as string,
           _creationTime: inv._creationTime,
@@ -105,6 +107,7 @@ export const listInvitationsPaginated = query({
           role: inv.role,
           teamId: inv.teamId ? (inv.teamId as string) : null,
           inviterId: inv.inviterId,
+          inviterName: i.inviterName,
           message: i.message,
           status: inv.status,
           expiresAt: inv.expiresAt,
@@ -132,6 +135,7 @@ export const getInvitation = query({
       role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
+      inviterName: v.optional(v.string()),
       message: v.optional(v.string()),
       status: v.union(
         v.literal("pending"),
@@ -146,7 +150,7 @@ export const getInvitation = query({
   handler: async (ctx, args) => {
     const invitation = await ctx.db.get(args.invitationId as Id<"invitations">);
     if (!invitation) return null;
-    const i = invitation as { message?: string };
+    const i = invitation as { message?: string; inviterName?: string };
     return {
       _id: invitation._id as string,
       _creationTime: invitation._creationTime,
@@ -155,6 +159,7 @@ export const getInvitation = query({
       role: invitation.role,
       teamId: invitation.teamId ? (invitation.teamId as string) : null,
       inviterId: invitation.inviterId,
+      inviterName: i.inviterName,
       message: i.message,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
@@ -179,6 +184,7 @@ export const getPendingInvitationsForEmail = query({
       role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
+      inviterName: v.optional(v.string()),
       expiresAt: v.number(),
       isExpired: v.boolean(),
     })
@@ -193,16 +199,20 @@ export const getPendingInvitationsForEmail = query({
 
     return invitations
       .filter((inv) => !isInvitationExpired(inv))
-      .map((inv) => ({
-        _id: inv._id as string,
-        _creationTime: inv._creationTime,
-        organizationId: inv.organizationId as string,
-        email: inv.email,
-        role: inv.role,
-        teamId: inv.teamId ? (inv.teamId as string) : null,
-        inviterId: inv.inviterId,
-        expiresAt: inv.expiresAt,
-        isExpired: false,
-      }));
+      .map((inv) => {
+        const i = inv as { inviterName?: string };
+        return {
+          _id: inv._id as string,
+          _creationTime: inv._creationTime,
+          organizationId: inv.organizationId as string,
+          email: inv.email,
+          role: inv.role,
+          teamId: inv.teamId ? (inv.teamId as string) : null,
+          inviterId: inv.inviterId,
+          inviterName: i.inviterName,
+          expiresAt: inv.expiresAt,
+          isExpired: false,
+        };
+      });
   },
 });

@@ -28,6 +28,7 @@ export default defineSchema({
     role: v.string(), // Flexible: developer defines roles in authz.ts
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"))), // default active; suspended = soft disable
     suspendedAt: v.optional(v.number()), // set when status becomes suspended
+    joinedAt: v.optional(v.number()), // timestamp when member was added; set on addMember
   })
     .index("by_organization", ["organizationId"])
     .index("by_user", ["userId"])
@@ -60,6 +61,7 @@ export default defineSchema({
     role: v.string(), // Flexible: developer defines roles in authz.ts
     teamId: v.union(v.null(), v.id("teams")),
     inviterId: v.string(), // References parent app's users table
+    inviterName: v.optional(v.string()), // Stored at invite time for display
     message: v.optional(v.string()), // Optional custom message from inviter
     status: v.union(
       v.literal("pending"),

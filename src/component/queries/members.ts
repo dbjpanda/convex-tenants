@@ -21,6 +21,7 @@ export const listOrganizationMembers = query({
       role: v.string(),
       status: v.optional(v.union(v.literal("active"), v.literal("suspended"))),
       suspendedAt: v.optional(v.number()),
+      joinedAt: v.optional(v.number()),
     })
   ),
   handler: async (ctx, args) => {
@@ -45,6 +46,7 @@ export const listOrganizationMembers = query({
       role: member.role,
       status: member.status,
       suspendedAt: member.suspendedAt,
+      joinedAt: member.joinedAt,
     }));
   },
 });
@@ -83,6 +85,7 @@ export const listOrganizationMembersPaginated = query({
         role: member.role,
         status: member.status,
         suspendedAt: member.suspendedAt,
+        joinedAt: member.joinedAt,
       })),
     };
   },
@@ -129,6 +132,7 @@ export const getMember = query({
       role: v.string(),
       status: v.optional(v.union(v.literal("active"), v.literal("suspended"))),
       suspendedAt: v.optional(v.number()),
+      joinedAt: v.optional(v.number()),
     })
   ),
   handler: async (ctx, args) => {
@@ -151,6 +155,7 @@ export const getMember = query({
       role: member.role,
       status: member.status,
       suspendedAt: member.suspendedAt,
+      joinedAt: member.joinedAt,
     };
   },
 });

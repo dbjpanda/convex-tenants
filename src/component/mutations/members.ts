@@ -22,11 +22,13 @@ export const addMember = mutation({
     if (existing) {
       throw new ConvexError({ code: "ALREADY_EXISTS", message: "User is already a member of this organization" });
     }
+    const joinedAt = Date.now();
     await ctx.db.insert("members", {
       organizationId: orgId,
       userId: args.memberUserId,
       role: args.role,
       status: "active",
+      joinedAt,
     });
     return null;
   },

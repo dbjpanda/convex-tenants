@@ -12,6 +12,9 @@ makeTenantsAPI(components.tenants, {
   permissionMap: Partial<TenantsPermissionMap>,
   getUser: (ctx, userId) => Promise<{ name?: string; email?: string } | null>,
   defaultInvitationExpiration: number,
+  maxOrganizations: number,  // Optional; max orgs per user (createOrganization)
+  maxMembers: number,       // Optional; max members per org (addMember)
+  maxTeams: number,          // Optional; max teams per org (createTeam)
 
   // Event hooks (all optional)
   onOrganizationCreated, onOrganizationDeleted,
@@ -77,6 +80,8 @@ All hooks receive `ctx` as the first argument.
 | `addMember` | mutation | Add user with role. |
 | `removeMember` | mutation | Remove member (not structural owner). |
 | `updateMemberRole` | mutation | Change member role. |
+| `suspendMember` | mutation | Soft-disable member (suspended members cannot perform mutations). |
+| `unsuspendMember` | mutation | Re-enable a suspended member. |
 | `leaveOrganization` | mutation | Leave org (structural owner can only leave if another has creatorRole). |
 
 ---
@@ -104,10 +109,10 @@ All hooks receive `ctx` as the first argument.
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `listInvitations` | query | List invitations for org. Returns include `message?`. |
+| `listInvitations` | query | List invitations for org. Returns include `message?`, `inviterName?` (stored at invite time from `getUser`). |
 | `listInvitationsPaginated` | query | Same as `listInvitations` with cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. |
 | `countInvitations` | query | Count invitations for org. Args: `organizationId`. Returns `number`. Requires membership. |
-| `getInvitation` | query | Get invitation by ID. Returns include `message?`. |
+| `getInvitation` | query | Get invitation by ID. Returns include `message?`, `inviterName?`. |
 | `getPendingInvitations` | query | Pending invitations for an email. |
 | `inviteMember` | mutation | Args: `organizationId`, `email`, `role`, optional `teamId`, `message`. Returns `{ invitationId, email, expiresAt }`. |
 | `acceptInvitation` | mutation | Accept by ID. |

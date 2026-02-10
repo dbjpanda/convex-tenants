@@ -10,6 +10,8 @@ Every guarded mutation checks a permission string via `@djpanda/convex-authz` be
 | `addMember` | `members:add` |
 | `removeMember` | `members:remove` |
 | `updateMemberRole` | `members:updateRole` |
+| `suspendMember` | `members:suspend` |
+| `unsuspendMember` | `members:unsuspend` |
 | `createTeam` | `teams:create` |
 | `updateTeam` | `teams:update` |
 | `deleteTeam` | `teams:delete` |
