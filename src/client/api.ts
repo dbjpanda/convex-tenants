@@ -757,6 +757,18 @@ export class Tenants {
     });
   }
 
+  async listTeamMembersPaginated(
+    ctx: QueryCtx,
+    teamId: string,
+    paginationOpts: { numItems: number; cursor: string | null }
+  ): Promise<{ page: TeamMember[]; isDone: boolean; continueCursor: string }> {
+    const result = await ctx.runQuery(
+      this.component.queries.listTeamMembersPaginated,
+      { teamId, paginationOpts }
+    );
+    return result;
+  }
+
   async addTeamMember(
     ctx: MutationCtx,
     userId: string,
@@ -1655,6 +1667,35 @@ export function makeTenantsAPI(
           );
         }
         return members;
+      },
+    }),
+
+    listTeamMembersPaginated: queryGeneric({
+      args: {
+        teamId: v.string(),
+        paginationOpts: paginationOptsValidator,
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        const team = await tenants.getTeam(ctx, args.teamId);
+        if (team) {
+          await requireMembership(ctx, userId, team.organizationId);
+        }
+        const result = await tenants.listTeamMembersPaginated(
+          ctx,
+          args.teamId,
+          args.paginationOpts
+        );
+        if (options.getUser && result.page.length > 0) {
+          const page = await Promise.all(
+            result.page.map(async (member) => ({
+              ...member,
+              user: await options.getUser!(ctx, member.userId),
+            }))
+          );
+          return { ...result, page };
+        }
+        return result;
       },
     }),
 

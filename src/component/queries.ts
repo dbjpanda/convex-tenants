@@ -380,6 +380,34 @@ export const listTeamMembers = query({
 });
 
 /**
+ * List team members with cursor-based pagination.
+ * @see https://docs.convex.dev/database/pagination
+ */
+export const listTeamMembersPaginated = query({
+  args: {
+    teamId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("teamMembers")
+      .withIndex("by_team", (q) => q.eq("teamId", args.teamId as Id<"teams">))
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: result.page.map((tm) => ({
+        _id: tm._id as string,
+        _creationTime: tm._creationTime,
+        teamId: tm.teamId as string,
+        userId: tm.userId,
+      })),
+    };
+  },
+});
+
+/**
  * List invitations for an organization
  */
 export const listInvitations = query({

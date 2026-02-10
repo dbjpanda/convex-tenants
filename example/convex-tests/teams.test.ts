@@ -201,5 +201,47 @@ describe("makeTenantsAPI - teams", () => {
         })
       ).rejects.toThrow("Not authenticated");
     });
+
+    test("listTeamMembersPaginated returns paginated team members", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Paginated Team Members Org" }
+      );
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      const teamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Engineering",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddTeamMember, {
+        teamId,
+        memberUserId: "bob",
+      });
+
+      const first = await asAlice.query(
+        api.testHelpers.strictListTeamMembersPaginated,
+        { teamId, paginationOpts: { numItems: 1, cursor: null } }
+      );
+      expect(first.page).toHaveLength(1);
+      expect(first.isDone).toBe(false);
+      expect(first.continueCursor).toBeTruthy();
+
+      const second = await asAlice.query(
+        api.testHelpers.strictListTeamMembersPaginated,
+        { teamId, paginationOpts: { numItems: 10, cursor: first.continueCursor } }
+      );
+      expect(second.page.length).toBeGreaterThanOrEqual(0);
+      expect(first.page[0].userId === "alice" || first.page[0].userId === "bob").toBe(true);
+    });
   });
 });

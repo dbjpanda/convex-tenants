@@ -92,6 +92,7 @@ export const strictLeaveOrganization = strictApi.leaveOrganization;
 export const strictListTeams = strictApi.listTeams;
 export const strictGetTeam = strictApi.getTeam;
 export const strictListTeamMembers = strictApi.listTeamMembers;
+export const strictListTeamMembersPaginated = strictApi.listTeamMembersPaginated;
 export const strictIsTeamMember = strictApi.isTeamMember;
 export const strictCreateTeam = strictApi.createTeam;
 export const strictUpdateTeam = strictApi.updateTeam;

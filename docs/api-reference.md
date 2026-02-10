@@ -88,6 +88,7 @@ All hooks receive `ctx` as the first argument.
 | `listTeamsPaginated` | query | Same as `listTeams` with cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. |
 | `getTeam` | query | Get team by ID. Returns `name`, `description`, `slug?`, `metadata?`. |
 | `listTeamMembers` | query | List team members; enriched with `user` if `getUser` set. |
+| `listTeamMembersPaginated` | query | Cursor-based pagination for team members. Args: `teamId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. Use with [usePaginatedQuery](https://docs.convex.dev/database/pagination). |
 | `isTeamMember` | query | Whether current user is in team. |
 | `createTeam` | mutation | Args: `organizationId`, `name`, optional `description`, `slug`, `metadata`. Slug derived from name if omitted. |
 | `updateTeam` | mutation | Args: `teamId`, optional `name`, `description`, `slug`, `metadata`. |

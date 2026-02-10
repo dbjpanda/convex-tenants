@@ -382,6 +382,23 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         }>,
         Name
       >;
+      listTeamMembersPaginated: FunctionReference<
+        "query",
+        "internal",
+        {
+          paginationOpts: {
+            cursor: string | null;
+            endCursor?: string | null;
+            id?: number;
+            maximumBytesRead?: number;
+            maximumRowsRead?: number;
+            numItems: number;
+          };
+          teamId: string;
+        },
+        any,
+        Name
+      >;
       listTeams: FunctionReference<
         "query",
         "internal",

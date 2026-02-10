@@ -73,7 +73,7 @@ export const {
   listMembers, listMembersPaginated, getMember, getCurrentMember,
   addMember, removeMember, updateMemberRole, leaveOrganization,
   // Teams
-  listTeams, listTeamsPaginated, getTeam, listTeamMembers, isTeamMember,
+  listTeams, listTeamsPaginated, getTeam, listTeamMembers, listTeamMembersPaginated, isTeamMember,
   createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember,
   // Invitations
   listInvitations, listInvitationsPaginated, getInvitation, getPendingInvitations,
