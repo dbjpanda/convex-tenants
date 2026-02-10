@@ -77,6 +77,7 @@ export interface AuthzClient {
  * ```
  */
 export const DEFAULT_TENANTS_PERMISSION_MAP = {
+  createOrganization: false as const, // Optional: set to a permission string to gate org creation (e.g. "organizations:create")
   updateOrganization: "organizations:update",
   deleteOrganization: "organizations:delete",
   addMember: "members:add",
@@ -217,7 +218,10 @@ export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
  * List of permission strings required by the tenants component.
  *
  * Useful for validation or documentation purposes.
+ * Excludes entries set to `false` (e.g. createOrganization when not gated).
  */
-export const TENANTS_REQUIRED_PERMISSIONS: readonly string[] = Object.values(
-  DEFAULT_TENANTS_PERMISSION_MAP
+export const TENANTS_REQUIRED_PERMISSIONS: readonly string[] = (
+  Object.values(DEFAULT_TENANTS_PERMISSION_MAP).filter(
+    (p) => typeof p === "string"
+  ) as string[]
 );

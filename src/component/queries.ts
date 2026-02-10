@@ -198,6 +198,23 @@ export const listOrganizationMembersPaginated = query({
 });
 
 /**
+ * Count members in an organization.
+ */
+export const countOrganizationMembers = query({
+  args: { organizationId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const members = await ctx.db
+      .query("members")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .collect();
+    return members.length;
+  },
+});
+
+/**
  * Get a specific member's details and role
  */
 export const getMember = query({
@@ -275,6 +292,23 @@ export const listTeams = query({
         metadata: t.metadata,
       };
     });
+  },
+});
+
+/**
+ * Count teams in an organization.
+ */
+export const countTeams = query({
+  args: { organizationId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const teams = await ctx.db
+      .query("teams")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .collect();
+    return teams.length;
   },
 });
 
@@ -458,6 +492,23 @@ export const listInvitations = query({
         isExpired: isInvitationExpired(inv),
       };
     });
+  },
+});
+
+/**
+ * Count invitations for an organization.
+ */
+export const countInvitations = query({
+  args: { organizationId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const invitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .collect();
+    return invitations.length;
   },
 });
 

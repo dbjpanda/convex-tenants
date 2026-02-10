@@ -201,6 +201,27 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     queries: {
+      countInvitations: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string },
+        number,
+        Name
+      >;
+      countOrganizationMembers: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string },
+        number,
+        Name
+      >;
+      countTeams: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string },
+        number,
+        Name
+      >;
       getInvitation: FunctionReference<
         "query",
         "internal",

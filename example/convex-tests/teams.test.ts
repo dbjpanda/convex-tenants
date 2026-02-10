@@ -202,6 +202,32 @@ describe("makeTenantsAPI - teams", () => {
       ).rejects.toThrow("Not authenticated");
     });
 
+    test("countTeams returns team count", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Count Teams Org" }
+      );
+      expect(await asAlice.query(api.testHelpers.strictCountTeams, { organizationId: orgId })).toBe(0);
+
+      await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Engineering",
+      });
+      expect(await asAlice.query(api.testHelpers.strictCountTeams, { organizationId: orgId })).toBe(1);
+
+      await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Design",
+      });
+      expect(await asAlice.query(api.testHelpers.strictCountTeams, { organizationId: orgId })).toBe(2);
+    });
+
     test("listTeamMembersPaginated returns paginated team members", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({

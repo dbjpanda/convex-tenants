@@ -153,6 +153,34 @@ describe("makeTenantsAPI - invitations", () => {
       );
     });
 
+    test("countInvitations returns invitation count", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Count Invitations Org" }
+      );
+      expect(await asAlice.query(api.testHelpers.strictCountInvitations, { organizationId: orgId })).toBe(0);
+
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        email: "a@example.com",
+        role: "member",
+      });
+      expect(await asAlice.query(api.testHelpers.strictCountInvitations, { organizationId: orgId })).toBe(1);
+
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        email: "b@example.com",
+        role: "admin",
+      });
+      expect(await asAlice.query(api.testHelpers.strictCountInvitations, { organizationId: orgId })).toBe(2);
+    });
+
     test("getInvitation returns invitation by ID", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({

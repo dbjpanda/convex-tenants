@@ -71,6 +71,7 @@ All hooks receive `ctx` as the first argument.
 |----------|------|-------------|
 | `listMembers` | query | List members; enriched with `user` if `getUser` is set. |
 | `listMembersPaginated` | query | Cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. Use with [usePaginatedQuery](https://docs.convex.dev/database/pagination). |
+| `countMembers` | query | Count members in org. Args: `organizationId`. Returns `number`. Requires membership. |
 | `getMember` | query | Get member by org + userId. |
 | `getCurrentMember` | query | Current user’s membership in org. |
 | `addMember` | mutation | Add user with role. |
@@ -86,6 +87,7 @@ All hooks receive `ctx` as the first argument.
 |----------|------|-------------|
 | `listTeams` | query | List teams. Returns include `slug?`, `metadata?`. |
 | `listTeamsPaginated` | query | Same as `listTeams` with cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. |
+| `countTeams` | query | Count teams in org. Args: `organizationId`. Returns `number`. Requires membership. |
 | `getTeam` | query | Get team by ID. Returns `name`, `description`, `slug?`, `metadata?`. |
 | `listTeamMembers` | query | List team members; enriched with `user` if `getUser` set. |
 | `listTeamMembersPaginated` | query | Cursor-based pagination for team members. Args: `teamId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. Use with [usePaginatedQuery](https://docs.convex.dev/database/pagination). |
@@ -104,6 +106,7 @@ All hooks receive `ctx` as the first argument.
 |----------|------|-------------|
 | `listInvitations` | query | List invitations for org. Returns include `message?`. |
 | `listInvitationsPaginated` | query | Same as `listInvitations` with cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. |
+| `countInvitations` | query | Count invitations for org. Args: `organizationId`. Returns `number`. Requires membership. |
 | `getInvitation` | query | Get invitation by ID. Returns include `message?`. |
 | `getPendingInvitations` | query | Pending invitations for an email. |
 | `inviteMember` | mutation | Args: `organizationId`, `email`, `role`, optional `teamId`, `message`. Returns `{ invitationId, email, expiresAt }`. |

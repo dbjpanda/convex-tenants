@@ -326,10 +326,9 @@ export class Tenants {
   /**
    * Create a new organization and assign the creator role.
    *
-   * Note: `createOrganization` is intentionally not gated by the permission
-   * map because there is no existing organization to scope the check against.
-   * To restrict org creation, gate it at the `makeTenantsAPI` level or in
-   * your own mutation wrapper.
+   * If `permissionMap.createOrganization` is set to a permission string (e.g.
+   * "organizations:create"), the user must have that permission (checked
+   * without an org scope). If it is `false`, no permission check is performed.
    */
   async createOrganization(
     ctx: MutationCtx,
@@ -341,6 +340,11 @@ export class Tenants {
       metadata?: Record<string, unknown>;
     }
   ): Promise<string> {
+    const createPermission = this.permissionMap.createOrganization;
+    if (typeof createPermission === "string") {
+      await this.authz.require(ctx, userId, createPermission);
+    }
+
     const slug = options?.slug ?? generateSlug(name);
     const creatorRole = this.options.creatorRole ?? "owner";
     const orgId = await ctx.runMutation(
@@ -467,6 +471,13 @@ export class Tenants {
   async listMembers(ctx: QueryCtx, organizationId: string): Promise<Member[]> {
     return await ctx.runQuery(
       this.component.queries.listOrganizationMembers,
+      { organizationId }
+    );
+  }
+
+  async countMembers(ctx: QueryCtx, organizationId: string): Promise<number> {
+    return await ctx.runQuery(
+      this.component.queries.countOrganizationMembers,
       { organizationId }
     );
   }
@@ -650,6 +661,12 @@ export class Tenants {
 
   async listTeams(ctx: QueryCtx, organizationId: string): Promise<Team[]> {
     return await ctx.runQuery(this.component.queries.listTeams, {
+      organizationId,
+    });
+  }
+
+  async countTeams(ctx: QueryCtx, organizationId: string): Promise<number> {
+    return await ctx.runQuery(this.component.queries.countTeams, {
       organizationId,
     });
   }
@@ -989,6 +1006,15 @@ export class Tenants {
     organizationId: string
   ): Promise<Invitation[]> {
     return await ctx.runQuery(this.component.queries.listInvitations, {
+      organizationId,
+    });
+  }
+
+  async countInvitations(
+    ctx: QueryCtx,
+    organizationId: string
+  ): Promise<number> {
+    return await ctx.runQuery(this.component.queries.countInvitations, {
       organizationId,
     });
   }
@@ -1524,6 +1550,15 @@ export function makeTenantsAPI(
       },
     }),
 
+    countMembers: queryGeneric({
+      args: { organizationId: v.string() },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
+        return await tenants.countMembers(ctx, args.organizationId);
+      },
+    }),
+
     getMember: queryGeneric({
       args: { organizationId: v.string(), userId: v.string() },
       handler: async (ctx, args) => {
@@ -1634,6 +1669,15 @@ export function makeTenantsAPI(
           args.organizationId,
           args.paginationOpts
         );
+      },
+    }),
+
+    countTeams: queryGeneric({
+      args: { organizationId: v.string() },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
+        return await tenants.countTeams(ctx, args.organizationId);
       },
     }),
 
@@ -1828,6 +1872,15 @@ export function makeTenantsAPI(
           args.organizationId,
           args.paginationOpts
         );
+      },
+    }),
+
+    countInvitations: queryGeneric({
+      args: { organizationId: v.string() },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
+        return await tenants.countInvitations(ctx, args.organizationId);
       },
     }),
 

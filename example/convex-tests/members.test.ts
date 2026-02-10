@@ -103,5 +103,26 @@ describe("makeTenantsAPI - members", () => {
         })
       ).rejects.toThrow("Not authenticated");
     });
+
+    test("countMembers returns member count", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Count Members Org" }
+      );
+      expect(await asAlice.query(api.testHelpers.strictCountMembers, { organizationId: orgId })).toBe(1);
+
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+      expect(await asAlice.query(api.testHelpers.strictCountMembers, { organizationId: orgId })).toBe(2);
+    });
   });
 });

@@ -4,6 +4,7 @@ Every guarded mutation checks a permission string via `@djpanda/convex-authz` be
 
 | Operation | Default Permission |
 |-----------|-------------------|
+| `createOrganization` | `false` (not gated). Set to a permission string (e.g. `organizations:create`) to require that permission before creating an org (checked without an org scope). |
 | `updateOrganization` | `organizations:update` |
 | `deleteOrganization` | `organizations:delete` |
 | `addMember` | `members:add` |
