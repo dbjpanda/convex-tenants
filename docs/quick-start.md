@@ -70,13 +70,13 @@ export const {
   listOrganizations, getOrganization, getOrganizationBySlug,
   createOrganization, updateOrganization, transferOwnership, deleteOrganization,
   // Members
-  listMembers, getMember, getCurrentMember,
+  listMembers, listMembersPaginated, getMember, getCurrentMember,
   addMember, removeMember, updateMemberRole, leaveOrganization,
   // Teams
-  listTeams, getTeam, listTeamMembers, isTeamMember,
+  listTeams, listTeamsPaginated, getTeam, listTeamMembers, isTeamMember,
   createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember,
   // Invitations
-  listInvitations, getInvitation, getPendingInvitations,
+  listInvitations, listInvitationsPaginated, getInvitation, getPendingInvitations,
   inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
   // Authorization
   checkPermission, getUserPermissions, getUserRoles,

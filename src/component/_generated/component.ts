@@ -323,6 +323,23 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         }>,
         Name
       >;
+      listInvitationsPaginated: FunctionReference<
+        "query",
+        "internal",
+        {
+          organizationId: string;
+          paginationOpts: {
+            cursor: string | null;
+            endCursor?: string | null;
+            id?: number;
+            maximumBytesRead?: number;
+            maximumRowsRead?: number;
+            numItems: number;
+          };
+        },
+        any,
+        Name
+      >;
       listOrganizationMembers: FunctionReference<
         "query",
         "internal",
@@ -334,6 +351,23 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           role: string;
           userId: string;
         }>,
+        Name
+      >;
+      listOrganizationMembersPaginated: FunctionReference<
+        "query",
+        "internal",
+        {
+          organizationId: string;
+          paginationOpts: {
+            cursor: string | null;
+            endCursor?: string | null;
+            id?: number;
+            maximumBytesRead?: number;
+            maximumRowsRead?: number;
+            numItems: number;
+          };
+        },
+        any,
         Name
       >;
       listTeamMembers: FunctionReference<
@@ -361,6 +395,23 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           organizationId: string;
           slug?: string;
         }>,
+        Name
+      >;
+      listTeamsPaginated: FunctionReference<
+        "query",
+        "internal",
+        {
+          organizationId: string;
+          paginationOpts: {
+            cursor: string | null;
+            endCursor?: string | null;
+            id?: number;
+            maximumBytesRead?: number;
+            maximumRowsRead?: number;
+            numItems: number;
+          };
+        },
+        any,
         Name
       >;
       listUserOrganizations: FunctionReference<

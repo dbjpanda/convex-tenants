@@ -53,13 +53,15 @@ All hooks receive `ctx` as the first argument.
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `listOrganizations` | query | List orgs the current user belongs to. Returns `{ _id, name, slug, logo, metadata, ownerId, role, status? }[]`. |
+| `listOrganizations` | query | List orgs the current user belongs to. Optional arg: `status` (`"active" \| "suspended" \| "archived"`) to filter. Returns `{ _id, name, slug, logo, metadata, ownerId, role, status? }[]`. |
 | `getOrganization` | query | Get org by ID. Returns `{ _id, name, slug, logo, metadata, ownerId, status? } \| null`. Requires membership. |
 | `getOrganizationBySlug` | query | Get org by slug. Same return shape. Requires membership. |
 | `createOrganization` | mutation | Create org. Args: `name`, optional `slug`, `logo`, `metadata`. Returns org ID. |
-| `updateOrganization` | mutation | Update org. Args: `organizationId`, optional `name`, `slug`, `logo`, `metadata`, `status` (`"active" \| "suspended" \| "archived"`). |
+| `updateOrganization` | mutation | Update org. Args: `organizationId`, optional `name`, `slug`, `logo`, `metadata`, `status` (`"active" \| "suspended" \| "archived"`). Setting `status: "active"` reactivates a suspended/archived org. |
 | `transferOwnership` | mutation | Transfer owner to another member. Args: `organizationId`, `newOwnerUserId`. Only current owner. |
 | `deleteOrganization` | mutation | Delete org and all related data. Requires permission. |
+
+**Organization status:** When an organization is `suspended` or `archived`, all mutations that modify that org (members, teams, invitations, permissions, etc.) are rejected with "Organization is suspended" or "Organization is archived". Only `updateOrganization` with `status: "active"` is allowed on a suspended/archived org (to reactivate it). Queries (list, get) still work.
 
 ---
 
@@ -68,6 +70,7 @@ All hooks receive `ctx` as the first argument.
 | Function | Type | Description |
 |----------|------|-------------|
 | `listMembers` | query | List members; enriched with `user` if `getUser` is set. |
+| `listMembersPaginated` | query | Cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. Use with [usePaginatedQuery](https://docs.convex.dev/database/pagination). |
 | `getMember` | query | Get member by org + userId. |
 | `getCurrentMember` | query | Current user’s membership in org. |
 | `addMember` | mutation | Add user with role. |
@@ -82,6 +85,7 @@ All hooks receive `ctx` as the first argument.
 | Function | Type | Description |
 |----------|------|-------------|
 | `listTeams` | query | List teams. Returns include `slug?`, `metadata?`. |
+| `listTeamsPaginated` | query | Same as `listTeams` with cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. |
 | `getTeam` | query | Get team by ID. Returns `name`, `description`, `slug?`, `metadata?`. |
 | `listTeamMembers` | query | List team members; enriched with `user` if `getUser` set. |
 | `isTeamMember` | query | Whether current user is in team. |
@@ -98,6 +102,7 @@ All hooks receive `ctx` as the first argument.
 | Function | Type | Description |
 |----------|------|-------------|
 | `listInvitations` | query | List invitations for org. Returns include `message?`. |
+| `listInvitationsPaginated` | query | Same as `listInvitations` with cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. |
 | `getInvitation` | query | Get invitation by ID. Returns include `message?`. |
 | `getPendingInvitations` | query | Pending invitations for an email. |
 | `inviteMember` | mutation | Args: `organizationId`, `email`, `role`, optional `teamId`, `message`. Returns `{ invitationId, email, expiresAt }`. |

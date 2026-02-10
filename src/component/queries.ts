@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { query } from "./_generated/server";
 import { isInvitationExpired } from "./helpers";
 import type { Id } from "./_generated/dataModel";
@@ -165,6 +166,38 @@ export const listOrganizationMembers = query({
 });
 
 /**
+ * List organization members with cursor-based pagination.
+ * Use with usePaginatedQuery in React or pass paginationOpts from the client.
+ * @see https://docs.convex.dev/database/pagination
+ */
+export const listOrganizationMembersPaginated = query({
+  args: {
+    organizationId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("members")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: result.page.map((member) => ({
+        _id: member._id as string,
+        _creationTime: member._creationTime,
+        organizationId: member.organizationId as string,
+        userId: member.userId,
+        role: member.role,
+      })),
+    };
+  },
+});
+
+/**
  * Get a specific member's details and role
  */
 export const getMember = query({
@@ -242,6 +275,42 @@ export const listTeams = query({
         metadata: t.metadata,
       };
     });
+  },
+});
+
+/**
+ * List teams with cursor-based pagination.
+ * @see https://docs.convex.dev/database/pagination
+ */
+export const listTeamsPaginated = query({
+  args: {
+    organizationId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("teams")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: result.page.map((team) => {
+        const t = team as { slug?: string; metadata?: any };
+        return {
+          _id: team._id as string,
+          _creationTime: team._creationTime,
+          name: team.name,
+          slug: t.slug,
+          organizationId: team.organizationId as string,
+          description: team.description,
+          metadata: t.metadata,
+        };
+      }),
+    };
   },
 });
 
@@ -361,6 +430,46 @@ export const listInvitations = query({
         isExpired: isInvitationExpired(inv),
       };
     });
+  },
+});
+
+/**
+ * List invitations with cursor-based pagination.
+ * @see https://docs.convex.dev/database/pagination
+ */
+export const listInvitationsPaginated = query({
+  args: {
+    organizationId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("invitations")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: result.page.map((inv) => {
+        const i = inv as { message?: string };
+        return {
+          _id: inv._id as string,
+          _creationTime: inv._creationTime,
+          organizationId: inv.organizationId as string,
+          email: inv.email,
+          role: inv.role,
+          teamId: inv.teamId ? (inv.teamId as string) : null,
+          inviterId: inv.inviterId,
+          message: i.message,
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          isExpired: isInvitationExpired(inv),
+        };
+      }),
+    };
   },
 });
 
