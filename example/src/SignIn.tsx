@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Building2, LogIn, UserPlus, Mail, Lock, Loader2 } from "lucide-react";
 
-export function SignIn() {
+export function SignIn({ subtitle }: { subtitle?: string } = {}) {
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const [error, setError] = useState<string | null>(null);
@@ -42,9 +42,11 @@ export function SignIn() {
             Tenants Example
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {flow === "signIn"
-              ? "Sign in to manage your organizations"
-              : "Create an account to get started"}
+            {subtitle
+              ? subtitle
+              : flow === "signIn"
+                ? "Sign in to manage your organizations"
+                : "Create an account to get started"}
           </p>
         </div>
 
