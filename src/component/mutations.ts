@@ -10,6 +10,9 @@ export {
 } from "./mutations/organizations.js";
 export {
   addMember,
+  joinByDomain,
+  bulkAddMembers,
+  bulkRemoveMembers,
   removeMember,
   updateMemberRole,
   suspendMember,
@@ -21,10 +24,12 @@ export {
   updateTeam,
   deleteTeam,
   addTeamMember,
+  updateTeamMemberRole,
   removeTeamMember,
 } from "./mutations/teams.js";
 export {
   inviteMember,
+  bulkInviteMembers,
   acceptInvitation,
   resendInvitation,
   cancelInvitation,

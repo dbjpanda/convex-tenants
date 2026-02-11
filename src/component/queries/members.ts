@@ -11,6 +11,8 @@ export const listOrganizationMembers = query({
   args: {
     organizationId: v.string(),
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
+    sortBy: v.optional(v.union(v.literal("role"), v.literal("joinedAt"), v.literal("createdAt"), v.literal("userId"))),
+    sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
   },
   returns: v.array(
     v.object({
@@ -33,10 +35,22 @@ export const listOrganizationMembers = query({
       .collect();
 
     const statusFilter = args.status ?? "active";
-    const filtered =
+    let filtered =
       statusFilter === "all"
         ? members
         : members.filter((m) => (m.status ?? "active") === statusFilter);
+
+    const sortBy = args.sortBy ?? "createdAt";
+    const order = args.sortOrder ?? "desc";
+    const mult = order === "asc" ? 1 : -1;
+    filtered = [...filtered].sort((a, b) => {
+      let va: string | number = a.userId;
+      let vb: string | number = b.userId;
+      if (sortBy === "role") { va = a.role; vb = b.role; }
+      else if (sortBy === "joinedAt") { va = a.joinedAt ?? a._creationTime; vb = b.joinedAt ?? b._creationTime; }
+      else if (sortBy === "createdAt") { va = a._creationTime; vb = b._creationTime; }
+      return va < vb ? -mult : va > vb ? mult : 0;
+    });
 
     return filtered.map((member) => ({
       _id: member._id as string,

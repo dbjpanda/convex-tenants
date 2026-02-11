@@ -73,9 +73,24 @@ export function makeTenantsAPI(
       userId: string
     ) => Promise<{ name?: string; email?: string } | null>;
 
+    onBeforeCreateOrganization?: (
+      ctx: any,
+      data: { name: string; slug: string; logo?: string; metadata?: any }
+    ) => Promise<void>;
+
     onOrganizationCreated?: (
       ctx: any,
       data: { organizationId: string; name: string; slug: string; ownerId: string }
+    ) => Promise<void>;
+
+    onBeforeUpdateOrganization?: (
+      ctx: any,
+      data: { organizationId: string; name?: string; slug?: string; logo?: string | null; metadata?: any; status?: "active" | "suspended" | "archived" }
+    ) => Promise<void>;
+
+    onBeforeDeleteOrganization?: (
+      ctx: any,
+      data: { organizationId: string }
     ) => Promise<void>;
 
     onOrganizationDeleted?: (
@@ -83,9 +98,19 @@ export function makeTenantsAPI(
       data: { organizationId: string; name: string; deletedBy: string }
     ) => Promise<void>;
 
+    onBeforeAddMember?: (
+      ctx: any,
+      data: { organizationId: string; memberUserId: string; role: string }
+    ) => Promise<void>;
+
     onMemberAdded?: (
       ctx: any,
       data: { organizationId: string; userId: string; role: OrgRole; addedBy: string }
+    ) => Promise<void>;
+
+    onBeforeRemoveMember?: (
+      ctx: any,
+      data: { organizationId: string; memberUserId: string }
     ) => Promise<void>;
 
     onMemberRemoved?: (
@@ -93,9 +118,19 @@ export function makeTenantsAPI(
       data: { organizationId: string; userId: string; removedBy: string }
     ) => Promise<void>;
 
+    onBeforeUpdateMemberRole?: (
+      ctx: any,
+      data: { organizationId: string; memberUserId: string; role: string }
+    ) => Promise<void>;
+
     onMemberRoleChanged?: (
       ctx: any,
       data: { organizationId: string; userId: string; oldRole: OrgRole; newRole: OrgRole; changedBy: string }
+    ) => Promise<void>;
+
+    onBeforeLeaveOrganization?: (
+      ctx: any,
+      data: { organizationId: string }
     ) => Promise<void>;
 
     onMemberLeft?: (
@@ -103,9 +138,24 @@ export function makeTenantsAPI(
       data: { organizationId: string; userId: string }
     ) => Promise<void>;
 
+    onBeforeCreateTeam?: (
+      ctx: any,
+      data: { organizationId: string; name: string; description?: string; slug?: string; metadata?: any }
+    ) => Promise<void>;
+
     onTeamCreated?: (
       ctx: any,
       data: { teamId: string; name: string; organizationId: string; createdBy: string }
+    ) => Promise<void>;
+
+    onBeforeUpdateTeam?: (
+      ctx: any,
+      data: { teamId: string; name?: string; description?: string | null; slug?: string; metadata?: any }
+    ) => Promise<void>;
+
+    onBeforeDeleteTeam?: (
+      ctx: any,
+      data: { teamId: string }
     ) => Promise<void>;
 
     onTeamDeleted?: (
@@ -121,6 +171,11 @@ export function makeTenantsAPI(
     onTeamMemberRemoved?: (
       ctx: any,
       data: { teamId: string; userId: string; removedBy: string }
+    ) => Promise<void>;
+
+    onBeforeInviteMember?: (
+      ctx: any,
+      data: { organizationId: string; email: string; role: string; teamId?: string; message?: string }
     ) => Promise<void>;
 
     onInvitationCreated?: (
@@ -146,6 +201,13 @@ export function makeTenantsAPI(
     maxMembers?: number;
     /** Max teams per organization (enforced in createTeam). Omit for no limit. */
     maxTeams?: number;
+
+    /**
+     * If provided, enables generateLogoUploadUrl mutation.
+     * Wire to your Convex file storage, e.g. async (ctx) => await ctx.storage.generateUploadUrl().
+     * Client uploads the file to the returned URL, then passes the returned storageId to updateOrganization as logo.
+     */
+    generateUploadUrl?: (ctx: { storage: { generateUploadUrl: () => Promise<string> } }) => Promise<string>;
   }
 ) {
   const tenants = new Tenants(component, {
@@ -206,10 +268,15 @@ export function makeTenantsAPI(
     listOrganizations: queryGeneric({
       args: {
         status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
+        sortBy: v.optional(v.union(v.literal("name"), v.literal("createdAt"), v.literal("slug"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
-        const orgs = await tenants.listOrganizations(ctx, userId);
+        const orgs = await tenants.listOrganizations(ctx, userId, {
+          sortBy: args.sortBy,
+          sortOrder: args.sortOrder,
+        });
         if (args.status !== undefined) {
           return orgs.filter((o) => (o as { status?: string }).status === args.status);
         }
@@ -238,15 +305,38 @@ export function makeTenantsAPI(
       },
     }),
 
+    listOrganizationsJoinableByDomain: queryGeneric({
+      args: { email: v.string() },
+      handler: async (ctx, args) => {
+        await requireAuth(ctx);
+        return await tenants.listOrganizationsJoinableByDomain(ctx, args.email);
+      },
+    }),
+
     createOrganization: mutationGeneric({
       args: {
         name: v.string(),
         slug: v.optional(v.string()),
         logo: v.optional(v.string()),
         metadata: v.optional(v.any()),
+        settings: v.optional(
+          v.object({
+            allowPublicSignup: v.optional(v.boolean()),
+            requireInvitationToJoin: v.optional(v.boolean()),
+          })
+        ),
+        allowedDomains: v.optional(v.array(v.string())),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        if (options.onBeforeCreateOrganization) {
+          await options.onBeforeCreateOrganization(ctx, {
+            name: args.name,
+            slug: args.slug ?? "",
+            logo: args.logo,
+            metadata: args.metadata,
+          });
+        }
         if (typeof options.maxOrganizations === "number") {
           const orgs = await tenants.listOrganizations(ctx, userId);
           if (orgs.length >= options.maxOrganizations) {
@@ -255,10 +345,13 @@ export function makeTenantsAPI(
             );
           }
         }
-        const organizationId = await tenants.createOrganization(
-          ctx, userId, args.name,
-          { slug: args.slug, logo: args.logo, metadata: args.metadata }
-        );
+        const organizationId = await tenants.createOrganization(ctx, userId, args.name, {
+          slug: args.slug,
+          logo: args.logo,
+          metadata: args.metadata,
+          settings: args.settings,
+          allowedDomains: args.allowedDomains,
+        });
 
         if (options.onOrganizationCreated) {
           const org = await tenants.getOrganization(ctx, organizationId);
@@ -274,6 +367,18 @@ export function makeTenantsAPI(
       },
     }),
 
+    ...(options.generateUploadUrl
+      ? {
+          generateLogoUploadUrl: mutationGeneric({
+            args: {},
+            handler: async (ctx) => {
+              await requireAuth(ctx);
+              return await options.generateUploadUrl!(ctx);
+            },
+          }),
+        }
+      : {}),
+
     updateOrganization: mutationGeneric({
       args: {
         organizationId: v.string(),
@@ -281,6 +386,13 @@ export function makeTenantsAPI(
         slug: v.optional(v.string()),
         logo: v.optional(v.union(v.null(), v.string())),
         metadata: v.optional(v.any()),
+        settings: v.optional(
+          v.object({
+            allowPublicSignup: v.optional(v.boolean()),
+            requireInvitationToJoin: v.optional(v.boolean()),
+          })
+        ),
+        allowedDomains: v.optional(v.union(v.null(), v.array(v.string()))),
         status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
       },
       handler: async (ctx, args) => {
@@ -289,8 +401,24 @@ export function makeTenantsAPI(
         if (args.status !== "active") {
           await requireActiveOrganization(ctx, args.organizationId);
         }
+        if (options.onBeforeUpdateOrganization) {
+          await options.onBeforeUpdateOrganization(ctx, {
+            organizationId: args.organizationId,
+            name: args.name,
+            slug: args.slug,
+            logo: args.logo,
+            metadata: args.metadata,
+            status: args.status,
+          });
+        }
         await tenants.updateOrganization(ctx, userId, args.organizationId, {
-          name: args.name, slug: args.slug, logo: args.logo, metadata: args.metadata, status: args.status,
+          name: args.name,
+          slug: args.slug,
+          logo: args.logo,
+          metadata: args.metadata,
+          settings: args.settings,
+          allowedDomains: args.allowedDomains,
+          status: args.status,
         });
       },
     }),
@@ -317,7 +445,9 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
-
+        if (options.onBeforeDeleteOrganization) {
+          await options.onBeforeDeleteOrganization(ctx, { organizationId: args.organizationId });
+        }
         let orgName = "Unknown";
         if (options.onOrganizationDeleted) {
           const org = await tenants.getOrganization(ctx, args.organizationId);
@@ -338,6 +468,8 @@ export function makeTenantsAPI(
       args: {
         organizationId: v.string(),
         status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
+        sortBy: v.optional(v.union(v.literal("role"), v.literal("joinedAt"), v.literal("createdAt"), v.literal("userId"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
@@ -345,6 +477,8 @@ export function makeTenantsAPI(
 
         const members = await tenants.listMembers(ctx, args.organizationId, {
           status: args.status,
+          sortBy: args.sortBy,
+          sortOrder: args.sortOrder,
         });
         if (options.getUser) {
           return await Promise.all(
@@ -426,6 +560,13 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        if (options.onBeforeAddMember) {
+          await options.onBeforeAddMember(ctx, {
+            organizationId: args.organizationId,
+            memberUserId: args.memberUserId,
+            role: args.role,
+          });
+        }
         if (typeof options.maxMembers === "number") {
           const count = await tenants.countMembers(ctx, args.organizationId, { status: "all" });
           if (count >= options.maxMembers) {
@@ -449,6 +590,12 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        if (options.onBeforeRemoveMember) {
+          await options.onBeforeRemoveMember(ctx, {
+            organizationId: args.organizationId,
+            memberUserId: args.memberUserId,
+          });
+        }
         await tenants.removeMember(ctx, userId, args.organizationId, args.memberUserId);
         if (options.onMemberRemoved) {
           await options.onMemberRemoved(ctx, {
@@ -458,12 +605,70 @@ export function makeTenantsAPI(
       },
     }),
 
+    bulkAddMembers: mutationGeneric({
+      args: {
+        organizationId: v.string(),
+        members: v.array(v.object({ memberUserId: v.string(), role: v.string() })),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
+        await requireActiveOrganization(ctx, args.organizationId);
+        if (typeof options.maxMembers === "number") {
+          const count = await tenants.countMembers(ctx, args.organizationId, { status: "all" });
+          if (count + args.members.length > options.maxMembers) {
+            throw new Error(
+              `Adding these members would exceed the maximum (${options.maxMembers}). Current: ${count}.`
+            );
+          }
+        }
+        const result = await tenants.bulkAddMembers(ctx, userId, args.organizationId, args.members);
+        if (options.onMemberAdded) {
+          for (const uid of result.success) {
+            const m = args.members.find((x) => x.memberUserId === uid);
+            if (m) await options.onMemberAdded(ctx, {
+              organizationId: args.organizationId, userId: uid, role: m.role, addedBy: userId,
+            });
+          }
+        }
+        return result;
+      },
+    }),
+
+    bulkRemoveMembers: mutationGeneric({
+      args: {
+        organizationId: v.string(),
+        memberUserIds: v.array(v.string()),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
+        await requireActiveOrganization(ctx, args.organizationId);
+        const result = await tenants.bulkRemoveMembers(ctx, userId, args.organizationId, args.memberUserIds);
+        if (options.onMemberRemoved) {
+          for (const uid of result.success) {
+            await options.onMemberRemoved(ctx, {
+              organizationId: args.organizationId, userId: uid, removedBy: userId,
+            });
+          }
+        }
+        return result;
+      },
+    }),
+
     updateMemberRole: mutationGeneric({
       args: { organizationId: v.string(), memberUserId: v.string(), role: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        if (options.onBeforeUpdateMemberRole) {
+          await options.onBeforeUpdateMemberRole(ctx, {
+            organizationId: args.organizationId,
+            memberUserId: args.memberUserId,
+            role: args.role,
+          });
+        }
         let oldRole: OrgRole | null = null;
         if (options.onMemberRoleChanged) {
           const member = await tenants.getMember(ctx, args.organizationId, args.memberUserId);
@@ -485,9 +690,32 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        if (options.onBeforeLeaveOrganization) {
+          await options.onBeforeLeaveOrganization(ctx, { organizationId: args.organizationId });
+        }
         await tenants.leaveOrganization(ctx, userId, args.organizationId);
         if (options.onMemberLeft) {
           await options.onMemberLeft(ctx, { organizationId: args.organizationId, userId });
+        }
+      },
+    }),
+
+    joinByDomain: mutationGeneric({
+      args: {
+        organizationId: v.string(),
+        userEmail: v.string(),
+        role: v.optional(v.string()),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await tenants.joinByDomain(ctx, userId, args.organizationId, args.userEmail, args.role);
+        if (options.onMemberAdded) {
+          await options.onMemberAdded(ctx, {
+            organizationId: args.organizationId,
+            userId,
+            role: args.role ?? "member",
+            addedBy: userId,
+          });
         }
       },
     }),
@@ -513,11 +741,29 @@ export function makeTenantsAPI(
     }),
 
     listTeams: queryGeneric({
+      args: {
+        organizationId: v.string(),
+        parentTeamId: v.optional(v.union(v.null(), v.string())),
+        sortBy: v.optional(v.union(v.literal("name"), v.literal("createdAt"), v.literal("slug"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
+        return await tenants.listTeams(ctx, args.organizationId, {
+          parentTeamId: args.parentTeamId,
+          sortBy: args.sortBy,
+          sortOrder: args.sortOrder,
+        });
+      },
+    }),
+
+    listTeamsAsTree: queryGeneric({
       args: { organizationId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        return await tenants.listTeams(ctx, args.organizationId);
+        return await tenants.listTeamsAsTree(ctx, args.organizationId);
       },
     }),
 
@@ -559,7 +805,11 @@ export function makeTenantsAPI(
     }),
 
     listTeamMembers: queryGeneric({
-      args: { teamId: v.string() },
+      args: {
+        teamId: v.string(),
+        sortBy: v.optional(v.union(v.literal("userId"), v.literal("role"), v.literal("createdAt"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
@@ -567,7 +817,10 @@ export function makeTenantsAPI(
           await requireMembership(ctx, userId, team.organizationId);
         }
 
-        const members = await tenants.listTeamMembers(ctx, args.teamId);
+        const members = await tenants.listTeamMembers(ctx, args.teamId, {
+          sortBy: args.sortBy,
+          sortOrder: args.sortOrder,
+        });
         if (options.getUser) {
           return await Promise.all(
             members.map(async (member) => ({
@@ -623,11 +876,21 @@ export function makeTenantsAPI(
         description: v.optional(v.string()),
         slug: v.optional(v.string()),
         metadata: v.optional(v.any()),
+        parentTeamId: v.optional(v.string()),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        if (options.onBeforeCreateTeam) {
+          await options.onBeforeCreateTeam(ctx, {
+            organizationId: args.organizationId,
+            name: args.name,
+            description: args.description,
+            slug: args.slug,
+            metadata: args.metadata,
+          });
+        }
         if (typeof options.maxTeams === "number") {
           const count = await tenants.countTeams(ctx, args.organizationId);
           if (count >= options.maxTeams) {
@@ -639,6 +902,7 @@ export function makeTenantsAPI(
         const teamId = await tenants.createTeam(ctx, userId, args.organizationId, args.name, args.description, {
           slug: args.slug,
           metadata: args.metadata,
+          parentTeamId: args.parentTeamId,
         });
         if (options.onTeamCreated) {
           await options.onTeamCreated(ctx, {
@@ -656,6 +920,7 @@ export function makeTenantsAPI(
         slug: v.optional(v.string()),
         description: v.optional(v.union(v.null(), v.string())),
         metadata: v.optional(v.any()),
+        parentTeamId: v.optional(v.union(v.null(), v.string())),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
@@ -664,11 +929,21 @@ export function makeTenantsAPI(
           await requireActiveMembership(ctx, userId, team.organizationId);
           await requireActiveOrganization(ctx, team.organizationId);
         }
+        if (options.onBeforeUpdateTeam) {
+          await options.onBeforeUpdateTeam(ctx, {
+            teamId: args.teamId,
+            name: args.name,
+            slug: args.slug,
+            description: args.description,
+            metadata: args.metadata,
+          });
+        }
         await tenants.updateTeam(ctx, userId, args.teamId, {
           name: args.name,
           slug: args.slug,
           description: args.description,
           metadata: args.metadata,
+          parentTeamId: args.parentTeamId,
         });
       },
     }),
@@ -681,6 +956,9 @@ export function makeTenantsAPI(
         if (teamForOrg) {
           await requireActiveMembership(ctx, userId, teamForOrg.organizationId);
           await requireActiveOrganization(ctx, teamForOrg.organizationId);
+        }
+        if (options.onBeforeDeleteTeam) {
+          await options.onBeforeDeleteTeam(ctx, { teamId: args.teamId });
         }
         let teamName = "Unknown";
         let teamOrgId = "";
@@ -699,7 +977,7 @@ export function makeTenantsAPI(
     }),
 
     addTeamMember: mutationGeneric({
-      args: { teamId: v.string(), memberUserId: v.string() },
+      args: { teamId: v.string(), memberUserId: v.string(), role: v.optional(v.string()) },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
@@ -707,10 +985,23 @@ export function makeTenantsAPI(
           await requireActiveMembership(ctx, userId, team.organizationId);
           await requireActiveOrganization(ctx, team.organizationId);
         }
-        await tenants.addTeamMember(ctx, userId, args.teamId, args.memberUserId);
+        await tenants.addTeamMember(ctx, userId, args.teamId, args.memberUserId, { role: args.role });
         if (options.onTeamMemberAdded) {
           await options.onTeamMemberAdded(ctx, { teamId: args.teamId, userId: args.memberUserId, addedBy: userId });
         }
+      },
+    }),
+
+    updateTeamMemberRole: mutationGeneric({
+      args: { teamId: v.string(), memberUserId: v.string(), role: v.string() },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        const team = await tenants.getTeam(ctx, args.teamId);
+        if (team) {
+          await requireActiveMembership(ctx, userId, team.organizationId);
+          await requireActiveOrganization(ctx, team.organizationId);
+        }
+        await tenants.updateTeamMemberRole(ctx, userId, args.teamId, args.memberUserId, args.role);
       },
     }),
 
@@ -731,11 +1022,18 @@ export function makeTenantsAPI(
     }),
 
     listInvitations: queryGeneric({
-      args: { organizationId: v.string() },
+      args: {
+        organizationId: v.string(),
+        sortBy: v.optional(v.union(v.literal("email"), v.literal("expiresAt"), v.literal("createdAt"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        return await tenants.listInvitations(ctx, args.organizationId);
+        return await tenants.listInvitations(ctx, args.organizationId, {
+          sortBy: args.sortBy,
+          sortOrder: args.sortOrder,
+        });
       },
     }),
 
@@ -809,6 +1107,15 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        if (options.onBeforeInviteMember) {
+          await options.onBeforeInviteMember(ctx, {
+            organizationId: args.organizationId,
+            email: args.email,
+            role: args.role,
+            teamId: args.teamId,
+            message: args.message,
+          });
+        }
         let inviterName: string | undefined;
         if (options.getUser) {
           const user = await options.getUser(ctx, userId);
@@ -826,6 +1133,43 @@ export function makeTenantsAPI(
             organizationId: args.organizationId, organizationName: org?.name ?? "Unknown",
             role: args.role, inviterName, expiresAt: result.expiresAt,
           });
+        }
+        return result;
+      },
+    }),
+
+    bulkInviteMembers: mutationGeneric({
+      args: {
+        organizationId: v.string(),
+        invitations: v.array(v.object({
+          email: v.string(),
+          role: v.string(),
+          message: v.optional(v.string()),
+          teamId: v.optional(v.string()),
+        })),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
+        await requireActiveOrganization(ctx, args.organizationId);
+        let inviterName: string | undefined;
+        if (options.getUser) {
+          const user = await options.getUser(ctx, userId);
+          inviterName = user?.name;
+        }
+        const result = await tenants.bulkInviteMembers(ctx, userId, args.organizationId, args.invitations, {
+          inviterName,
+        });
+        if (options.onInvitationCreated) {
+          const org = await tenants.getOrganization(ctx, args.organizationId);
+          for (const s of result.success) {
+            await options.onInvitationCreated(ctx, {
+              invitationId: s.invitationId, email: s.email,
+              organizationId: args.organizationId, organizationName: org?.name ?? "Unknown",
+              role: args.invitations.find((i) => i.email.toLowerCase() === s.email.toLowerCase())?.role ?? "member",
+              inviterName, expiresAt: s.expiresAt,
+            });
+          }
         }
         return result;
       },

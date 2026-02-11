@@ -16,3 +16,16 @@ export {
   type UseTeamsPaginatedOptions,
 } from "./use-teams-paginated.js";
 export { useInvitation, type UseInvitationOptions, type InvitationWithOrg } from "./use-invitation.js";
+export {
+  usePermission,
+  useCan,
+  type UsePermissionOptions,
+  type UsePermissionResult,
+  type UseCanOptions,
+  type UseCanResult,
+} from "./use-permission.js";
+export {
+  useUserPermissions,
+  type UseUserPermissionsOptions,
+  type UseUserPermissionsResult,
+} from "./use-user-permissions.js";

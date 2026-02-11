@@ -50,7 +50,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       addTeamMember: FunctionReference<
         "mutation",
         "internal",
-        { memberUserId: string; teamId: string; userId: string },
+        { memberUserId: string; role?: string; teamId: string; userId: string },
         null,
         Name
       >;
@@ -128,6 +128,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           {
             email: string;
             expiresAt?: number;
+            inviterName?: string;
             message?: string;
             organizationId: string;
             role: string;
@@ -151,6 +152,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           email: string;
           expiresAt?: number;
+          inviterName?: string;
           message?: string;
           organizationId: string;
           role: string;
@@ -303,7 +305,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         addTeamMember: FunctionReference<
           "mutation",
           "internal",
-          { memberUserId: string; teamId: string; userId: string },
+          {
+            memberUserId: string;
+            role?: string;
+            teamId: string;
+            userId: string;
+          },
           null,
           Name
         >;
@@ -343,6 +350,18 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             metadata?: any;
             name?: string;
             slug?: string;
+            teamId: string;
+            userId: string;
+          },
+          null,
+          Name
+        >;
+        updateTeamMemberRole: FunctionReference<
+          "mutation",
+          "internal",
+          {
+            memberUserId: string;
+            role: string;
             teamId: string;
             userId: string;
           },
@@ -410,6 +429,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null,
         Name
       >;
+      updateTeamMemberRole: FunctionReference<
+        "mutation",
+        "internal",
+        { memberUserId: string; role: string; teamId: string; userId: string },
+        null,
+        Name
+      >;
     };
     queries: {
       countInvitations: FunctionReference<
@@ -443,6 +469,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email: string;
           expiresAt: number;
           inviterId: string;
+          inviterName?: string;
           isExpired: boolean;
           message?: string;
           organizationId: string;
@@ -459,6 +486,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null | {
           _creationTime: number;
           _id: string;
+          joinedAt?: number;
           organizationId: string;
           role: string;
           status?: "active" | "suspended";
@@ -509,6 +537,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email: string;
           expiresAt: number;
           inviterId: string;
+          inviterName?: string;
           isExpired: boolean;
           organizationId: string;
           role: string;
@@ -549,6 +578,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             email: string;
             expiresAt: number;
             inviterId: string;
+            inviterName?: string;
             isExpired: boolean;
             message?: string;
             organizationId: string;
@@ -568,6 +598,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             email: string;
             expiresAt: number;
             inviterId: string;
+            inviterName?: string;
             isExpired: boolean;
             organizationId: string;
             role: string;
@@ -585,6 +616,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             email: string;
             expiresAt: number;
             inviterId: string;
+            inviterName?: string;
             isExpired: boolean;
             message?: string;
             organizationId: string;
@@ -629,6 +661,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email: string;
           expiresAt: number;
           inviterId: string;
+          inviterName?: string;
           isExpired: boolean;
           message?: string;
           organizationId: string;
@@ -662,6 +695,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Array<{
           _creationTime: number;
           _id: string;
+          joinedAt?: number;
           organizationId: string;
           role: string;
           status?: "active" | "suspended";
@@ -695,6 +729,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Array<{
           _creationTime: number;
           _id: string;
+          role?: string;
           teamId: string;
           userId: string;
         }>,
@@ -781,6 +816,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           null | {
             _creationTime: number;
             _id: string;
+            joinedAt?: number;
             organizationId: string;
             role: string;
             status?: "active" | "suspended";
@@ -796,6 +832,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           Array<{
             _creationTime: number;
             _id: string;
+            joinedAt?: number;
             organizationId: string;
             role: string;
             status?: "active" | "suspended";
@@ -911,6 +948,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           Array<{
             _creationTime: number;
             _id: string;
+            role?: string;
             teamId: string;
             userId: string;
           }>,

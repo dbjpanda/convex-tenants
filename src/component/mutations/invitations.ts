@@ -175,3 +175,85 @@ export const cancelInvitation = mutation({
     return null;
   },
 });
+
+const invitationItemValidator = v.object({
+  email: v.string(),
+  role: v.string(),
+  message: v.optional(v.string()),
+  teamId: v.optional(v.string()),
+});
+
+export const bulkInviteMembers = mutation({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+    invitations: v.array(invitationItemValidator),
+    inviterName: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+  },
+  returns: v.object({
+    success: v.array(v.object({ invitationId: v.string(), email: v.string(), expiresAt: v.number() })),
+    errors: v.array(v.object({ email: v.string(), code: v.string(), message: v.string() })),
+  }),
+  handler: async (ctx, args) => {
+    const orgId = args.organizationId as Id<"organizations">;
+    const defaultExpiresAt = args.expiresAt ?? Date.now() + 48 * 60 * 60 * 1000;
+    const success: { invitationId: string; email: string; expiresAt: number }[] = [];
+    const errors: { email: string; code: string; message: string }[] = [];
+
+    for (const inv of args.invitations) {
+      const normalizedEmail = inv.email.trim().toLowerCase();
+      try {
+        if (inv.teamId) {
+          const team = await ctx.db.get(inv.teamId as Id<"teams">);
+          if (!team) {
+            errors.push({ email: normalizedEmail, code: "NOT_FOUND", message: "Team not found" });
+            continue;
+          }
+          if (team.organizationId !== orgId) {
+            errors.push({
+              email: normalizedEmail,
+              code: "FORBIDDEN",
+              message: "Team must belong to the organization",
+            });
+            continue;
+          }
+        }
+        const existing = await ctx.db
+          .query("invitations")
+          .withIndex("by_email_and_status", (q) =>
+            q.eq("email", normalizedEmail).eq("status", "pending")
+          )
+          .first();
+        if (existing && existing.organizationId === orgId) {
+          errors.push({
+            email: normalizedEmail,
+            code: "ALREADY_EXISTS",
+            message: "A pending invitation already exists for this email",
+          });
+          continue;
+        }
+        const invitationId = await ctx.db.insert("invitations", {
+          organizationId: orgId,
+          email: normalizedEmail,
+          role: inv.role,
+          teamId: inv.teamId ? (inv.teamId as Id<"teams">) : null,
+          inviterId: args.userId,
+          inviterName: args.inviterName,
+          message: inv.message,
+          status: "pending",
+          expiresAt: defaultExpiresAt,
+        });
+        success.push({
+          invitationId: invitationId as string,
+          email: normalizedEmail,
+          expiresAt: defaultExpiresAt,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push({ email: normalizedEmail, code: "ERROR", message: msg });
+      }
+    }
+    return { success, errors };
+  },
+});

@@ -102,6 +102,7 @@ export const strictCreateTeam = strictApi.createTeam;
 export const strictUpdateTeam = strictApi.updateTeam;
 export const strictDeleteTeam = strictApi.deleteTeam;
 export const strictAddTeamMember = strictApi.addTeamMember;
+export const strictUpdateTeamMemberRole = strictApi.updateTeamMemberRole;
 export const strictRemoveTeamMember = strictApi.removeTeamMember;
 // Invitations
 export const strictListInvitations = strictApi.listInvitations;

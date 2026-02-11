@@ -1,6 +1,9 @@
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
+/** Team doc with optional parentTeamId (for nested teams) */
+type TeamDoc = Doc<"teams"> & { parentTeamId?: Id<"teams"> };
+
 /**
  * Ensure a slug is unique by appending a number if needed
  */
@@ -53,6 +56,29 @@ export async function ensureUniqueTeamSlug(
     slug = `${baseSlug}-${counter}`;
     counter++;
   }
+}
+
+/**
+ * Collect ancestor team IDs by walking parentTeamId up from the given team.
+ * Used to detect cycles when setting parentTeamId.
+ */
+export async function getTeamAncestorIds(
+  ctx: MutationCtx,
+  teamId: Id<"teams"> | null
+): Promise<Set<Id<"teams">>> {
+  const seen = new Set<Id<"teams">>();
+  if (!teamId) return seen;
+  let current: Id<"teams"> | null = teamId;
+  while (current) {
+    const team = await ctx.db.get(current);
+    if (!team) break;
+    const parentId = (team as TeamDoc).parentTeamId;
+    if (!parentId) break;
+    if (seen.has(parentId)) break;
+    seen.add(parentId);
+    current = parentId;
+  }
+  return seen;
 }
 
 /**

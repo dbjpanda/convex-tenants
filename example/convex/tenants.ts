@@ -18,7 +18,7 @@ export const {
   addMember, removeMember, updateMemberRole, suspendMember, unsuspendMember, leaveOrganization,
   // Teams
   listTeams, getTeam, listTeamMembers, isTeamMember,
-  createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember,
+  createTeam, updateTeam, deleteTeam, addTeamMember, updateTeamMemberRole, removeTeamMember,
   // Invitations
   listInvitations, getInvitation, getPendingInvitations,
   inviteMember, acceptInvitation, resendInvitation, cancelInvitation,

@@ -14,6 +14,15 @@ export default defineSchema({
     slug: v.string(),
     logo: v.union(v.null(), v.string()),
     metadata: v.optional(v.any()),
+    /** Structured settings (typed). Use metadata for fully custom data. */
+    settings: v.optional(
+      v.object({
+        allowPublicSignup: v.optional(v.boolean()),
+        requireInvitationToJoin: v.optional(v.boolean()),
+      })
+    ),
+    /** Domains that can join without invitation (e.g. ["acme.com"]). Used for domain-based auto-join. */
+    allowedDomains: v.optional(v.array(v.string())),
     ownerId: v.string(), // References parent app's users table
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))), // default active
   })
@@ -39,16 +48,19 @@ export default defineSchema({
     name: v.string(),
     slug: v.optional(v.string()), // URL-friendly, unique per organization
     organizationId: v.id("organizations"),
+    parentTeamId: v.optional(v.id("teams")), // Optional parent for nested teams
     description: v.union(v.null(), v.string()),
     metadata: v.optional(v.any()),
   })
     .index("by_organization", ["organizationId"])
-    .index("by_organization_and_slug", ["organizationId", "slug"]),
+    .index("by_organization_and_slug", ["organizationId", "slug"])
+    .index("by_parent", ["parentTeamId"]),
 
   // Team members table
   teamMembers: defineTable({
     teamId: v.id("teams"),
     userId: v.string(), // References parent app's users table
+    role: v.optional(v.string()), // Optional role within the team (e.g. "lead", "member")
   })
     .index("by_team", ["teamId"])
     .index("by_user", ["userId"])

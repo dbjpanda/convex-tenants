@@ -6,6 +6,12 @@ import type { GenericDataModel, GenericMutationCtx, GenericQueryCtx } from "conv
 export type OrgRole = string;
 export type InvitationRole = string;
 
+/** Structured organization settings (typed). Use metadata for custom data. */
+export interface OrganizationSettings {
+  allowPublicSignup?: boolean;
+  requireInvitationToJoin?: boolean;
+}
+
 export interface Organization {
   _id: string;
   _creationTime: number;
@@ -13,6 +19,8 @@ export interface Organization {
   slug: string;
   logo: string | null;
   metadata?: Record<string, unknown>;
+  settings?: OrganizationSettings;
+  allowedDomains?: string[];
   ownerId: string;
   status?: "active" | "suspended" | "archived";
 }
@@ -44,6 +52,7 @@ export interface Team {
   name: string;
   slug?: string;
   organizationId: string;
+  parentTeamId?: string;
   description: string | null;
   metadata?: Record<string, unknown>;
 }
@@ -53,6 +62,7 @@ export interface TeamMember {
   _creationTime: number;
   teamId: string;
   userId: string;
+  role?: string;
 }
 
 export interface Invitation {

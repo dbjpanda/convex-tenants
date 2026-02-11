@@ -82,8 +82,16 @@ export class Tenants {
     throw new Error("Unsupported permission scope type");
   }
 
-  async listOrganizations(ctx: QueryCtx, userId: string): Promise<OrganizationWithRole[]> {
-    return await ctx.runQuery(this.component.queries.listUserOrganizations, { userId });
+  async listOrganizations(
+    ctx: QueryCtx,
+    userId: string,
+    options?: { sortBy?: "name" | "createdAt" | "slug"; sortOrder?: "asc" | "desc" }
+  ): Promise<OrganizationWithRole[]> {
+    return await ctx.runQuery(this.component.queries.listUserOrganizations, {
+      userId,
+      sortBy: options?.sortBy,
+      sortOrder: options?.sortOrder,
+    });
   }
 
   async getOrganization(ctx: QueryCtx, organizationId: string): Promise<Organization | null> {
@@ -98,7 +106,13 @@ export class Tenants {
     ctx: MutationCtx,
     userId: string,
     name: string,
-    options?: { slug?: string; logo?: string; metadata?: Record<string, unknown> }
+    options?: {
+      slug?: string;
+      logo?: string;
+      metadata?: Record<string, unknown>;
+      settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean };
+      allowedDomains?: string[];
+    }
   ): Promise<string> {
     const createPermission = this.permissionMap.createOrganization;
     if (typeof createPermission === "string") {
@@ -112,6 +126,8 @@ export class Tenants {
       slug,
       logo: options?.logo,
       metadata: options?.metadata,
+      settings: options?.settings,
+      allowedDomains: options?.allowedDomains,
       creatorRole,
     });
     await this.authz.assignRole(ctx, userId, creatorRole, orgScope(orgId), undefined, userId);
@@ -127,6 +143,8 @@ export class Tenants {
       slug?: string;
       logo?: string | null;
       metadata?: Record<string, unknown>;
+      settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean };
+      allowedDomains?: string[] | null;
       status?: "active" | "suspended" | "archived";
     }
   ): Promise<void> {
@@ -136,6 +154,29 @@ export class Tenants {
       organizationId,
       ...updates,
     });
+  }
+
+  async joinByDomain(
+    ctx: MutationCtx,
+    userId: string,
+    organizationId: string,
+    userEmail: string,
+    role?: string
+  ): Promise<void> {
+    await ctx.runMutation(this.component.mutations.joinByDomain, {
+      organizationId,
+      userId,
+      userEmail,
+      role,
+    });
+    const member = await this.getMember(ctx, organizationId, userId);
+    if (member) {
+      await this.authz.assignRole(ctx, userId, member.role, orgScope(organizationId), undefined, userId);
+    }
+  }
+
+  async listOrganizationsJoinableByDomain(ctx: QueryCtx, email: string) {
+    return await ctx.runQuery(this.component.queries.listOrganizationsJoinableByDomain, { email });
   }
 
   async transferOwnership(
@@ -191,11 +232,17 @@ export class Tenants {
   async listMembers(
     ctx: QueryCtx,
     organizationId: string,
-    options?: { status?: "active" | "suspended" | "all" }
+    options?: {
+      status?: "active" | "suspended" | "all";
+      sortBy?: "role" | "joinedAt" | "createdAt" | "userId";
+      sortOrder?: "asc" | "desc";
+    }
   ): Promise<Member[]> {
     return await ctx.runQuery(this.component.queries.listOrganizationMembers, {
       organizationId,
       status: options?.status,
+      sortBy: options?.sortBy,
+      sortOrder: options?.sortOrder,
     });
   }
 
@@ -281,6 +328,66 @@ export class Tenants {
     }
   }
 
+  async bulkAddMembers(
+    ctx: MutationCtx,
+    userId: string,
+    organizationId: string,
+    members: Array<{ memberUserId: string; role: string }>
+  ): Promise<{ success: string[]; errors: Array<{ userId: string; code: string; message: string }> }> {
+    await this.authzRequireOperation(ctx, userId, "bulkAddMembers", orgScope(organizationId));
+    const result = await ctx.runMutation(this.component.mutations.bulkAddMembers, {
+      userId,
+      organizationId,
+      members,
+    });
+    for (const memberUserId of result.success) {
+      const m = members.find((x) => x.memberUserId === memberUserId);
+      if (m) {
+        await this.authz.assignRole(ctx, memberUserId, m.role, orgScope(organizationId), undefined, userId);
+      }
+    }
+    return result;
+  }
+
+  async bulkRemoveMembers(
+    ctx: MutationCtx,
+    userId: string,
+    organizationId: string,
+    memberUserIds: string[]
+  ): Promise<{ success: string[]; errors: Array<{ userId: string; code: string; message: string }> }> {
+    await this.authzRequireOperation(ctx, userId, "bulkRemoveMembers", orgScope(organizationId));
+    const rolesByUser: Record<string, string> = {};
+    const teams = await this.listTeams(ctx, organizationId);
+    for (const memberUserId of memberUserIds) {
+      const member = await this.getMember(ctx, organizationId, memberUserId);
+      if (member) rolesByUser[memberUserId] = member.role;
+    }
+    const result = await ctx.runMutation(this.component.mutations.bulkRemoveMembers, {
+      userId,
+      organizationId,
+      memberUserIds,
+    });
+    for (const memberUserId of result.success) {
+      const role = rolesByUser[memberUserId];
+      if (role) {
+        await this.authz.revokeRole(ctx, memberUserId, role, orgScope(organizationId));
+      }
+      for (const team of teams) {
+        const isMember = await this.isTeamMember(ctx, team._id, memberUserId);
+        if (isMember) {
+          await ctx.runMutation(this.authz.component.rebac.removeRelation, {
+            subjectType: "user",
+            subjectId: memberUserId,
+            relation: "member",
+            objectType: "team",
+            objectId: team._id,
+          });
+        }
+      }
+    }
+    return result;
+  }
+
   async updateMemberRole(
     ctx: MutationCtx,
     userId: string,
@@ -363,8 +470,28 @@ export class Tenants {
     await this.authz.revokeRole(ctx, userId, member.role, orgScope(organizationId));
   }
 
-  async listTeams(ctx: QueryCtx, organizationId: string): Promise<Team[]> {
-    return await ctx.runQuery(this.component.queries.listTeams, { organizationId });
+  async listTeams(
+    ctx: QueryCtx,
+    organizationId: string,
+    options?: {
+      parentTeamId?: string | null;
+      sortBy?: "name" | "createdAt" | "slug";
+      sortOrder?: "asc" | "desc";
+    }
+  ): Promise<Team[]> {
+    return await ctx.runQuery(this.component.queries.listTeams, {
+      organizationId,
+      parentTeamId: options?.parentTeamId,
+      sortBy: options?.sortBy,
+      sortOrder: options?.sortOrder,
+    });
+  }
+
+  async listTeamsAsTree(
+    ctx: QueryCtx,
+    organizationId: string
+  ): Promise<Array<{ team: Team; children: Array<{ team: Team; children: unknown[] }> }>> {
+    return await ctx.runQuery(this.component.queries.listTeamsAsTree, { organizationId });
   }
 
   async countTeams(ctx: QueryCtx, organizationId: string): Promise<number> {
@@ -392,7 +519,7 @@ export class Tenants {
     organizationId: string,
     name: string,
     description?: string,
-    options?: { slug?: string; metadata?: Record<string, unknown> }
+    options?: { slug?: string; metadata?: Record<string, unknown>; parentTeamId?: string }
   ): Promise<string> {
     await this.authzRequireOperation(ctx, userId, "createTeam", orgScope(organizationId));
     return await ctx.runMutation(this.component.mutations.createTeam, {
@@ -402,6 +529,7 @@ export class Tenants {
       description,
       slug: options?.slug,
       metadata: options?.metadata,
+      parentTeamId: options?.parentTeamId,
     });
   }
 
@@ -414,6 +542,7 @@ export class Tenants {
       slug?: string;
       description?: string | null;
       metadata?: Record<string, unknown>;
+      parentTeamId?: string | null;
     }
   ): Promise<void> {
     const team = await this.getTeam(ctx, teamId);
@@ -439,8 +568,16 @@ export class Tenants {
     await ctx.runMutation(this.component.mutations.deleteTeam, { userId, teamId });
   }
 
-  async listTeamMembers(ctx: QueryCtx, teamId: string): Promise<TeamMember[]> {
-    return await ctx.runQuery(this.component.queries.listTeamMembers, { teamId });
+  async listTeamMembers(
+    ctx: QueryCtx,
+    teamId: string,
+    options?: { sortBy?: "userId" | "role" | "createdAt"; sortOrder?: "asc" | "desc" }
+  ): Promise<TeamMember[]> {
+    return await ctx.runQuery(this.component.queries.listTeamMembers, {
+      teamId,
+      sortBy: options?.sortBy,
+      sortOrder: options?.sortOrder,
+    });
   }
 
   async listTeamMembersPaginated(
@@ -458,7 +595,8 @@ export class Tenants {
     ctx: MutationCtx,
     userId: string,
     teamId: string,
-    memberUserId: string
+    memberUserId: string,
+    options?: { role?: string }
   ): Promise<void> {
     const team = await this.getTeam(ctx, teamId);
     if (!team) throw new Error("Team not found");
@@ -467,6 +605,7 @@ export class Tenants {
       userId,
       teamId,
       memberUserId,
+      role: options?.role,
     });
     await ctx.runMutation(this.authz.component.rebac.addRelation, {
       subjectType: "user",
@@ -474,6 +613,24 @@ export class Tenants {
       relation: "member",
       objectType: "team",
       objectId: teamId,
+    });
+  }
+
+  async updateTeamMemberRole(
+    ctx: MutationCtx,
+    userId: string,
+    teamId: string,
+    memberUserId: string,
+    role: string
+  ): Promise<void> {
+    const team = await this.getTeam(ctx, teamId);
+    if (!team) throw new Error("Team not found");
+    await this.authzRequireOperation(ctx, userId, "updateTeamMemberRole", orgScope(team.organizationId));
+    await ctx.runMutation(this.component.mutations.updateTeamMemberRole, {
+      userId,
+      teamId,
+      memberUserId,
+      role,
     });
   }
 
@@ -603,8 +760,16 @@ export class Tenants {
     return result;
   }
 
-  async listInvitations(ctx: QueryCtx, organizationId: string): Promise<Invitation[]> {
-    return await ctx.runQuery(this.component.queries.listInvitations, { organizationId });
+  async listInvitations(
+    ctx: QueryCtx,
+    organizationId: string,
+    options?: { sortBy?: "email" | "expiresAt" | "createdAt"; sortOrder?: "asc" | "desc" }
+  ): Promise<Invitation[]> {
+    return await ctx.runQuery(this.component.queries.listInvitations, {
+      organizationId,
+      sortBy: options?.sortBy,
+      sortOrder: options?.sortOrder,
+    });
   }
 
   async countInvitations(ctx: QueryCtx, organizationId: string): Promise<number> {
@@ -654,6 +819,26 @@ export class Tenants {
       message: options?.message,
       inviterName: options?.inviterName,
       expiresAt,
+    });
+  }
+
+  async bulkInviteMembers(
+    ctx: MutationCtx,
+    userId: string,
+    organizationId: string,
+    invitations: Array<{ email: string; role: string; message?: string; teamId?: string }>,
+    options?: { inviterName?: string; expiresAt?: number }
+  ): Promise<{
+    success: Array<{ invitationId: string; email: string; expiresAt: number }>;
+    errors: Array<{ email: string; code: string; message: string }>;
+  }> {
+    await this.authzRequireOperation(ctx, userId, "bulkInviteMembers", orgScope(organizationId));
+    return await ctx.runMutation(this.component.mutations.bulkInviteMembers, {
+      userId,
+      organizationId,
+      invitations,
+      inviterName: options?.inviterName,
+      expiresAt: options?.expiresAt,
     });
   }
 

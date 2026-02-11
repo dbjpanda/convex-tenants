@@ -10,6 +10,8 @@ import type { Id } from "../_generated/dataModel";
 export const listInvitations = query({
   args: {
     organizationId: v.string(),
+    sortBy: v.optional(v.union(v.literal("email"), v.literal("expiresAt"), v.literal("createdAt"))),
+    sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
   },
   returns: v.array(
     v.object({
@@ -40,7 +42,16 @@ export const listInvitations = query({
       )
       .collect();
 
-    return invitations.map((inv) => {
+    const sortBy = args.sortBy ?? "createdAt";
+    const order = args.sortOrder ?? "desc";
+    const mult = order === "asc" ? 1 : -1;
+    const sorted = [...invitations].sort((a, b) => {
+      const va = sortBy === "email" ? a.email : sortBy === "expiresAt" ? a.expiresAt : a._creationTime;
+      const vb = sortBy === "email" ? b.email : sortBy === "expiresAt" ? b.expiresAt : b._creationTime;
+      return va < vb ? -mult : va > vb ? mult : 0;
+    });
+
+    return sorted.map((inv) => {
       const i = inv as { message?: string; inviterName?: string };
       return {
         _id: inv._id as string,

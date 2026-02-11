@@ -6,6 +6,7 @@ export {
   listUserOrganizations,
   getOrganization,
   getOrganizationBySlug,
+  listOrganizationsJoinableByDomain,
 } from "./queries/organizations.js";
 export {
   listOrganizationMembers,
@@ -15,6 +16,7 @@ export {
 } from "./queries/members.js";
 export {
   listTeams,
+  listTeamsAsTree,
   countTeams,
   listTeamsPaginated,
   getTeam,

@@ -4,6 +4,13 @@ import { mutation } from "../_generated/server";
 import { ensureUniqueSlug } from "../helpers";
 import type { Id } from "../_generated/dataModel";
 
+const organizationSettingsValidator = v.optional(
+  v.object({
+    allowPublicSignup: v.optional(v.boolean()),
+    requireInvitationToJoin: v.optional(v.boolean()),
+  })
+);
+
 export const createOrganization = mutation({
   args: {
     userId: v.string(),
@@ -11,6 +18,8 @@ export const createOrganization = mutation({
     slug: v.string(),
     logo: v.optional(v.string()),
     metadata: v.optional(v.any()),
+    settings: organizationSettingsValidator,
+    allowedDomains: v.optional(v.array(v.string())),
     creatorRole: v.optional(v.string()),
   },
   returns: v.string(),
@@ -21,6 +30,8 @@ export const createOrganization = mutation({
       slug: uniqueSlug,
       logo: args.logo ?? null,
       metadata: args.metadata,
+      settings: args.settings,
+      allowedDomains: args.allowedDomains,
       ownerId: args.userId,
       status: "active",
     });
@@ -41,6 +52,8 @@ export const updateOrganization = mutation({
     slug: v.optional(v.string()),
     logo: v.optional(v.union(v.null(), v.string())),
     metadata: v.optional(v.any()),
+    settings: organizationSettingsValidator,
+    allowedDomains: v.optional(v.union(v.null(), v.array(v.string()))),
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
   },
   returns: v.null(),
@@ -50,6 +63,8 @@ export const updateOrganization = mutation({
     if (args.name !== undefined) updates.name = args.name;
     if (args.logo !== undefined) updates.logo = args.logo;
     if (args.metadata !== undefined) updates.metadata = args.metadata;
+    if (args.settings !== undefined) updates.settings = args.settings;
+    if (args.allowedDomains !== undefined) updates.allowedDomains = args.allowedDomains ?? undefined;
     if (args.status !== undefined) updates.status = args.status;
     if (args.slug !== undefined) {
       updates.slug = await ensureUniqueSlug(ctx, args.slug);
