@@ -65,7 +65,7 @@ describe("makeTenantsAPI - organization status enforcement", () => {
     const t = initConvexTest();
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
 
-    const id1 = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+    await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
       name: "Active One",
     });
     const id2 = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {

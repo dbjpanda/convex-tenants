@@ -22,6 +22,7 @@ export default [
       parserOptions: {
         project: [
           "./tsconfig.json",
+          "./tsconfig.test.json",
           "./example/tsconfig.json",
           "./example/convex/tsconfig.json",
         ],
@@ -56,6 +57,18 @@ export default [
           allowTernary: true,
           allowTaggedTemplates: true,
         },
+      ],
+    },
+  },
+  // Example integration tests - relaxed rules for test mocks
+  {
+    files: ["example/tests/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
     },
   },
