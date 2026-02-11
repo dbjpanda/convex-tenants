@@ -16,12 +16,17 @@ Every guarded mutation checks a permission string via `@djpanda/convex-authz` be
 | `updateTeam` | `teams:update` |
 | `deleteTeam` | `teams:delete` |
 | `addTeamMember` | `teams:addMember` |
+| `updateTeamMemberRole` | `teams:updateMemberRole` |
 | `removeTeamMember` | `teams:removeMember` |
 | `inviteMember` | `invitations:create` |
+| `bulkInviteMembers` | `invitations:create` |
+| `bulkAddMembers` | `members:add` |
+| `bulkRemoveMembers` | `members:remove` |
 | `resendInvitation` | `invitations:resend` |
 | `cancelInvitation` | `invitations:cancel` |
 | `grantPermission` | `permissions:grant` |
 | `denyPermission` | `permissions:deny` |
+| `getAuditLog` | `permissions:grant` (query; requires grant to read audit log) |
 
 ## Overriding the map
 

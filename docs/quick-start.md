@@ -69,18 +69,22 @@ export const {
   // Organizations
   listOrganizations, getOrganization, getOrganizationBySlug,
   createOrganization, updateOrganization, transferOwnership, deleteOrganization,
+  listOrganizationsJoinableByDomain, joinByDomain,
   // Members
   listMembers, listMembersPaginated, countMembers, getMember, getCurrentMember,
-  addMember, removeMember, updateMemberRole, leaveOrganization,
+  addMember, bulkAddMembers, removeMember, bulkRemoveMembers, updateMemberRole,
+  suspendMember, unsuspendMember, leaveOrganization,
   // Teams
-  listTeams, listTeamsPaginated, countTeams, getTeam, listTeamMembers, listTeamMembersPaginated, isTeamMember,
-  createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember,
+  listTeams, listTeamsAsTree, listTeamsPaginated, countTeams, getTeam,
+  listTeamMembers, listTeamMembersPaginated, isTeamMember,
+  createTeam, updateTeam, deleteTeam, addTeamMember, updateTeamMemberRole, removeTeamMember,
   // Invitations
   listInvitations, listInvitationsPaginated, countInvitations, getInvitation, getPendingInvitations,
-  inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
+  inviteMember, bulkInviteMembers, acceptInvitation, resendInvitation, cancelInvitation,
   // Authorization
   checkPermission, getUserPermissions, getUserRoles,
   grantPermission, denyPermission, getAuditLog,
+  // Optional (only when generateUploadUrl is set): generateLogoUploadUrl,
 } = makeTenantsAPI(components.tenants, {
   authz,                  // Required: your Authz instance from authz.ts
   creatorRole: "owner",   // Role assigned when creating an org (must match authz.ts)
