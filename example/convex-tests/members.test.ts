@@ -180,5 +180,36 @@ describe("makeTenantsAPI - members", () => {
       expect(member?.status).toBe("active");
       expect(await asAlice.query(api.testHelpers.strictCountMembers, { organizationId: orgId })).toBe(2);
     });
+
+    test("addMember sets joinedAt and getMember/listMembers return it", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "JoinedAt Org",
+        slug: "joinedat",
+      });
+      const beforeAdd = Date.now();
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+      const afterAdd = Date.now();
+
+      const member = await asAlice.query(api.testHelpers.strictGetMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member?.joinedAt).toBeDefined();
+      expect(typeof member?.joinedAt).toBe("number");
+      expect((member?.joinedAt ?? 0) >= beforeAdd && (member?.joinedAt ?? 0) <= afterAdd + 1000).toBe(true);
+
+      const list = await asAlice.query(api.testHelpers.strictListMembers, {
+        organizationId: orgId,
+      });
+      const bobInList = list.find((m) => m.userId === "bob");
+      expect(bobInList?.joinedAt).toBeDefined();
+    });
   });
 });

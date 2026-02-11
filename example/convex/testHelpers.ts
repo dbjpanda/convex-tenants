@@ -24,6 +24,9 @@ const strictApi = makeTenantsAPI(components.tenants, {
   }),
 
   // Organization callbacks
+  onBeforeCreateOrganization: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeCreateOrganization", data });
+  },
   onOrganizationCreated: async (ctx, data) => {
     await ctx.db.insert("callbackLog", { type: "organizationCreated", data });
   },
@@ -71,12 +74,55 @@ const strictApi = makeTenantsAPI(components.tenants, {
   },
 });
 
+// API with onBeforeCreateOrganization that throws (for testing validation block)
+const apiWithOnBeforeThrow = makeTenantsAPI(components.tenants, {
+  authz,
+  auth: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+  getUser: async (_ctx, userId) => ({ name: `User ${userId}`, email: `${userId}@test.com` }),
+  onBeforeCreateOrganization: async () => {
+    throw new Error("Blocked by onBeforeCreateOrganization");
+  },
+});
+
+// API with limits (for testing maxOrganizations, maxMembers, maxTeams)
+const apiWithLimits = makeTenantsAPI(components.tenants, {
+  authz,
+  auth: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+  getUser: async (_ctx, userId) => ({ name: `User ${userId}`, email: `${userId}@test.com` }),
+  maxOrganizations: 1,
+  maxMembers: 2,
+  maxTeams: 1,
+});
+
+// API with generateUploadUrl (for testing generateLogoUploadUrl mutation)
+const apiWithUploadUrl = makeTenantsAPI(components.tenants, {
+  authz,
+  auth: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+  getUser: async (_ctx, userId) => ({ name: `User ${userId}`, email: `${userId}@test.com` }),
+  generateUploadUrl: async () => "https://fake-upload-url.test/convex-upload",
+});
+
 // Strict Auth Exports — all 30 makeTenantsAPI functions
 // Organizations
 export const strictListOrganizations = strictApi.listOrganizations;
 export const strictGetOrganization = strictApi.getOrganization;
 export const strictGetOrganizationBySlug = strictApi.getOrganizationBySlug;
 export const strictCreateOrganization = strictApi.createOrganization;
+export const strictCreateOrganizationBlockedByOnBefore = apiWithOnBeforeThrow.createOrganization;
+export const strictCreateOrganizationWithLimits = apiWithLimits.createOrganization;
+export const strictAddMemberWithLimits = apiWithLimits.addMember;
+export const strictCreateTeamWithLimits = apiWithLimits.createTeam;
+export const strictListOrganizationsWithLimits = apiWithLimits.listOrganizations;
+export const strictGenerateLogoUploadUrl = apiWithUploadUrl.generateLogoUploadUrl;
 export const strictUpdateOrganization = strictApi.updateOrganization;
 export const strictTransferOwnership = strictApi.transferOwnership;
 export const strictDeleteOrganization = strictApi.deleteOrganization;
@@ -91,8 +137,12 @@ export const strictUpdateMemberRole = strictApi.updateMemberRole;
 export const strictSuspendMember = strictApi.suspendMember;
 export const strictUnsuspendMember = strictApi.unsuspendMember;
 export const strictLeaveOrganization = strictApi.leaveOrganization;
+export const strictBulkAddMembers = strictApi.bulkAddMembers;
+export const strictBulkRemoveMembers = strictApi.bulkRemoveMembers;
+export const strictJoinByDomain = strictApi.joinByDomain;
 // Teams
 export const strictListTeams = strictApi.listTeams;
+export const strictListTeamsAsTree = strictApi.listTeamsAsTree;
 export const strictCountTeams = strictApi.countTeams;
 export const strictGetTeam = strictApi.getTeam;
 export const strictListTeamMembers = strictApi.listTeamMembers;
@@ -106,6 +156,8 @@ export const strictUpdateTeamMemberRole = strictApi.updateTeamMemberRole;
 export const strictRemoveTeamMember = strictApi.removeTeamMember;
 // Invitations
 export const strictListInvitations = strictApi.listInvitations;
+export const strictBulkInviteMembers = strictApi.bulkInviteMembers;
+export const strictListOrganizationsJoinableByDomain = strictApi.listOrganizationsJoinableByDomain;
 export const strictCountInvitations = strictApi.countInvitations;
 export const strictGetInvitation = strictApi.getInvitation;
 export const strictGetPendingInvitations = strictApi.getPendingInvitations;
