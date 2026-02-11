@@ -223,6 +223,50 @@ describe("makeTenantsAPI - invitations", () => {
       expect(invitation).toBeNull();
     });
 
+    test("listInvitationsPaginated returns paginated invitations", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Paginated Invitations Org" }
+      );
+
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        email: "a@test.com",
+        role: "member",
+      });
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        email: "b@test.com",
+        role: "member",
+      });
+      await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        email: "c@test.com",
+        role: "member",
+      });
+
+      const result = await asAlice.query(api.testHelpers.strictListInvitationsPaginated, {
+        organizationId: orgId,
+        paginationOpts: { numItems: 2, cursor: null },
+      });
+
+      expect(result.page).toHaveLength(2);
+      expect(result.isDone).toBe(false);
+      expect(result.continueCursor).toBeDefined();
+
+      const nextPage = await asAlice.query(api.testHelpers.strictListInvitationsPaginated, {
+        organizationId: orgId,
+        paginationOpts: { numItems: 2, cursor: result.continueCursor },
+      });
+      expect(nextPage.page.length).toBeGreaterThanOrEqual(1);
+    });
+
     test("getPendingInvitations returns invitations for email across orgs", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({

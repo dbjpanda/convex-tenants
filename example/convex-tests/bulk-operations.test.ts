@@ -177,5 +177,56 @@ describe("makeTenantsAPI - bulk operations", () => {
       expect(result.errors[0].email).toBe("bob@test.com");
       expect(result.errors[0].code).toBe("ALREADY_EXISTS");
     });
+
+    test("reports NOT_FOUND when teamId does not exist", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Bulk Invite Team Org",
+      });
+
+      const result = await asAlice.mutation(api.testHelpers.strictBulkInviteMembers, {
+        organizationId: orgId,
+        invitations: [
+          { email: "bob@test.com", role: "member", teamId: "teams:000000000000000000000" },
+        ],
+      });
+
+      expect(result.success).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe("NOT_FOUND");
+      expect(result.errors[0].message).toContain("Team not found");
+    });
+
+    test("reports FORBIDDEN when teamId belongs to different org", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const org1Id = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Org One",
+      });
+      const org2Id = await asBob.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Org Two",
+      });
+
+      const teamInOrg2 = await asBob.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: org2Id,
+        name: "Org2 Team",
+      });
+
+      const result = await asAlice.mutation(api.testHelpers.strictBulkInviteMembers, {
+        organizationId: org1Id,
+        invitations: [
+          { email: "carol@test.com", role: "member", teamId: teamInOrg2 },
+        ],
+      });
+
+      expect(result.success).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].code).toBe("FORBIDDEN");
+      expect(result.errors[0].message).toContain("must belong to the organization");
+    });
   });
 });

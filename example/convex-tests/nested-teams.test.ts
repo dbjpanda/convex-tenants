@@ -146,6 +146,27 @@ describe("makeTenantsAPI - nested teams", () => {
     expect(child?.parentTeamId).toBe(parentId);
   });
 
+  test("updateTeam parentTeamId rejects team as its own parent", async () => {
+    const t = initConvexTest();
+    const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+    const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+      name: "Own Parent Org",
+      slug: "own-parent",
+    });
+    const teamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+      organizationId: orgId,
+      name: "Solo Team",
+    });
+
+    await expect(
+      asAlice.mutation(api.testHelpers.strictUpdateTeam, {
+        teamId,
+        parentTeamId: teamId,
+      })
+    ).rejects.toThrow(/own parent|invalid/i);
+  });
+
   test("updateTeam parentTeamId rejects cycle", async () => {
     const t = initConvexTest();
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });

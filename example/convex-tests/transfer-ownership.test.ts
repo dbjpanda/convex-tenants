@@ -90,4 +90,38 @@ describe("makeTenantsAPI - transferOwnership", () => {
       })
     ).rejects.toThrow("New owner must be a different user");
   });
+
+  test("transferOwnership with previousOwnerRole assigns custom role to previous owner", async () => {
+    const t = initConvexTest();
+    const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+    const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+    const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+      name: "Custom Role Transfer Org",
+    });
+
+    await asAlice.mutation(api.testHelpers.strictAddMember, {
+      organizationId: orgId,
+      memberUserId: "bob",
+      role: "admin",
+    });
+
+    await asAlice.mutation(api.testHelpers.strictTransferOwnership, {
+      organizationId: orgId,
+      newOwnerUserId: "bob",
+      previousOwnerRole: "member",
+    });
+
+    const aliceMember = await asAlice.query(api.testHelpers.strictGetMember, {
+      organizationId: orgId,
+      userId: "alice",
+    });
+    const bobMember = await asBob.query(api.testHelpers.strictGetMember, {
+      organizationId: orgId,
+      userId: "bob",
+    });
+
+    expect(aliceMember?.role).toBe("member");
+    expect(bobMember?.role).toBe("owner");
+  });
 });

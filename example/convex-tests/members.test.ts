@@ -211,5 +211,75 @@ describe("makeTenantsAPI - members", () => {
       const bobInList = list.find((m) => m.userId === "bob");
       expect(bobInList?.joinedAt).toBeDefined();
     });
+
+    test("listMembers with status suspended returns only suspended members", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Status Filter Org",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "carol",
+        role: "member",
+      });
+      await asAlice.mutation(api.testHelpers.strictSuspendMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+      });
+
+      const suspended = await asAlice.query(api.testHelpers.strictListMembers, {
+        organizationId: orgId,
+        status: "suspended",
+      });
+      expect(suspended).toHaveLength(1);
+      expect(suspended[0].userId).toBe("bob");
+
+      const all = await asAlice.query(api.testHelpers.strictListMembers, {
+        organizationId: orgId,
+        status: "all",
+      });
+      expect(all).toHaveLength(3);
+    });
+
+    test("listMembersPaginated returns paginated members", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Paginated Members Org",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "carol",
+        role: "member",
+      });
+
+      const result = await asAlice.query(api.testHelpers.strictListMembersPaginated, {
+        organizationId: orgId,
+        paginationOpts: { numItems: 2, cursor: null },
+      });
+
+      expect(result.page).toHaveLength(2);
+      expect(result.isDone).toBe(false);
+      expect(result.continueCursor).toBeDefined();
+
+      const nextPage = await asAlice.query(api.testHelpers.strictListMembersPaginated, {
+        organizationId: orgId,
+        paginationOpts: { numItems: 2, cursor: result.continueCursor },
+      });
+      expect(nextPage.page.length).toBeGreaterThanOrEqual(1);
+    });
   });
 });
