@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { generateSlug } from "./index.js";
+import { generateSlug, normalizeEmail, orgScope } from "./helpers.js";
 
-describe("client helpers", () => {
+describe("helpers", () => {
   describe("generateSlug", () => {
     it("should convert name to lowercase slug", () => {
       expect(generateSlug("Hello World")).toBe("hello-world");
@@ -37,6 +37,22 @@ describe("client helpers", () => {
 
     it("should handle empty string", () => {
       expect(generateSlug("")).toBe("");
+    });
+  });
+
+  describe("normalizeEmail", () => {
+    it("should lowercase email", () => {
+      expect(normalizeEmail("User@Example.COM")).toBe("user@example.com");
+    });
+
+    it("should trim whitespace", () => {
+      expect(normalizeEmail("  user@example.com  ")).toBe("user@example.com");
+    });
+  });
+
+  describe("orgScope", () => {
+    it("should return organization scope", () => {
+      expect(orgScope("org_123")).toEqual({ type: "organization", id: "org_123" });
     });
   });
 });

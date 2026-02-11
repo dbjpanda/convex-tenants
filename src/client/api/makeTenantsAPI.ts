@@ -9,7 +9,7 @@ import type { AuthzClient } from "../authz.js";
 import type { TenantsPermissionMap } from "../authz.js";
 import { Tenants } from "./tenants-class.js";
 import type { Member, OrgRole, InvitationRole, QueryCtx } from "./types.js";
-import { normalizeEmail } from "./types.js";
+import { normalizeEmail } from "./helpers.js";
 
 /**
  * Create an API for tenants that can be re-exported from your app.

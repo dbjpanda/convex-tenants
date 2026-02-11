@@ -8,18 +8,17 @@ import {
   DEFAULT_TENANTS_PERMISSION_MAP,
   type TenantsPermissionMap,
 } from "../authz.js";
-import {
-  type Organization,
-  type OrganizationWithRole,
-  type Member,
-  type Team,
-  type TeamMember,
-  type Invitation,
-  type QueryCtx,
-  type MutationCtx,
-  orgScope,
-  generateSlug,
+import type {
+  Organization,
+  OrganizationWithRole,
+  Member,
+  Team,
+  TeamMember,
+  Invitation,
+  QueryCtx,
+  MutationCtx,
 } from "./types.js";
+import { orgScope, generateSlug } from "./helpers.js";
 
 export type { QueryCtx, MutationCtx };
 

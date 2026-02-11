@@ -10,23 +10,22 @@ import type { ComponentApi } from "../../component/_generated/component.js";
 
 export type { ComponentApi };
 
-export {
-  type OrgRole,
-  type InvitationRole,
-  type Organization,
-  type OrganizationWithRole,
-  type Member,
-  type MemberStatus,
-  type MemberWithUser,
-  type Team,
-  type TeamMember,
-  type Invitation,
-  type QueryCtx,
-  type MutationCtx,
-  orgScope,
-  normalizeEmail,
-  generateSlug,
+export type {
+  OrgRole,
+  InvitationRole,
+  Organization,
+  OrganizationWithRole,
+  Member,
+  MemberStatus,
+  MemberWithUser,
+  Team,
+  TeamMember,
+  Invitation,
+  QueryCtx,
+  MutationCtx,
 } from "./types.js";
+
+export { orgScope, normalizeEmail, generateSlug } from "./helpers.js";
 
 export { Tenants } from "./tenants-class.js";
 export { makeTenantsAPI } from "./makeTenantsAPI.js";

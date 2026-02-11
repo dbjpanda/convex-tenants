@@ -1,5 +1,5 @@
 /**
- * Shared types and helpers for the tenants API.
+ * Shared types for the tenants API.
  */
 import type { GenericDataModel, GenericMutationCtx, GenericQueryCtx } from "convex/server";
 
@@ -78,23 +78,6 @@ export interface Invitation {
   status: "pending" | "accepted" | "cancelled" | "expired";
   expiresAt: number;
   isExpired: boolean;
-}
-
-export function orgScope(organizationId: string): { type: string; id: string } {
-  return { type: "organization", id: organizationId };
-}
-
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
-export function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 export type QueryCtx = Pick<GenericQueryCtx<GenericDataModel>, "runQuery">;
