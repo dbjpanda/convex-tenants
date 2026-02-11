@@ -53,7 +53,7 @@ import { normalizeEmail } from "./types.js";
  *   createOrganization, updateOrganization, deleteOrganization,
  *   addMember, removeMember, updateMemberRole,
  *   // ... other exports
- *   checkPermission, getUserPermissions, getUserRoles,
+ *   checkMemberPermission, checkPermission, getUserPermissions, getUserRoles,
  * } = makeTenantsAPI(components.tenants, {
  *   authz,
  *   creatorRole: "owner",
@@ -551,6 +551,24 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         return await tenants.getMember(ctx, args.organizationId, userId);
+      },
+    }),
+
+    checkMemberPermission: queryGeneric({
+      args: {
+        organizationId: v.string(),
+        userId: v.string(),
+        minRole: v.union(v.literal("member"), v.literal("admin"), v.literal("owner")),
+      },
+      handler: async (ctx, args) => {
+        const callerId = await requireAuth(ctx);
+        await requireMembership(ctx, callerId, args.organizationId);
+        return await tenants.checkMemberPermission(
+          ctx,
+          args.organizationId,
+          args.userId,
+          args.minRole
+        );
       },
     }),
 

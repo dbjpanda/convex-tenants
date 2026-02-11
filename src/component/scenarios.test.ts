@@ -15,7 +15,11 @@ import { describe, expect, it } from "vitest";
 import schema from "./schema.js";
 import { api } from "./_generated/api.js";
 
-const modules = import.meta.glob("./**/*.ts");
+const modules = Object.fromEntries(
+  Object.entries(import.meta.glob("./**/*.ts")).filter(
+    ([path]) => !path.endsWith(".test.ts")
+  )
+);
 
 function createTestInstance() {
   return convexTest(schema, modules);
@@ -57,41 +61,41 @@ describe("Scenario: Multi-Organization Isolation", () => {
     const t = createTestInstance();
 
     // Setup: Create two organizations
-    const acmeId = await t.mutation(api.mutations.createOrganization, {
+    const acmeId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
     });
 
-    const betaId = await t.mutation(api.mutations.createOrganization, {
+    const betaId = await t.mutation(api.organizations.createOrganization, {
       userId: "frank",
       name: "BetaCo",
       slug: "betaco",
     });
 
     // Alice can see ACME
-    const aliceOrgs = await t.query(api.queries.listUserOrganizations, {
+    const aliceOrgs = await t.query(api.organizations.listUserOrganizations, {
       userId: "alice",
     });
     expect(aliceOrgs).toHaveLength(1);
     expect(aliceOrgs[0].name).toBe("ACME Corp");
 
     // Frank can see BetaCo
-    const frankOrgs = await t.query(api.queries.listUserOrganizations, {
+    const frankOrgs = await t.query(api.organizations.listUserOrganizations, {
       userId: "frank",
     });
     expect(frankOrgs).toHaveLength(1);
     expect(frankOrgs[0].name).toBe("BetaCo");
 
     // Alice has no membership in BetaCo
-    const aliceInBeta = await t.query(api.queries.getMember, {
+    const aliceInBeta = await t.query(api.members.getMember, {
       organizationId: betaId,
       userId: "alice",
     });
     expect(aliceInBeta).toBeNull();
 
     // Frank has no membership in ACME
-    const frankInAcme = await t.query(api.queries.getMember, {
+    const frankInAcme = await t.query(api.members.getMember, {
       organizationId: acmeId,
       userId: "frank",
     });
@@ -101,40 +105,40 @@ describe("Scenario: Multi-Organization Isolation", () => {
   it("teams are isolated between organizations", async () => {
     const t = createTestInstance();
 
-    const acmeId = await t.mutation(api.mutations.createOrganization, {
+    const acmeId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
     });
 
-    const betaId = await t.mutation(api.mutations.createOrganization, {
+    const betaId = await t.mutation(api.organizations.createOrganization, {
       userId: "frank",
       name: "BetaCo",
       slug: "betaco",
     });
 
     // Create teams in each org
-    await t.mutation(api.mutations.createTeam, {
+    await t.mutation(api.teams.createTeam, {
       userId: "alice",
       organizationId: acmeId,
       name: "ACME Engineering",
     });
 
-    await t.mutation(api.mutations.createTeam, {
+    await t.mutation(api.teams.createTeam, {
       userId: "frank",
       organizationId: betaId,
       name: "Beta Product",
     });
 
     // List teams for ACME
-    const acmeTeams = await t.query(api.queries.listTeams, {
+    const acmeTeams = await t.query(api.teams.listTeams, {
       organizationId: acmeId,
     });
     expect(acmeTeams).toHaveLength(1);
     expect(acmeTeams[0].name).toBe("ACME Engineering");
 
     // List teams for BetaCo
-    const betaTeams = await t.query(api.queries.listTeams, {
+    const betaTeams = await t.query(api.teams.listTeams, {
       organizationId: betaId,
     });
     expect(betaTeams).toHaveLength(1);
@@ -150,28 +154,28 @@ describe("Scenario: Team-Based Access Control", () => {
   it("team members are tracked correctly", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
     });
 
     // Add members to org
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "bob",
       role: "admin",
     });
 
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "charlie",
       role: "member",
     });
 
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "diana",
@@ -179,38 +183,38 @@ describe("Scenario: Team-Based Access Control", () => {
     });
 
     // Create engineering team
-    const engTeamId = await t.mutation(api.mutations.createTeam, {
+    const engTeamId = await t.mutation(api.teams.createTeam, {
       userId: "alice",
       organizationId: orgId,
       name: "Engineering",
     });
 
     // Add charlie and diana to engineering
-    await t.mutation(api.mutations.addTeamMember, {
+    await t.mutation(api.teams.addTeamMember, {
       userId: "alice",
       teamId: engTeamId,
       memberUserId: "charlie",
     });
 
-    await t.mutation(api.mutations.addTeamMember, {
+    await t.mutation(api.teams.addTeamMember, {
       userId: "alice",
       teamId: engTeamId,
       memberUserId: "diana",
     });
 
     // Check team membership
-    const engMembers = await t.query(api.queries.listTeamMembers, {
+    const engMembers = await t.query(api.teams.listTeamMembers, {
       teamId: engTeamId,
     });
     expect(engMembers).toHaveLength(2);
 
-    const charlieInEng = await t.query(api.queries.isTeamMember, {
+    const charlieInEng = await t.query(api.teams.isTeamMember, {
       teamId: engTeamId,
       userId: "charlie",
     });
     expect(charlieInEng).toBe(true);
 
-    const bobInEng = await t.query(api.queries.isTeamMember, {
+    const bobInEng = await t.query(api.teams.isTeamMember, {
       teamId: engTeamId,
       userId: "bob",
     });
@@ -220,38 +224,38 @@ describe("Scenario: Team-Based Access Control", () => {
   it("removing org member removes them from all teams", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
     });
 
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "charlie",
       role: "member",
     });
 
-    const team1Id = await t.mutation(api.mutations.createTeam, {
+    const team1Id = await t.mutation(api.teams.createTeam, {
       userId: "alice",
       organizationId: orgId,
       name: "Team 1",
     });
 
-    const team2Id = await t.mutation(api.mutations.createTeam, {
+    const team2Id = await t.mutation(api.teams.createTeam, {
       userId: "alice",
       organizationId: orgId,
       name: "Team 2",
     });
 
-    await t.mutation(api.mutations.addTeamMember, {
+    await t.mutation(api.teams.addTeamMember, {
       userId: "alice",
       teamId: team1Id,
       memberUserId: "charlie",
     });
 
-    await t.mutation(api.mutations.addTeamMember, {
+    await t.mutation(api.teams.addTeamMember, {
       userId: "alice",
       teamId: team2Id,
       memberUserId: "charlie",
@@ -259,20 +263,20 @@ describe("Scenario: Team-Based Access Control", () => {
 
     // Verify membership
     expect(
-      await t.query(api.queries.isTeamMember, {
+      await t.query(api.teams.isTeamMember, {
         teamId: team1Id,
         userId: "charlie",
       })
     ).toBe(true);
     expect(
-      await t.query(api.queries.isTeamMember, {
+      await t.query(api.teams.isTeamMember, {
         teamId: team2Id,
         userId: "charlie",
       })
     ).toBe(true);
 
     // Remove from org
-    await t.mutation(api.mutations.removeMember, {
+    await t.mutation(api.members.removeMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "charlie",
@@ -280,13 +284,13 @@ describe("Scenario: Team-Based Access Control", () => {
 
     // Should be removed from all teams
     expect(
-      await t.query(api.queries.isTeamMember, {
+      await t.query(api.teams.isTeamMember, {
         teamId: team1Id,
         userId: "charlie",
       })
     ).toBe(false);
     expect(
-      await t.query(api.queries.isTeamMember, {
+      await t.query(api.teams.isTeamMember, {
         teamId: team2Id,
         userId: "charlie",
       })
@@ -302,20 +306,20 @@ describe("Scenario: Role Hierarchy (Owner > Admin > Member)", () => {
   it("members have correct roles assigned", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice", // owner
       name: "Test Org",
       slug: "test-org",
     });
 
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "bob",
       role: "admin",
     });
 
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "charlie",
@@ -323,7 +327,7 @@ describe("Scenario: Role Hierarchy (Owner > Admin > Member)", () => {
     });
 
     // Owner has owner role
-    const alice = await t.query(api.queries.getMember, {
+    const alice = await t.query(api.members.getMember, {
       organizationId: orgId,
       userId: "alice",
     });
@@ -331,7 +335,7 @@ describe("Scenario: Role Hierarchy (Owner > Admin > Member)", () => {
     expect(alice!.role).toBe("owner");
 
     // Admin has admin role
-    const bob = await t.query(api.queries.getMember, {
+    const bob = await t.query(api.members.getMember, {
       organizationId: orgId,
       userId: "bob",
     });
@@ -339,7 +343,7 @@ describe("Scenario: Role Hierarchy (Owner > Admin > Member)", () => {
     expect(bob!.role).toBe("admin");
 
     // Member has member role
-    const charlie = await t.query(api.queries.getMember, {
+    const charlie = await t.query(api.members.getMember, {
       organizationId: orgId,
       userId: "charlie",
     });
@@ -347,7 +351,7 @@ describe("Scenario: Role Hierarchy (Owner > Admin > Member)", () => {
     expect(charlie!.role).toBe("member");
 
     // Non-member returns null
-    const stranger = await t.query(api.queries.getMember, {
+    const stranger = await t.query(api.members.getMember, {
       organizationId: orgId,
       userId: "stranger",
     });
@@ -357,13 +361,13 @@ describe("Scenario: Role Hierarchy (Owner > Admin > Member)", () => {
   it("owner can transfer ownership", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "Test Org",
       slug: "test-org",
     });
 
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "bob",
@@ -371,14 +375,14 @@ describe("Scenario: Role Hierarchy (Owner > Admin > Member)", () => {
     });
 
     // Owner can promote to owner
-    await t.mutation(api.mutations.updateMemberRole, {
+    await t.mutation(api.members.updateMemberRole, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "bob",
       role: "owner",
     });
 
-    const bob = await t.query(api.queries.getMember, {
+    const bob = await t.query(api.members.getMember, {
       organizationId: orgId,
       userId: "bob",
     });
@@ -394,7 +398,7 @@ describe("Scenario: Complete Invitation Flow", () => {
   it("full invitation lifecycle: create → accept → member", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
@@ -402,7 +406,7 @@ describe("Scenario: Complete Invitation Flow", () => {
 
     // Create invitation
     const { invitationId, email, expiresAt } = await t.mutation(
-      api.mutations.inviteMember,
+      api.invitations.inviteMember,
       {
         userId: "alice",
         organizationId: orgId,
@@ -415,17 +419,17 @@ describe("Scenario: Complete Invitation Flow", () => {
     expect(expiresAt).toBeGreaterThan(Date.now());
 
     // Check invitation status
-    let invitation = await t.query(api.queries.getInvitation, { invitationId });
+    let invitation = await t.query(api.invitations.getInvitation, { invitationId });
     expect(invitation?.status).toBe("pending");
 
     // Accept invitation
-    await t.mutation(api.mutations.acceptInvitation, {
+    await t.mutation(api.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId: "henry",
     });
 
     // Verify henry is now a member
-    const henry = await t.query(api.queries.getMember, {
+    const henry = await t.query(api.members.getMember, {
       organizationId: orgId,
       userId: "henry",
     });
@@ -433,26 +437,26 @@ describe("Scenario: Complete Invitation Flow", () => {
     expect(henry?.role).toBe("member");
 
     // Invitation should be marked accepted
-    invitation = await t.query(api.queries.getInvitation, { invitationId });
+    invitation = await t.query(api.invitations.getInvitation, { invitationId });
     expect(invitation?.status).toBe("accepted");
   });
 
   it("invitation with team assignment", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
     });
 
-    const teamId = await t.mutation(api.mutations.createTeam, {
+    const teamId = await t.mutation(api.teams.createTeam, {
       userId: "alice",
       organizationId: orgId,
       name: "Engineering",
     });
 
-    const { invitationId } = await t.mutation(api.mutations.inviteMember, {
+    const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: orgId,
       email: "engineer@example.com",
@@ -460,20 +464,20 @@ describe("Scenario: Complete Invitation Flow", () => {
       teamId,
     });
 
-    await t.mutation(api.mutations.acceptInvitation, {
+    await t.mutation(api.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId: "henry",
     });
 
     // Should be member of org
-    const member = await t.query(api.queries.getMember, {
+    const member = await t.query(api.members.getMember, {
       organizationId: orgId,
       userId: "henry",
     });
     expect(member).not.toBeNull();
 
     // Should also be in the team
-    const isTeamMember = await t.query(api.queries.isTeamMember, {
+    const isTeamMember = await t.query(api.teams.isTeamMember, {
       teamId,
       userId: "henry",
     });
@@ -483,13 +487,13 @@ describe("Scenario: Complete Invitation Flow", () => {
   it("cancelled invitation cannot be accepted", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
     });
 
-    const { invitationId } = await t.mutation(api.mutations.inviteMember, {
+    const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: orgId,
       email: "henry@example.com",
@@ -497,14 +501,14 @@ describe("Scenario: Complete Invitation Flow", () => {
     });
 
     // Cancel the invitation
-    await t.mutation(api.mutations.cancelInvitation, {
+    await t.mutation(api.invitations.cancelInvitation, {
       userId: "alice",
       invitationId,
     });
 
     // Trying to accept should fail
     await expect(
-      t.mutation(api.mutations.acceptInvitation, {
+      t.mutation(api.invitations.acceptInvitation, {
         invitationId,
         acceptingUserId: "henry",
       })
@@ -514,40 +518,40 @@ describe("Scenario: Complete Invitation Flow", () => {
   it("user with pending invitations across multiple orgs", async () => {
     const t = createTestInstance();
 
-    const org1Id = await t.mutation(api.mutations.createOrganization, {
+    const org1Id = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "Org One",
       slug: "org-one",
     });
 
-    const org2Id = await t.mutation(api.mutations.createOrganization, {
+    const org2Id = await t.mutation(api.organizations.createOrganization, {
       userId: "bob",
       name: "Org Two",
       slug: "org-two",
     });
 
-    const org3Id = await t.mutation(api.mutations.createOrganization, {
+    const org3Id = await t.mutation(api.organizations.createOrganization, {
       userId: "charlie",
       name: "Org Three",
       slug: "org-three",
     });
 
     // Invite henry to all three orgs
-    await t.mutation(api.mutations.inviteMember, {
+    await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: org1Id,
       email: "henry@example.com",
       role: "member",
     });
 
-    await t.mutation(api.mutations.inviteMember, {
+    await t.mutation(api.invitations.inviteMember, {
       userId: "bob",
       organizationId: org2Id,
       email: "henry@example.com",
       role: "admin",
     });
 
-    await t.mutation(api.mutations.inviteMember, {
+    await t.mutation(api.invitations.inviteMember, {
       userId: "charlie",
       organizationId: org3Id,
       email: "henry@example.com",
@@ -555,20 +559,20 @@ describe("Scenario: Complete Invitation Flow", () => {
     });
 
     // Get all pending invitations
-    const pending = await t.query(api.queries.getPendingInvitationsForEmail, {
+    const pending = await t.query(api.invitations.getPendingInvitationsForEmail, {
       email: "henry@example.com",
     });
 
     expect(pending).toHaveLength(3);
 
     // Accept one invitation
-    await t.mutation(api.mutations.acceptInvitation, {
+    await t.mutation(api.invitations.acceptInvitation, {
       invitationId: pending[0]._id,
       acceptingUserId: "henry",
     });
 
     // Should still have 2 pending
-    const stillPending = await t.query(api.queries.getPendingInvitationsForEmail, {
+    const stillPending = await t.query(api.invitations.getPendingInvitationsForEmail, {
       email: "henry@example.com",
     });
     expect(stillPending).toHaveLength(2);
@@ -583,13 +587,13 @@ describe("Scenario: User with Multiple Org Memberships", () => {
   it("user can have different roles in different orgs", async () => {
     const t = createTestInstance();
 
-    await t.mutation(api.mutations.createOrganization, {
+    await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "Org One",
       slug: "org-one",
     });
 
-    const org2Id = await t.mutation(api.mutations.createOrganization, {
+    const org2Id = await t.mutation(api.organizations.createOrganization, {
       userId: "bob",
       name: "Org Two",
       slug: "org-two",
@@ -597,7 +601,7 @@ describe("Scenario: User with Multiple Org Memberships", () => {
 
     // Alice is owner of org1
     // Add alice as member to org2
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "bob",
       organizationId: org2Id,
       memberUserId: "alice",
@@ -605,7 +609,7 @@ describe("Scenario: User with Multiple Org Memberships", () => {
     });
 
     // Get all of alice's organizations
-    const aliceOrgs = await t.query(api.queries.listUserOrganizations, {
+    const aliceOrgs = await t.query(api.organizations.listUserOrganizations, {
       userId: "alice",
     });
 
@@ -621,20 +625,20 @@ describe("Scenario: User with Multiple Org Memberships", () => {
   it("leaving one org does not affect membership in others", async () => {
     const t = createTestInstance();
 
-    const org1Id = await t.mutation(api.mutations.createOrganization, {
+    const org1Id = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "Org One",
       slug: "org-one",
     });
 
-    const org2Id = await t.mutation(api.mutations.createOrganization, {
+    const org2Id = await t.mutation(api.organizations.createOrganization, {
       userId: "bob",
       name: "Org Two",
       slug: "org-two",
     });
 
     // Add alice to org2
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "bob",
       organizationId: org2Id,
       memberUserId: "alice",
@@ -642,13 +646,13 @@ describe("Scenario: User with Multiple Org Memberships", () => {
     });
 
     // Alice leaves org2
-    await t.mutation(api.mutations.leaveOrganization, {
+    await t.mutation(api.members.leaveOrganization, {
       userId: "alice",
       organizationId: org2Id,
     });
 
     // Alice should still be in org1
-    const org1Member = await t.query(api.queries.getMember, {
+    const org1Member = await t.query(api.members.getMember, {
       organizationId: org1Id,
       userId: "alice",
     });
@@ -656,7 +660,7 @@ describe("Scenario: User with Multiple Org Memberships", () => {
     expect(org1Member?.role).toBe("owner");
 
     // Alice should not be in org2
-    const org2Member = await t.query(api.queries.getMember, {
+    const org2Member = await t.query(api.members.getMember, {
       organizationId: org2Id,
       userId: "alice",
     });
@@ -672,21 +676,21 @@ describe("Scenario: Organization Deletion Cascade", () => {
   it("deleting org removes all members, teams, and invitations", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "ACME Corp",
       slug: "acme",
     });
 
     // Add members
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "bob",
       role: "admin",
     });
 
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "charlie",
@@ -694,20 +698,20 @@ describe("Scenario: Organization Deletion Cascade", () => {
     });
 
     // Create teams
-    const team1Id = await t.mutation(api.mutations.createTeam, {
+    const team1Id = await t.mutation(api.teams.createTeam, {
       userId: "alice",
       organizationId: orgId,
       name: "Team 1",
     });
 
-    await t.mutation(api.mutations.addTeamMember, {
+    await t.mutation(api.teams.addTeamMember, {
       userId: "alice",
       teamId: team1Id,
       memberUserId: "bob",
     });
 
     // Create invitations
-    await t.mutation(api.mutations.inviteMember, {
+    await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: orgId,
       email: "pending@example.com",
@@ -715,23 +719,23 @@ describe("Scenario: Organization Deletion Cascade", () => {
     });
 
     // Delete the organization
-    await t.mutation(api.mutations.deleteOrganization, {
+    await t.mutation(api.organizations.deleteOrganization, {
       userId: "alice",
       organizationId: orgId,
     });
 
     // Verify everything is gone
-    const org = await t.query(api.queries.getOrganization, {
+    const org = await t.query(api.organizations.getOrganization, {
       organizationId: orgId,
     });
     expect(org).toBeNull();
 
-    const teams = await t.query(api.queries.listTeams, {
+    const teams = await t.query(api.teams.listTeams, {
       organizationId: orgId,
     });
     expect(teams).toHaveLength(0);
 
-    const members = await t.query(api.queries.listOrganizationMembers, {
+    const members = await t.query(api.members.listOrganizationMembers, {
       organizationId: orgId,
     });
     expect(members).toHaveLength(0);
@@ -746,26 +750,26 @@ describe("Scenario: Slug Management", () => {
   it("auto-generates unique slugs for duplicates", async () => {
     const t = createTestInstance();
 
-    await t.mutation(api.mutations.createOrganization, {
+    await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "Test Corp",
       slug: "test-corp",
     });
 
-    await t.mutation(api.mutations.createOrganization, {
+    await t.mutation(api.organizations.createOrganization, {
       userId: "bob",
       name: "Test Corp",
       slug: "test-corp",
     });
 
-    await t.mutation(api.mutations.createOrganization, {
+    await t.mutation(api.organizations.createOrganization, {
       userId: "charlie",
       name: "Test Corp",
       slug: "test-corp",
     });
 
     // All should have different slugs
-    const aliceOrg = await t.query(api.queries.getOrganizationBySlug, {
+    const aliceOrg = await t.query(api.organizations.getOrganizationBySlug, {
       slug: "test-corp",
     });
 
@@ -774,7 +778,7 @@ describe("Scenario: Slug Management", () => {
     expect(aliceOrg?.ownerId).toBe("alice");
 
     // The others should have modified slugs (can't directly query them without knowing the exact slug)
-    const charlieOrgs = await t.query(api.queries.listUserOrganizations, {
+    const charlieOrgs = await t.query(api.organizations.listUserOrganizations, {
       userId: "charlie",
     });
     expect(charlieOrgs).toHaveLength(1);
@@ -791,14 +795,14 @@ describe("Scenario: Edge Cases", () => {
   it("existing member cannot accept invitation to same org", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "Test Org",
       slug: "test-org",
     });
 
     // Add bob as member
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "bob",
@@ -806,7 +810,7 @@ describe("Scenario: Edge Cases", () => {
     });
 
     // Create invitation for bob (different email, but same user will accept)
-    const { invitationId } = await t.mutation(api.mutations.inviteMember, {
+    const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: orgId,
       email: "bob-other@example.com",
@@ -815,7 +819,7 @@ describe("Scenario: Edge Cases", () => {
 
     // Bob trying to accept should fail since he's already a member
     await expect(
-      t.mutation(api.mutations.acceptInvitation, {
+      t.mutation(api.invitations.acceptInvitation, {
         invitationId,
         acceptingUserId: "bob",
       })
@@ -825,13 +829,13 @@ describe("Scenario: Edge Cases", () => {
   it("user can be in many teams within same org", async () => {
     const t = createTestInstance();
 
-    const orgId = await t.mutation(api.mutations.createOrganization, {
+    const orgId = await t.mutation(api.organizations.createOrganization, {
       userId: "alice",
       name: "Test Org",
       slug: "test-org",
     });
 
-    await t.mutation(api.mutations.addMember, {
+    await t.mutation(api.members.addMember, {
       userId: "alice",
       organizationId: orgId,
       memberUserId: "bob",
@@ -841,14 +845,14 @@ describe("Scenario: Edge Cases", () => {
     // Create many teams and add bob to all
     const teamIds: string[] = [];
     for (let i = 0; i < 5; i++) {
-      const teamId = await t.mutation(api.mutations.createTeam, {
+      const teamId = await t.mutation(api.teams.createTeam, {
         userId: "alice",
         organizationId: orgId,
         name: `Team ${i}`,
       });
       teamIds.push(teamId);
 
-      await t.mutation(api.mutations.addTeamMember, {
+      await t.mutation(api.teams.addTeamMember, {
         userId: "alice",
         teamId,
         memberUserId: "bob",
@@ -857,7 +861,7 @@ describe("Scenario: Edge Cases", () => {
 
     // Bob should be in all teams
     for (const teamId of teamIds) {
-      const isMember = await t.query(api.queries.isTeamMember, {
+      const isMember = await t.query(api.teams.isTeamMember, {
         teamId,
         userId: "bob",
       });

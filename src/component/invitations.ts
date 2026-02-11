@@ -1,8 +1,221 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
-import { mutation } from "../_generated/server";
-import { isInvitationExpired } from "../helpers";
-import type { Id } from "../_generated/dataModel";
+import { paginationOptsValidator } from "convex/server";
+import { query, mutation } from "./_generated/server";
+import { isInvitationExpired } from "./helpers";
+import type { Id } from "./_generated/dataModel";
+
+// ============================================================================
+// Queries
+// ============================================================================
+
+export const listInvitations = query({
+  args: {
+    organizationId: v.string(),
+    sortBy: v.optional(v.union(v.literal("email"), v.literal("expiresAt"), v.literal("createdAt"))),
+    sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.string(),
+      _creationTime: v.number(),
+      organizationId: v.string(),
+      email: v.string(),
+      role: v.string(),
+      teamId: v.union(v.null(), v.string()),
+      inviterId: v.string(),
+      inviterName: v.optional(v.string()),
+      message: v.optional(v.string()),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("accepted"),
+        v.literal("cancelled"),
+        v.literal("expired")
+      ),
+      expiresAt: v.number(),
+      isExpired: v.boolean(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const invitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .collect();
+
+    const sortBy = args.sortBy ?? "createdAt";
+    const order = args.sortOrder ?? "desc";
+    const mult = order === "asc" ? 1 : -1;
+    const sorted = [...invitations].sort((a, b) => {
+      const va = sortBy === "email" ? a.email : sortBy === "expiresAt" ? a.expiresAt : a._creationTime;
+      const vb = sortBy === "email" ? b.email : sortBy === "expiresAt" ? b.expiresAt : b._creationTime;
+      return va < vb ? -mult : va > vb ? mult : 0;
+    });
+
+    return sorted.map((inv) => {
+      const i = inv as { message?: string; inviterName?: string };
+      return {
+        _id: inv._id as string,
+        _creationTime: inv._creationTime,
+        organizationId: inv.organizationId as string,
+        email: inv.email,
+        role: inv.role,
+        teamId: inv.teamId ? (inv.teamId as string) : null,
+        inviterId: inv.inviterId,
+        inviterName: i.inviterName,
+        message: i.message,
+        status: inv.status,
+        expiresAt: inv.expiresAt,
+        isExpired: isInvitationExpired(inv),
+      };
+    });
+  },
+});
+
+export const countInvitations = query({
+  args: { organizationId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const invitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .collect();
+    return invitations.length;
+  },
+});
+
+export const listInvitationsPaginated = query({
+  args: {
+    organizationId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("invitations")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: result.page.map((inv) => {
+        const i = inv as { message?: string; inviterName?: string };
+        return {
+          _id: inv._id as string,
+          _creationTime: inv._creationTime,
+          organizationId: inv.organizationId as string,
+          email: inv.email,
+          role: inv.role,
+          teamId: inv.teamId ? (inv.teamId as string) : null,
+          inviterId: inv.inviterId,
+          inviterName: i.inviterName,
+          message: i.message,
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          isExpired: isInvitationExpired(inv),
+        };
+      }),
+    };
+  },
+});
+
+export const getInvitation = query({
+  args: { invitationId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.string(),
+      _creationTime: v.number(),
+      organizationId: v.string(),
+      email: v.string(),
+      role: v.string(),
+      teamId: v.union(v.null(), v.string()),
+      inviterId: v.string(),
+      inviterName: v.optional(v.string()),
+      message: v.optional(v.string()),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("accepted"),
+        v.literal("cancelled"),
+        v.literal("expired")
+      ),
+      expiresAt: v.number(),
+      isExpired: v.boolean(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const invitation = await ctx.db.get(args.invitationId as Id<"invitations">);
+    if (!invitation) return null;
+    const i = invitation as { message?: string; inviterName?: string };
+    return {
+      _id: invitation._id as string,
+      _creationTime: invitation._creationTime,
+      organizationId: invitation.organizationId as string,
+      email: invitation.email,
+      role: invitation.role,
+      teamId: invitation.teamId ? (invitation.teamId as string) : null,
+      inviterId: invitation.inviterId,
+      inviterName: i.inviterName,
+      message: i.message,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+      isExpired: isInvitationExpired(invitation),
+    };
+  },
+});
+
+export const getPendingInvitationsForEmail = query({
+  args: { email: v.string() },
+  returns: v.array(
+    v.object({
+      _id: v.string(),
+      _creationTime: v.number(),
+      organizationId: v.string(),
+      email: v.string(),
+      role: v.string(),
+      teamId: v.union(v.null(), v.string()),
+      inviterId: v.string(),
+      inviterName: v.optional(v.string()),
+      expiresAt: v.number(),
+      isExpired: v.boolean(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const invitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_email_and_status", (q) =>
+        q.eq("email", args.email).eq("status", "pending")
+      )
+      .collect();
+
+    return invitations
+      .filter((inv) => !isInvitationExpired(inv))
+      .map((inv) => {
+        const i = inv as { inviterName?: string };
+        return {
+          _id: inv._id as string,
+          _creationTime: inv._creationTime,
+          organizationId: inv.organizationId as string,
+          email: inv.email,
+          role: inv.role,
+          teamId: inv.teamId ? (inv.teamId as string) : null,
+          inviterId: inv.inviterId,
+          inviterName: i.inviterName,
+          expiresAt: inv.expiresAt,
+          isExpired: false,
+        };
+      });
+  },
+});
+
+// ============================================================================
+// Mutations
+// ============================================================================
 
 export const inviteMember = mutation({
   args: {

@@ -70,9 +70,9 @@ export async function getTeamAncestorIds(
   if (!teamId) return seen;
   let current: Id<"teams"> | null = teamId;
   while (current) {
-    const team = await ctx.db.get(current);
+    const team: Doc<"teams"> | null = await ctx.db.get(current);
     if (!team) break;
-    const parentId = (team as TeamDoc).parentTeamId;
+    const parentId: Id<"teams"> | undefined = (team as TeamDoc).parentTeamId;
     if (!parentId) break;
     if (seen.has(parentId)) break;
     seen.add(parentId);

@@ -87,7 +87,7 @@ export class Tenants {
     userId: string,
     options?: { sortBy?: "name" | "createdAt" | "slug"; sortOrder?: "asc" | "desc" }
   ): Promise<OrganizationWithRole[]> {
-    return await ctx.runQuery(this.component.queries.listUserOrganizations, {
+    return await ctx.runQuery(this.component.organizations.listUserOrganizations, {
       userId,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
@@ -95,11 +95,11 @@ export class Tenants {
   }
 
   async getOrganization(ctx: QueryCtx, organizationId: string): Promise<Organization | null> {
-    return await ctx.runQuery(this.component.queries.getOrganization, { organizationId });
+    return await ctx.runQuery(this.component.organizations.getOrganization, { organizationId });
   }
 
   async getOrganizationBySlug(ctx: QueryCtx, slug: string): Promise<Organization | null> {
-    return await ctx.runQuery(this.component.queries.getOrganizationBySlug, { slug });
+    return await ctx.runQuery(this.component.organizations.getOrganizationBySlug, { slug });
   }
 
   async createOrganization(
@@ -120,7 +120,7 @@ export class Tenants {
     }
     const slug = options?.slug ?? generateSlug(name);
     const creatorRole = this.options.creatorRole ?? "owner";
-    const orgId = await ctx.runMutation(this.component.mutations.createOrganization, {
+    const orgId = await ctx.runMutation(this.component.organizations.createOrganization, {
       userId,
       name,
       slug,
@@ -149,7 +149,7 @@ export class Tenants {
     }
   ): Promise<void> {
     await this.authzRequireOperation(ctx, userId, "updateOrganization", orgScope(organizationId));
-    await ctx.runMutation(this.component.mutations.updateOrganization, {
+    await ctx.runMutation(this.component.organizations.updateOrganization, {
       userId,
       organizationId,
       ...updates,
@@ -163,7 +163,7 @@ export class Tenants {
     userEmail: string,
     role?: string
   ): Promise<void> {
-    await ctx.runMutation(this.component.mutations.joinByDomain, {
+    await ctx.runMutation(this.component.members.joinByDomain, {
       organizationId,
       userId,
       userEmail,
@@ -176,7 +176,7 @@ export class Tenants {
   }
 
   async listOrganizationsJoinableByDomain(ctx: QueryCtx, email: string) {
-    return await ctx.runQuery(this.component.queries.listOrganizationsJoinableByDomain, { email });
+    return await ctx.runQuery(this.component.organizations.listOrganizationsJoinableByDomain, { email });
   }
 
   async transferOwnership(
@@ -192,7 +192,7 @@ export class Tenants {
       throw new Error("Only the current owner can transfer ownership");
     }
     const previousRole = options?.previousOwnerRole ?? "admin";
-    await ctx.runMutation(this.component.mutations.transferOwnership, {
+    await ctx.runMutation(this.component.organizations.transferOwnership, {
       userId,
       organizationId,
       newOwnerUserId,
@@ -226,7 +226,7 @@ export class Tenants {
         });
       }
     }
-    await ctx.runMutation(this.component.mutations.deleteOrganization, { userId, organizationId });
+    await ctx.runMutation(this.component.organizations.deleteOrganization, { userId, organizationId });
   }
 
   async listMembers(
@@ -238,7 +238,7 @@ export class Tenants {
       sortOrder?: "asc" | "desc";
     }
   ): Promise<Member[]> {
-    return await ctx.runQuery(this.component.queries.listOrganizationMembers, {
+    return await ctx.runQuery(this.component.members.listOrganizationMembers, {
       organizationId,
       status: options?.status,
       sortBy: options?.sortBy,
@@ -251,7 +251,7 @@ export class Tenants {
     organizationId: string,
     options?: { status?: "active" | "suspended" | "all" }
   ): Promise<number> {
-    return await ctx.runQuery(this.component.queries.countOrganizationMembers, {
+    return await ctx.runQuery(this.component.members.countOrganizationMembers, {
       organizationId,
       status: options?.status,
     });
@@ -263,7 +263,7 @@ export class Tenants {
     paginationOpts: { numItems: number; cursor: string | null },
     options?: { status?: "active" | "suspended" | "all" }
   ): Promise<{ page: Member[]; isDone: boolean; continueCursor: string }> {
-    return await ctx.runQuery(this.component.queries.listOrganizationMembersPaginated, {
+    return await ctx.runQuery(this.component.members.listOrganizationMembersPaginated, {
       organizationId,
       paginationOpts,
       status: options?.status,
@@ -275,7 +275,20 @@ export class Tenants {
     organizationId: string,
     userId: string
   ): Promise<Member | null> {
-    return await ctx.runQuery(this.component.queries.getMember, { organizationId, userId });
+    return await ctx.runQuery(this.component.members.getMember, { organizationId, userId });
+  }
+
+  async checkMemberPermission(
+    ctx: QueryCtx,
+    organizationId: string,
+    userId: string,
+    minRole: "member" | "admin" | "owner"
+  ): Promise<{ hasPermission: boolean; currentRole: "owner" | "admin" | "member" | null }> {
+    return await ctx.runQuery(this.component.members.checkMemberPermission, {
+      organizationId,
+      userId,
+      minRole,
+    });
   }
 
   async addMember(
@@ -286,7 +299,7 @@ export class Tenants {
     role: string
   ): Promise<void> {
     await this.authzRequireOperation(ctx, userId, "addMember", orgScope(organizationId));
-    await ctx.runMutation(this.component.mutations.addMember, {
+    await ctx.runMutation(this.component.members.addMember, {
       userId,
       organizationId,
       memberUserId,
@@ -318,7 +331,7 @@ export class Tenants {
         }
       }
     }
-    await ctx.runMutation(this.component.mutations.removeMember, {
+    await ctx.runMutation(this.component.members.removeMember, {
       userId,
       organizationId,
       memberUserId,
@@ -335,7 +348,7 @@ export class Tenants {
     members: Array<{ memberUserId: string; role: string }>
   ): Promise<{ success: string[]; errors: Array<{ userId: string; code: string; message: string }> }> {
     await this.authzRequireOperation(ctx, userId, "bulkAddMembers", orgScope(organizationId));
-    const result = await ctx.runMutation(this.component.mutations.bulkAddMembers, {
+    const result = await ctx.runMutation(this.component.members.bulkAddMembers, {
       userId,
       organizationId,
       members,
@@ -362,7 +375,7 @@ export class Tenants {
       const member = await this.getMember(ctx, organizationId, memberUserId);
       if (member) rolesByUser[memberUserId] = member.role;
     }
-    const result = await ctx.runMutation(this.component.mutations.bulkRemoveMembers, {
+    const result = await ctx.runMutation(this.component.members.bulkRemoveMembers, {
       userId,
       organizationId,
       memberUserIds,
@@ -398,7 +411,7 @@ export class Tenants {
     await this.authzRequireOperation(ctx, userId, "updateMemberRole", orgScope(organizationId));
     const member = await this.getMember(ctx, organizationId, memberUserId);
     const previousRole = member?.role;
-    await ctx.runMutation(this.component.mutations.updateMemberRole, {
+    await ctx.runMutation(this.component.members.updateMemberRole, {
       userId,
       organizationId,
       memberUserId,
@@ -417,7 +430,7 @@ export class Tenants {
     memberUserId: string
   ): Promise<void> {
     await this.authzRequireOperation(ctx, userId, "suspendMember", orgScope(organizationId));
-    await ctx.runMutation(this.component.mutations.suspendMember, {
+    await ctx.runMutation(this.component.members.suspendMember, {
       userId,
       organizationId,
       memberUserId,
@@ -431,7 +444,7 @@ export class Tenants {
     memberUserId: string
   ): Promise<void> {
     await this.authzRequireOperation(ctx, userId, "unsuspendMember", orgScope(organizationId));
-    await ctx.runMutation(this.component.mutations.unsuspendMember, {
+    await ctx.runMutation(this.component.members.unsuspendMember, {
       userId,
       organizationId,
       memberUserId,
@@ -466,7 +479,7 @@ export class Tenants {
         });
       }
     }
-    await ctx.runMutation(this.component.mutations.leaveOrganization, { userId, organizationId });
+    await ctx.runMutation(this.component.members.leaveOrganization, { userId, organizationId });
     await this.authz.revokeRole(ctx, userId, member.role, orgScope(organizationId));
   }
 
@@ -479,7 +492,7 @@ export class Tenants {
       sortOrder?: "asc" | "desc";
     }
   ): Promise<Team[]> {
-    return await ctx.runQuery(this.component.queries.listTeams, {
+    return await ctx.runQuery(this.component.teams.listTeams, {
       organizationId,
       parentTeamId: options?.parentTeamId,
       sortBy: options?.sortBy,
@@ -491,11 +504,11 @@ export class Tenants {
     ctx: QueryCtx,
     organizationId: string
   ): Promise<Array<{ team: Team; children: Array<{ team: Team; children: unknown[] }> }>> {
-    return await ctx.runQuery(this.component.queries.listTeamsAsTree, { organizationId });
+    return await ctx.runQuery(this.component.teams.listTeamsAsTree, { organizationId });
   }
 
   async countTeams(ctx: QueryCtx, organizationId: string): Promise<number> {
-    return await ctx.runQuery(this.component.queries.countTeams, { organizationId });
+    return await ctx.runQuery(this.component.teams.countTeams, { organizationId });
   }
 
   async listTeamsPaginated(
@@ -503,14 +516,14 @@ export class Tenants {
     organizationId: string,
     paginationOpts: { numItems: number; cursor: string | null }
   ): Promise<{ page: Team[]; isDone: boolean; continueCursor: string }> {
-    return await ctx.runQuery(this.component.queries.listTeamsPaginated, {
+    return await ctx.runQuery(this.component.teams.listTeamsPaginated, {
       organizationId,
       paginationOpts,
     });
   }
 
   async getTeam(ctx: QueryCtx, teamId: string): Promise<Team | null> {
-    return await ctx.runQuery(this.component.queries.getTeam, { teamId });
+    return await ctx.runQuery(this.component.teams.getTeam, { teamId });
   }
 
   async createTeam(
@@ -522,7 +535,7 @@ export class Tenants {
     options?: { slug?: string; metadata?: Record<string, unknown>; parentTeamId?: string }
   ): Promise<string> {
     await this.authzRequireOperation(ctx, userId, "createTeam", orgScope(organizationId));
-    return await ctx.runMutation(this.component.mutations.createTeam, {
+    return await ctx.runMutation(this.component.teams.createTeam, {
       userId,
       organizationId,
       name,
@@ -548,7 +561,7 @@ export class Tenants {
     const team = await this.getTeam(ctx, teamId);
     if (!team) throw new Error("Team not found");
     await this.authzRequireOperation(ctx, userId, "updateTeam", orgScope(team.organizationId));
-    await ctx.runMutation(this.component.mutations.updateTeam, { userId, teamId, ...updates });
+    await ctx.runMutation(this.component.teams.updateTeam, { userId, teamId, ...updates });
   }
 
   async deleteTeam(ctx: MutationCtx, userId: string, teamId: string): Promise<void> {
@@ -565,7 +578,7 @@ export class Tenants {
         objectId: teamId,
       });
     }
-    await ctx.runMutation(this.component.mutations.deleteTeam, { userId, teamId });
+    await ctx.runMutation(this.component.teams.deleteTeam, { userId, teamId });
   }
 
   async listTeamMembers(
@@ -573,7 +586,7 @@ export class Tenants {
     teamId: string,
     options?: { sortBy?: "userId" | "role" | "createdAt"; sortOrder?: "asc" | "desc" }
   ): Promise<TeamMember[]> {
-    return await ctx.runQuery(this.component.queries.listTeamMembers, {
+    return await ctx.runQuery(this.component.teams.listTeamMembers, {
       teamId,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
@@ -585,7 +598,7 @@ export class Tenants {
     teamId: string,
     paginationOpts: { numItems: number; cursor: string | null }
   ): Promise<{ page: TeamMember[]; isDone: boolean; continueCursor: string }> {
-    return await ctx.runQuery(this.component.queries.listTeamMembersPaginated, {
+    return await ctx.runQuery(this.component.teams.listTeamMembersPaginated, {
       teamId,
       paginationOpts,
     });
@@ -601,7 +614,7 @@ export class Tenants {
     const team = await this.getTeam(ctx, teamId);
     if (!team) throw new Error("Team not found");
     await this.authzRequireOperation(ctx, userId, "addTeamMember", orgScope(team.organizationId));
-    await ctx.runMutation(this.component.mutations.addTeamMember, {
+    await ctx.runMutation(this.component.teams.addTeamMember, {
       userId,
       teamId,
       memberUserId,
@@ -626,7 +639,7 @@ export class Tenants {
     const team = await this.getTeam(ctx, teamId);
     if (!team) throw new Error("Team not found");
     await this.authzRequireOperation(ctx, userId, "updateTeamMemberRole", orgScope(team.organizationId));
-    await ctx.runMutation(this.component.mutations.updateTeamMemberRole, {
+    await ctx.runMutation(this.component.teams.updateTeamMemberRole, {
       userId,
       teamId,
       memberUserId,
@@ -643,7 +656,7 @@ export class Tenants {
     const team = await this.getTeam(ctx, teamId);
     if (!team) throw new Error("Team not found");
     await this.authzRequireOperation(ctx, userId, "removeTeamMember", orgScope(team.organizationId));
-    await ctx.runMutation(this.component.mutations.removeTeamMember, {
+    await ctx.runMutation(this.component.teams.removeTeamMember, {
       userId,
       teamId,
       memberUserId,
@@ -658,7 +671,7 @@ export class Tenants {
   }
 
   async isTeamMember(ctx: QueryCtx, teamId: string, userId: string): Promise<boolean> {
-    return await ctx.runQuery(this.component.queries.isTeamMember, { teamId, userId });
+    return await ctx.runQuery(this.component.teams.isTeamMember, { teamId, userId });
   }
 
   async can(
@@ -765,7 +778,7 @@ export class Tenants {
     organizationId: string,
     options?: { sortBy?: "email" | "expiresAt" | "createdAt"; sortOrder?: "asc" | "desc" }
   ): Promise<Invitation[]> {
-    return await ctx.runQuery(this.component.queries.listInvitations, {
+    return await ctx.runQuery(this.component.invitations.listInvitations, {
       organizationId,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
@@ -773,7 +786,7 @@ export class Tenants {
   }
 
   async countInvitations(ctx: QueryCtx, organizationId: string): Promise<number> {
-    return await ctx.runQuery(this.component.queries.countInvitations, { organizationId });
+    return await ctx.runQuery(this.component.invitations.countInvitations, { organizationId });
   }
 
   async listInvitationsPaginated(
@@ -781,21 +794,21 @@ export class Tenants {
     organizationId: string,
     paginationOpts: { numItems: number; cursor: string | null }
   ): Promise<{ page: Invitation[]; isDone: boolean; continueCursor: string }> {
-    return await ctx.runQuery(this.component.queries.listInvitationsPaginated, {
+    return await ctx.runQuery(this.component.invitations.listInvitationsPaginated, {
       organizationId,
       paginationOpts,
     });
   }
 
   async getInvitation(ctx: QueryCtx, invitationId: string): Promise<Invitation | null> {
-    return await ctx.runQuery(this.component.queries.getInvitation, { invitationId });
+    return await ctx.runQuery(this.component.invitations.getInvitation, { invitationId });
   }
 
   async getPendingInvitations(
     ctx: QueryCtx,
     email: string
   ): Promise<Array<Omit<Invitation, "status">>> {
-    return await ctx.runQuery(this.component.queries.getPendingInvitationsForEmail, { email });
+    return await ctx.runQuery(this.component.invitations.getPendingInvitationsForEmail, { email });
   }
 
   async inviteMember(
@@ -810,7 +823,7 @@ export class Tenants {
     const expiresAt =
       options?.expiresAt ??
       Date.now() + (this.options.defaultInvitationExpiration ?? 48 * 60 * 60 * 1000);
-    return await ctx.runMutation(this.component.mutations.inviteMember, {
+    return await ctx.runMutation(this.component.invitations.inviteMember, {
       userId,
       organizationId,
       email,
@@ -833,7 +846,7 @@ export class Tenants {
     errors: Array<{ email: string; code: string; message: string }>;
   }> {
     await this.authzRequireOperation(ctx, userId, "bulkInviteMembers", orgScope(organizationId));
-    return await ctx.runMutation(this.component.mutations.bulkInviteMembers, {
+    return await ctx.runMutation(this.component.invitations.bulkInviteMembers, {
       userId,
       organizationId,
       invitations,
@@ -849,7 +862,7 @@ export class Tenants {
     options?: { acceptingEmail?: string }
   ): Promise<void> {
     const invitation = await this.getInvitation(ctx, invitationId);
-    await ctx.runMutation(this.component.mutations.acceptInvitation, {
+    await ctx.runMutation(this.component.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId,
       acceptingEmail: options?.acceptingEmail,
@@ -883,7 +896,7 @@ export class Tenants {
     const invitation = await this.getInvitation(ctx, invitationId);
     if (!invitation) throw new Error("Invitation not found");
     await this.authzRequireOperation(ctx, userId, "resendInvitation", orgScope(invitation.organizationId));
-    return await ctx.runMutation(this.component.mutations.resendInvitation, {
+    return await ctx.runMutation(this.component.invitations.resendInvitation, {
       userId,
       invitationId,
     });
@@ -893,6 +906,6 @@ export class Tenants {
     const invitation = await this.getInvitation(ctx, invitationId);
     if (!invitation) throw new Error("Invitation not found");
     await this.authzRequireOperation(ctx, userId, "cancelInvitation", orgScope(invitation.organizationId));
-    await ctx.runMutation(this.component.mutations.cancelInvitation, { userId, invitationId });
+    await ctx.runMutation(this.component.invitations.cancelInvitation, { userId, invitationId });
   }
 }

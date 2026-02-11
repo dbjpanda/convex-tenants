@@ -197,7 +197,7 @@ export const directCreateOrganization = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    return await ctx.runMutation(components.tenants.mutations.createOrganization, {
+    return await ctx.runMutation(components.tenants.organizations.createOrganization, {
       userId: identity.subject,
       name: args.name,
       slug: args.slug,
@@ -211,7 +211,7 @@ export const directListOrganizations = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
-    return await ctx.runQuery(components.tenants.queries.listUserOrganizations, {
+    return await ctx.runQuery(components.tenants.organizations.listUserOrganizations, {
       userId: identity.subject,
     });
   },
