@@ -2,12 +2,12 @@
  * Tenants class for direct component interaction.
  * Permission checks and authz sync are handled here.
  */
-import type { ComponentApi } from "../../component/_generated/component.js";
-import type { AuthzClient } from "../authz.js";
+import type { ComponentApi } from "../component/_generated/component.js";
+import type { AuthzClient } from "./authz.js";
 import {
   DEFAULT_TENANTS_PERMISSION_MAP,
   type TenantsPermissionMap,
-} from "../authz.js";
+} from "./authz.js";
 import type {
   Organization,
   OrganizationWithRole,

@@ -14,19 +14,23 @@ export {
   TENANTS_REQUIRED_PERMISSIONS,
 } from "./authz.js";
 
-// Core API: Tenants class, makeTenantsAPI, types, generateSlug
-export {
-  type ComponentApi,
-  type OrgRole,
-  type InvitationRole,
-  type Organization,
-  type OrganizationWithRole,
-  type Member,
-  type MemberWithUser,
-  type Team,
-  type TeamMember,
-  type Invitation,
-  Tenants,
-  makeTenantsAPI,
-  generateSlug,
-} from "./api/index.js";
+// Core API: Tenants class, makeTenantsAPI, types, helpers
+export type { ComponentApi } from "../component/_generated/component.js";
+export type {
+  OrgRole,
+  InvitationRole,
+  Organization,
+  OrganizationWithRole,
+  Member,
+  MemberStatus,
+  MemberWithUser,
+  Team,
+  TeamMember,
+  Invitation,
+  QueryCtx,
+  MutationCtx,
+} from "./types.js";
+
+export { orgScope, normalizeEmail, generateSlug } from "./helpers.js";
+export { Tenants } from "./tenants-class.js";
+export { makeTenantsAPI } from "./makeTenantsAPI.js";

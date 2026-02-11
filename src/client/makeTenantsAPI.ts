@@ -4,9 +4,9 @@
 import type { Auth } from "convex/server";
 import { mutationGeneric, queryGeneric, paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
-import type { ComponentApi } from "../../component/_generated/component.js";
-import type { AuthzClient } from "../authz.js";
-import type { TenantsPermissionMap } from "../authz.js";
+import type { ComponentApi } from "../component/_generated/component.js";
+import type { AuthzClient } from "./authz.js";
+import type { TenantsPermissionMap } from "./authz.js";
 import { Tenants } from "./tenants-class.js";
 import type { Member, OrgRole, InvitationRole, QueryCtx } from "./types.js";
 import { normalizeEmail } from "./helpers.js";
