@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { Component, useState, useEffect } from "react";
 import { useConvexAuth, useQuery, useMutation } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
@@ -34,6 +34,40 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { SignIn } from "./SignIn.jsx";
+
+// ============================================================================
+// Error Boundary — catches query/mutation errors to avoid white screen
+// ============================================================================
+
+type Props = { children: React.ReactNode; fallback?: React.ReactNode };
+
+class QueryErrorBoundary extends Component<Props, { hasError: boolean; error?: Error }> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        this.props.fallback ?? (
+          <section className="rounded-xl border border-destructive/50 bg-destructive/5 p-6">
+            <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-destructive">
+              <Shield className="size-5" />
+              Something went wrong
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {this.state.error?.message ?? "An error occurred. You may not have permission to view this."}
+            </p>
+          </section>
+        )
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ============================================================================
 // Theme Toggle
@@ -297,7 +331,11 @@ function AppContent() {
               <PermissionsPanel />
             )}
 
-            {activeTab === "audit" && isOwnerOrAdmin && <AuditLogPanel />}
+            {activeTab === "audit" && isOwnerOrAdmin && (
+              <QueryErrorBoundary>
+                <AuditLogPanel />
+              </QueryErrorBoundary>
+            )}
 
             {activeTab === "settings" && isOwnerOrAdmin && <OrgSettingsPanel />}
           </>

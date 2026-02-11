@@ -216,6 +216,7 @@ export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
       "list",
     ],
     invitations: ["create", "cancel", "resend", "list"],
+    permissions: ["grant", "deny"],
   },
   member: {
     organizations: ["read"],
