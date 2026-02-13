@@ -554,6 +554,20 @@ export function makeTenantsAPI(
       },
     }),
 
+    /**
+     * Returns the current authenticated user's email (from auth + getUser).
+     * Use this in JoinByDomainSection etc. so the app does not need a separate auth.getMyEmail.
+     */
+    getCurrentUserEmail: queryGeneric({
+      args: {},
+      handler: async (ctx) => {
+        const userId = await options.auth(ctx);
+        if (!userId || !options.getUser) return null;
+        const user = await options.getUser(ctx, userId);
+        return user?.email ?? null;
+      },
+    }),
+
     checkMemberPermission: queryGeneric({
       args: {
         organizationId: v.string(),

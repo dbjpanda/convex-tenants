@@ -11,20 +11,65 @@ import { authz } from "./authz.js";
  */
 export const {
   // Organizations
-  listOrganizations, getOrganization, getOrganizationBySlug,
-  createOrganization, updateOrganization, transferOwnership, deleteOrganization,
+  listOrganizations,
+  getOrganization,
+  getOrganizationBySlug,
+  listOrganizationsJoinableByDomain,
+  createOrganization,
+  updateOrganization,
+  generateLogoUploadUrl,
+  transferOwnership,
+  deleteOrganization,
+  joinByDomain,
   // Members
-  listMembers, getMember, getCurrentMember,
-  addMember, removeMember, updateMemberRole, suspendMember, unsuspendMember, leaveOrganization,
+  listMembers,
+  listMembersPaginated,
+  countMembers,
+  getMember,
+  getCurrentMember,
+  getCurrentUserEmail,
+  checkMemberPermission,
+  addMember,
+  removeMember,
+  bulkAddMembers,
+  bulkRemoveMembers,
+  updateMemberRole,
+  suspendMember,
+  unsuspendMember,
+  leaveOrganization,
   // Teams
-  listTeams, getTeam, listTeamMembers, isTeamMember,
-  createTeam, updateTeam, deleteTeam, addTeamMember, updateTeamMemberRole, removeTeamMember,
+  listTeams,
+  listTeamsAsTree,
+  listTeamsPaginated,
+  countTeams,
+  getTeam,
+  listTeamMembers,
+  listTeamMembersPaginated,
+  isTeamMember,
+  createTeam,
+  updateTeam,
+  deleteTeam,
+  addTeamMember,
+  updateTeamMemberRole,
+  removeTeamMember,
   // Invitations
-  listInvitations, getInvitation, getPendingInvitations,
-  inviteMember, acceptInvitation, resendInvitation, cancelInvitation,
+  listInvitations,
+  listInvitationsPaginated,
+  countInvitations,
+  getInvitation,
+  getPendingInvitations,
+  inviteMember,
+  bulkInviteMembers,
+  acceptInvitation,
+  resendInvitation,
+  cancelInvitation,
   // Authorization
-  checkPermission, getUserPermissions, getUserRoles,
-  grantPermission, denyPermission, getAuditLog,
+  checkPermission,
+  getUserPermissions,
+  getUserRoles,
+  grantPermission,
+  denyPermission,
+  getAuditLog,
 } = makeTenantsAPI(components.tenants, {
   authz,
   creatorRole: "owner", // role assigned on org creation (matches authz.ts)
@@ -59,4 +104,7 @@ export const {
   onInvitationAccepted: async (ctx, data) => console.log(`Invitation accepted by ${data.userId}`),
 
   defaultInvitationExpiration: 48 * 60 * 60 * 1000, // 48 hours
+
+  // Logo upload: exposes generateLogoUploadUrl mutation
+  generateUploadUrl: async (ctx) => await ctx.storage.generateUploadUrl(),
 });

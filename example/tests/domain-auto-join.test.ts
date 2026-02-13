@@ -3,6 +3,25 @@ import { initConvexTest } from "../convex/setup.test";
 import { api } from "../convex/_generated/api";
 
 describe("makeTenantsAPI - domain auto-join", () => {
+  test("getCurrentUserEmail returns current user email from auth + getUser", async () => {
+    const t = initConvexTest();
+    const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+    const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+    const aliceEmail = await asAlice.query(api.testHelpers.strictGetCurrentUserEmail, {});
+    expect(aliceEmail).toBe("alice@test.com");
+
+    const bobEmail = await asBob.query(api.testHelpers.strictGetCurrentUserEmail, {});
+    expect(bobEmail).toBe("bob@test.com");
+  });
+
+  test("getCurrentUserEmail returns null when not authenticated", async () => {
+    const t = initConvexTest();
+
+    const email = await t.query(api.testHelpers.strictGetCurrentUserEmail, {});
+    expect(email).toBeNull();
+  });
+
   test("createOrganization with allowedDomains stores and getOrganization returns them", async () => {
     const t = initConvexTest();
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });

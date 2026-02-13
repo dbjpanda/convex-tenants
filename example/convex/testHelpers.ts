@@ -132,6 +132,7 @@ export const strictListMembersPaginated = strictApi.listMembersPaginated;
 export const strictCountMembers = strictApi.countMembers;
 export const strictGetMember = strictApi.getMember;
 export const strictGetCurrentMember = strictApi.getCurrentMember;
+export const strictGetCurrentUserEmail = strictApi.getCurrentUserEmail;
 export const strictAddMember = strictApi.addMember;
 export const strictRemoveMember = strictApi.removeMember;
 export const strictUpdateMemberRole = strictApi.updateMemberRole;

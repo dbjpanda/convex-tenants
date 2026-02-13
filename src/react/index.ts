@@ -72,6 +72,12 @@ export {
   type CreateOrganizationDialogProps,
   type MembersSectionProps,
   type TeamsSectionProps,
+  MemberModerationSection,
+  BulkInviteSection,
+  JoinByDomainSection,
+  NestedTeamsSection,
+  OrgSettingsPanel,
+  type JoinByDomainSectionProps,
 } from "./components/index.js";
 
 // Utilities

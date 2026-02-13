@@ -129,6 +129,67 @@ describe("makeTenantsAPI", () => {
       ).rejects.toThrow("Your membership is suspended");
     });
   });
+
+  describe("getCurrentUserEmail", () => {
+    it("returns null when auth returns null", async () => {
+      const api = makeTenantsAPI(component, {
+        authz: createMockAuthz(),
+        auth: async () => null,
+        getUser: async () => ({ name: "Test", email: "test@example.com" }),
+      });
+
+      const handler = (api.getCurrentUserEmail as any)._handler;
+      const result = await handler(mockCtx, {});
+      expect(result).toBeNull();
+    });
+
+    it("returns null when getUser is not provided", async () => {
+      const api = makeTenantsAPI(component, {
+        authz: createMockAuthz(),
+        auth: async () => "user_1",
+      });
+
+      const handler = (api.getCurrentUserEmail as any)._handler;
+      const result = await handler(mockCtx, {});
+      expect(result).toBeNull();
+    });
+
+    it("returns email when auth and getUser return user with email", async () => {
+      const api = makeTenantsAPI(component, {
+        authz: createMockAuthz(),
+        auth: async () => "user_1",
+        getUser: async () => ({ name: "Alice", email: "alice@example.com" }),
+      });
+
+      const handler = (api.getCurrentUserEmail as any)._handler;
+      const result = await handler(mockCtx, {});
+      expect(result).toBe("alice@example.com");
+    });
+
+    it("returns null when getUser returns null", async () => {
+      const api = makeTenantsAPI(component, {
+        authz: createMockAuthz(),
+        auth: async () => "user_1",
+        getUser: async () => null,
+      });
+
+      const handler = (api.getCurrentUserEmail as any)._handler;
+      const result = await handler(mockCtx, {});
+      expect(result).toBeNull();
+    });
+
+    it("returns null when getUser returns user without email", async () => {
+      const api = makeTenantsAPI(component, {
+        authz: createMockAuthz(),
+        auth: async () => "user_1",
+        getUser: async () => ({ name: "Alice" }),
+      });
+
+      const handler = (api.getCurrentUserEmail as any)._handler;
+      const result = await handler(mockCtx, {});
+      expect(result).toBeNull();
+    });
+  });
 });
 
 function createMockAuthz() {

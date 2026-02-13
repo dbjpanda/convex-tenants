@@ -50,6 +50,8 @@ Use `status === "CanLoadMore"` to show a “Load more” button and call `loadMo
 
 When using the pre-built sections, wrap your app (or tenant area) in `TenantsProvider` so components receive the API and current org from context. The provider also exposes **organization actions** on the context: `updateOrganization`, `deleteOrganization`, `leaveOrganization`, plus member, team, and invitation actions.
 
+If your API includes `getCurrentUserEmail`, the provider calls it and exposes **`currentUserEmail`** on the context (`string | null | undefined`). Components like `JoinByDomainSection` use this so you do not need to pass the current user's email from a separate auth query.
+
 ```tsx
 <TenantsProvider api={api.tenants}>
   <MembersSection />
@@ -130,6 +132,22 @@ Card grid for teams with optional create/delete.
   emptyAction={<CreateTeamDialog organizationName="Acme Inc" onCreateTeam={handleCreateTeam} />}
 />
 ```
+
+## JoinByDomainSection
+
+Lists organizations the user can join by email domain (where the org's `allowedDomains` includes the user's domain) and provides a Join button. Requires `api.listOrganizationsJoinableByDomain` and `api.joinByDomain`. When your API includes `getCurrentUserEmail`, the section uses the current user's email from context and needs no props.
+
+```tsx
+// With getCurrentUserEmail in api — no props needed
+<TenantsProvider api={api.tenants}>
+  <JoinByDomainSection />
+</TenantsProvider>
+
+// Or pass email explicitly
+<JoinByDomainSection currentUserEmail={myEmail} />
+```
+
+The section renders nothing when the user has no email, when there are no joinable orgs, or when the API does not expose the join-by-domain queries.
 
 ## AcceptInvitation
 

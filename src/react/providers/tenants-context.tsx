@@ -16,6 +16,7 @@ export interface Organization {
   ownerId: string;
   status?: "active" | "suspended" | "archived";
   role: string;
+  allowedDomains?: string[];
 }
 
 export interface Member {
@@ -77,6 +78,9 @@ export interface TenantsContextValue {
   // Current user's role in the active organization
   currentRole: string | null;
 
+  /** Current user's email from tenants API (getCurrentUserEmail). Used by JoinByDomainSection when no prop is passed. */
+  currentUserEmail?: string | null | undefined;
+
   // Organization actions
   switchOrganization: (organizationId: string) => void;
   createOrganization: (data: {
@@ -91,6 +95,7 @@ export interface TenantsContextValue {
     logo?: string | null;
     metadata?: any;
     status?: "active" | "suspended" | "archived";
+    allowedDomains?: string[] | null;
   }) => Promise<void>;
   deleteOrganization: () => Promise<void>;
   leaveOrganization: () => Promise<void>;
@@ -118,6 +123,7 @@ export interface TenantsContextValue {
     description?: string;
     slug?: string;
     metadata?: any;
+    parentTeamId?: string;
   }) => Promise<string | null>;
   deleteTeam: (teamId: string) => Promise<void>;
   addTeamMember: (userId: string, teamId: string) => Promise<void>;
@@ -125,6 +131,12 @@ export interface TenantsContextValue {
 
   // Toast callback
   onToast?: (message: string, type: "success" | "error") => void;
+
+  /**
+   * The api object passed to TenantsProvider. Used by extended components
+   * (MemberModerationSection, BulkInviteSection, etc.) to call optional APIs.
+   */
+  api: unknown;
 }
 
 // ============================================================================

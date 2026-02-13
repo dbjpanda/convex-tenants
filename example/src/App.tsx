@@ -13,6 +13,11 @@ import {
   MembersSection,
   TeamsSection,
   AcceptInvitation,
+  MemberModerationSection,
+  BulkInviteSection,
+  JoinByDomainSection,
+  NestedTeamsSection,
+  OrgSettingsPanel,
 } from "@djpanda/convex-tenants/react";
 import {
   Building2,
@@ -32,6 +37,9 @@ import {
   X,
   ChevronRight,
   CheckCircle,
+  Crown,
+  UserX,
+  UserCheck,
 } from "lucide-react";
 import { SignIn } from "./SignIn.jsx";
 
@@ -317,15 +325,28 @@ function AppContent() {
             </div>
 
             {activeTab === "members" && (
-              <MembersSection
-                showTeamSelection
-                showInvitationLink
-                invitationPath="/accept-invitation/:id"
-                expirationText="48 hours"
-              />
+              <>
+                <MembersSection
+                  showTeamSelection
+                  showInvitationLink
+                  invitationPath="/accept-invitation/:id"
+                  expirationText="48 hours"
+                />
+                {isOwnerOrAdmin && (
+                  <>
+                    <BulkInviteSection />
+                    <MemberModerationSection />
+                  </>
+                )}
+              </>
             )}
 
-            {activeTab === "teams" && <TeamsSection />}
+            {activeTab === "teams" && (
+              <>
+                <TeamsSection />
+                <NestedTeamsSection />
+              </>
+            )}
 
             {activeTab === "permissions" && isOwnerOrAdmin && (
               <PermissionsPanel />
@@ -338,6 +359,9 @@ function AppContent() {
             )}
 
             {activeTab === "settings" && isOwnerOrAdmin && <OrgSettingsPanel />}
+
+            {/* Join by domain — listOrganizationsJoinableByDomain + joinByDomain */}
+            <JoinByDomainSection />
           </>
         )}
       </main>
@@ -700,211 +724,6 @@ function AuditLogPanel() {
         </div>
       )}
     </section>
-  );
-}
-
-// ============================================================================
-// Organization Settings — updateOrganization, deleteOrganization, leaveOrganization
-// ============================================================================
-
-function OrgSettingsPanel() {
-  const {
-    currentOrganization,
-    currentRole,
-  } = useTenants();
-  const updateOrg = useMutation(api.tenants.updateOrganization);
-  const deleteOrg = useMutation(api.tenants.deleteOrganization);
-  const leaveOrg = useMutation(api.tenants.leaveOrganization);
-
-  const [name, setName] = useState(currentOrganization?.name ?? "");
-  const [slug, setSlug] = useState(currentOrganization?.slug ?? "");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [confirmLeave, setConfirmLeave] = useState(false);
-
-  useEffect(() => {
-    setName(currentOrganization?.name ?? "");
-    setSlug(currentOrganization?.slug ?? "");
-    setConfirmDelete(false);
-    setConfirmLeave(false);
-    // Reset form fields when the organization changes (keyed by _id, name, slug)
-  }, [currentOrganization?._id, currentOrganization?.name, currentOrganization?.slug]);
-
-  const handleSave = async () => {
-    if (!currentOrganization) return;
-    setSaving(true);
-    try {
-      await updateOrg({
-        organizationId: currentOrganization._id,
-        name,
-        slug,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!currentOrganization) return;
-    try {
-      await deleteOrg({ organizationId: currentOrganization._id });
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
-    }
-  };
-
-  const handleLeave = async () => {
-    if (!currentOrganization) return;
-    try {
-      await leaveOrg({ organizationId: currentOrganization._id });
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
-    }
-  };
-
-  if (!currentOrganization) return null;
-
-  const isOwner = currentRole === "owner";
-
-  return (
-    <div className="space-y-6">
-      {/* General Settings */}
-      <section className="rounded-xl border bg-background p-6 shadow-sm">
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-          <Pencil className="size-5 text-primary" />
-          Organization Details
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Name</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Slug</label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">/</span>
-              <input
-                value={slug}
-                onChange={(e) =>
-                  setSlug(
-                    e.target.value
-                      .toLowerCase()
-                      .replace(/[^a-z0-9-]/g, "-")
-                      .replace(/-+/g, "-")
-                  )
-                }
-                className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-          </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || (!name && !slug)}
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : saved ? (
-              <CheckCircle className="size-4" />
-            ) : (
-              <Check className="size-4" />
-            )}
-            {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
-          </button>
-        </div>
-      </section>
-
-      {/* Leave Organization */}
-      <section className="rounded-xl border bg-background p-6 shadow-sm">
-        <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold">
-          <DoorOpen className="size-5 text-orange-500" />
-          Leave Organization
-        </h3>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Remove yourself from this organization. You'll lose access to all resources.
-          {isOwner && " As the owner, you can only leave if there's another owner."}
-        </p>
-        {confirmLeave ? (
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-orange-600 dark:text-orange-400">
-              Are you sure?
-            </span>
-            <button
-              onClick={handleLeave}
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-orange-600 px-3 text-sm font-medium text-white hover:bg-orange-700"
-            >
-              Yes, Leave
-            </button>
-            <button
-              onClick={() => setConfirmLeave(false)}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setConfirmLeave(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-orange-300 bg-orange-50 px-4 text-sm font-medium text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-400 dark:hover:bg-orange-900/40"
-          >
-            <DoorOpen className="size-4" />
-            Leave Organization
-          </button>
-        )}
-      </section>
-
-      {/* Danger Zone */}
-      {isOwner && (
-        <section className="rounded-xl border border-red-200 bg-background p-6 shadow-sm dark:border-red-900">
-          <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-red-600 dark:text-red-400">
-            <Trash2 className="size-5" />
-            Danger Zone
-          </h3>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Permanently delete this organization, all members, teams, and invitations. This action cannot be undone.
-          </p>
-          {confirmDelete ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                Type "{currentOrganization.name}" to confirm:
-              </span>
-              <input
-                className="flex h-9 w-48 rounded-md border border-red-300 bg-background px-3 text-sm dark:border-red-800"
-                placeholder={currentOrganization.name}
-                onChange={(e) => {
-                  if (e.target.value === currentOrganization.name) {
-                    handleDelete();
-                  }
-                }}
-              />
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="inline-flex h-10 items-center gap-2 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700"
-            >
-              <Trash2 className="size-4" />
-              Delete Organization
-            </button>
-          )}
-        </section>
-      )}
-    </div>
   );
 }
 

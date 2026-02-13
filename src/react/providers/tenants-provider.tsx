@@ -40,6 +40,7 @@ export interface TenantsAPI {
       logo?: string | null;
       metadata?: any;
       status?: "active" | "suspended" | "archived";
+      allowedDomains?: string[] | null;
     },
     null
   >;
@@ -112,7 +113,7 @@ export interface TenantsAPI {
   createTeam: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; name: string; description?: string; slug?: string; metadata?: any },
+    { organizationId: string; name: string; description?: string; slug?: string; metadata?: any; parentTeamId?: string },
     string
   >;
   deleteTeam: FunctionReference<
@@ -133,6 +134,63 @@ export interface TenantsAPI {
     { teamId: string; userId: string },
     null
   >;
+
+  // Optional: extended APIs for MemberModerationSection, BulkInviteSection, etc.
+  getCurrentMember?: FunctionReference<"query", "public", { organizationId: string }, Member | null>;
+  /** Current user's email (auth + getUser). Used by JoinByDomainSection when no prop is passed. */
+  getCurrentUserEmail?: FunctionReference<"query", "public", Record<string, never>, string | null>;
+  suspendMember?: FunctionReference<
+    "mutation",
+    "public",
+    { organizationId: string; memberUserId: string },
+    null
+  >;
+  unsuspendMember?: FunctionReference<
+    "mutation",
+    "public",
+    { organizationId: string; memberUserId: string },
+    null
+  >;
+  bulkRemoveMembers?: FunctionReference<
+    "mutation",
+    "public",
+    { organizationId: string; memberUserIds: string[] },
+    { success: string[]; errors: { userId: string; code: string; message: string }[] }
+  >;
+  bulkInviteMembers?: FunctionReference<
+    "mutation",
+    "public",
+    {
+      organizationId: string;
+      invitations: { email: string; role: string; message?: string; teamId?: string }[];
+    },
+    { success: { invitationId: string; email: string; expiresAt: number }[]; errors: { email: string; code: string; message: string }[] }
+  >;
+  transferOwnership?: FunctionReference<
+    "mutation",
+    "public",
+    { organizationId: string; newOwnerUserId: string },
+    null
+  >;
+  listOrganizationsJoinableByDomain?: FunctionReference<
+    "query",
+    "public",
+    { email: string },
+    { _id: string; name: string; slug: string }[]
+  >;
+  joinByDomain?: FunctionReference<
+    "mutation",
+    "public",
+    { organizationId: string; userEmail: string; role?: string },
+    null
+  >;
+  listTeamsAsTree?: FunctionReference<
+    "query",
+    "public",
+    { organizationId: string },
+    { team: Team; children: unknown[] }[]
+  >;
+  generateLogoUploadUrl?: FunctionReference<"mutation", "public", Record<string, never>, string>;
 }
 
 // ============================================================================
@@ -237,6 +295,15 @@ export function TenantsProvider({
   );
   const teams = useMemo(() => teamsRaw ?? [], [teamsRaw]);
 
+  const currentUserEmailQueryRef = api.getCurrentUserEmail ?? api.listOrganizations;
+  const currentUserEmailRaw = useQuery(
+    currentUserEmailQueryRef,
+    api.getCurrentUserEmail ? {} : "skip"
+  );
+  const currentUserEmail: string | null | undefined = api.getCurrentUserEmail
+    ? (currentUserEmailRaw as string | null | undefined)
+    : undefined;
+
   // ============================================================================
   // Mutations
   // ============================================================================
@@ -306,6 +373,7 @@ export function TenantsProvider({
       logo?: string | null;
       metadata?: any;
       status?: "active" | "suspended" | "archived";
+      allowedDomains?: string[] | null;
     }) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
@@ -434,7 +502,7 @@ export function TenantsProvider({
   );
 
   const createTeam = useCallback(
-    async (data: { name: string; description?: string; slug?: string; metadata?: any }) => {
+    async (data: { name: string; description?: string; slug?: string; metadata?: any; parentTeamId?: string }) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         const teamId = await createTeamMutation({
@@ -513,6 +581,9 @@ export function TenantsProvider({
       // Current role
       currentRole,
 
+      // Current user email (from getCurrentUserEmail when provided)
+      currentUserEmail,
+
       // Actions
       switchOrganization,
       createOrganization,
@@ -529,6 +600,9 @@ export function TenantsProvider({
       addTeamMember,
       removeTeamMember,
 
+      // API ref for extended components
+      api,
+
       // Toast
       onToast,
     }),
@@ -544,6 +618,7 @@ export function TenantsProvider({
       isInvitationsLoading,
       isTeamsLoading,
       currentRole,
+      currentUserEmail,
       switchOrganization,
       createOrganization,
       updateOrganization,
@@ -558,6 +633,7 @@ export function TenantsProvider({
       deleteTeam,
       addTeamMember,
       removeTeamMember,
+      api,
       onToast,
     ]
   );

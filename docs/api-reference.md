@@ -90,6 +90,7 @@ All hooks receive `ctx` as the first argument.
 | `countMembers` | query | Count members in org. Args: `organizationId`, optional `status`. Returns `number`. Requires membership. |
 | `getMember` | query | Get member by org + userId. Returns include `status?`, `suspendedAt?`, `joinedAt?`. |
 | `getCurrentMember` | query | Current user’s membership in org. |
+| `getCurrentUserEmail` | query | Current user's email from `auth` + `getUser`. Args: none. Returns `string \| null`. Use for "join by domain" UI so the app does not need a separate auth query. Only returns a value when `getUser` is provided. |
 | `addMember` | mutation | Add user with role. |
 | `bulkAddMembers` | mutation | Add multiple members. Args: `organizationId`, `members` (`{ memberUserId, role }[]`). Returns `{ success: string[], errors: { userId, code, message }[] }`. |
 | `removeMember` | mutation | Remove member (not structural owner). |
