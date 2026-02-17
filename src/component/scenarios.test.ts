@@ -405,17 +405,18 @@ describe("Scenario: Complete Invitation Flow", () => {
     });
 
     // Create invitation
-    const { invitationId, email, expiresAt } = await t.mutation(
+    const { invitationId, inviteeIdentifier, expiresAt } = await t.mutation(
       api.invitations.inviteMember,
       {
         userId: "alice",
         organizationId: orgId,
-        email: "henry@example.com",
+        inviteeIdentifier: "henry@example.com",
+        identifierType: "email",
         role: "member",
       }
     );
 
-    expect(email).toBe("henry@example.com");
+    expect(inviteeIdentifier).toBe("henry@example.com");
     expect(expiresAt).toBeGreaterThan(Date.now());
 
     // Check invitation status
@@ -459,7 +460,8 @@ describe("Scenario: Complete Invitation Flow", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: orgId,
-      email: "engineer@example.com",
+      inviteeIdentifier: "engineer@example.com",
+      identifierType: "email",
       role: "member",
       teamId,
     });
@@ -496,7 +498,8 @@ describe("Scenario: Complete Invitation Flow", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: orgId,
-      email: "henry@example.com",
+      inviteeIdentifier: "henry@example.com",
+      identifierType: "email",
       role: "member",
     });
 
@@ -540,27 +543,30 @@ describe("Scenario: Complete Invitation Flow", () => {
     await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: org1Id,
-      email: "henry@example.com",
+      inviteeIdentifier: "henry@example.com",
+      identifierType: "email",
       role: "member",
     });
 
     await t.mutation(api.invitations.inviteMember, {
       userId: "bob",
       organizationId: org2Id,
-      email: "henry@example.com",
+      inviteeIdentifier: "henry@example.com",
+      identifierType: "email",
       role: "admin",
     });
 
     await t.mutation(api.invitations.inviteMember, {
       userId: "charlie",
       organizationId: org3Id,
-      email: "henry@example.com",
+      inviteeIdentifier: "henry@example.com",
+      identifierType: "email",
       role: "member",
     });
 
     // Get all pending invitations
-    const pending = await t.query(api.invitations.getPendingInvitationsForEmail, {
-      email: "henry@example.com",
+    const pending = await t.query(api.invitations.getPendingInvitationsForIdentifier, {
+      identifier: "henry@example.com",
     });
 
     expect(pending).toHaveLength(3);
@@ -572,8 +578,8 @@ describe("Scenario: Complete Invitation Flow", () => {
     });
 
     // Should still have 2 pending
-    const stillPending = await t.query(api.invitations.getPendingInvitationsForEmail, {
-      email: "henry@example.com",
+    const stillPending = await t.query(api.invitations.getPendingInvitationsForIdentifier, {
+      identifier: "henry@example.com",
     });
     expect(stillPending).toHaveLength(2);
   });
@@ -714,7 +720,8 @@ describe("Scenario: Organization Deletion Cascade", () => {
     await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: orgId,
-      email: "pending@example.com",
+      inviteeIdentifier: "pending@example.com",
+      identifierType: "email",
       role: "member",
     });
 
@@ -813,7 +820,8 @@ describe("Scenario: Edge Cases", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "alice",
       organizationId: orgId,
-      email: "bob-other@example.com",
+      inviteeIdentifier: "bob-other@example.com",
+      identifierType: "email",
       role: "admin",
     });
 

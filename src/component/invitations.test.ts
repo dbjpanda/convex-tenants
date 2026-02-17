@@ -26,12 +26,13 @@ describe("invitations", () => {
     const result = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "newuser@example.com",
+      inviteeIdentifier: "newuser@example.com",
+      identifierType: "email",
       role: "member",
     });
 
     expect(result.invitationId).toBeDefined();
-    expect(result.email).toBe("newuser@example.com");
+    expect(result.inviteeIdentifier).toBe("newuser@example.com");
     expect(result.expiresAt).toBeGreaterThan(Date.now());
   });
 
@@ -47,14 +48,16 @@ describe("invitations", () => {
     await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "user1@example.com",
+      inviteeIdentifier: "user1@example.com",
+      identifierType: "email",
       role: "member",
     });
 
     await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "user2@example.com",
+      inviteeIdentifier: "user2@example.com",
+      identifierType: "email",
       role: "admin",
     });
 
@@ -63,8 +66,8 @@ describe("invitations", () => {
     });
 
     expect(invitations).toHaveLength(2);
-    expect(invitations.map((i: any) => i.email)).toContain("user1@example.com");
-    expect(invitations.map((i: any) => i.email)).toContain("user2@example.com");
+    expect(invitations.map((i: any) => i.inviteeIdentifier)).toContain("user1@example.com");
+    expect(invitations.map((i: any) => i.inviteeIdentifier)).toContain("user2@example.com");
   });
 
   it("should prevent duplicate pending invitations", async () => {
@@ -79,7 +82,8 @@ describe("invitations", () => {
     await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "user@example.com",
+      inviteeIdentifier: "user@example.com",
+      identifierType: "email",
       role: "member",
     });
 
@@ -87,7 +91,8 @@ describe("invitations", () => {
       t.mutation(api.invitations.inviteMember, {
         userId: "user_123",
         organizationId: orgId,
-        email: "user@example.com",
+        inviteeIdentifier: "user@example.com",
+        identifierType: "email",
         role: "admin",
       })
     ).rejects.toThrow();
@@ -105,7 +110,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "newuser@example.com",
+      inviteeIdentifier: "newuser@example.com",
+      identifierType: "email",
       role: "admin",
     });
 
@@ -140,7 +146,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "newuser@example.com",
+      inviteeIdentifier: "newuser@example.com",
+      identifierType: "email",
       role: "member",
     });
 
@@ -167,7 +174,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "newuser@example.com",
+      inviteeIdentifier: "newuser@example.com",
+      identifierType: "email",
       role: "member",
     });
 
@@ -202,20 +210,22 @@ describe("invitations", () => {
     await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: org1Id,
-      email: "target@example.com",
+      inviteeIdentifier: "target@example.com",
+      identifierType: "email",
       role: "member",
     });
 
     await t.mutation(api.invitations.inviteMember, {
       userId: "user_456",
       organizationId: org2Id,
-      email: "target@example.com",
+      inviteeIdentifier: "target@example.com",
+      identifierType: "email",
       role: "admin",
     });
 
     const pendingInvites = await t.query(
-      api.invitations.getPendingInvitationsForEmail,
-      { email: "target@example.com" }
+      api.invitations.getPendingInvitationsForIdentifier,
+      { identifier: "target@example.com" }
     );
 
     expect(pendingInvites).toHaveLength(2);
@@ -239,7 +249,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "engineer@example.com",
+      inviteeIdentifier: "engineer@example.com",
+      identifierType: "email",
       role: "member",
       teamId,
     });
@@ -280,7 +291,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "bob@test.com",
+      inviteeIdentifier: "bob@test.com",
+      identifierType: "email",
       role: "member",
     });
 
@@ -309,7 +321,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "expired@test.com",
+      inviteeIdentifier: "expired@test.com",
+      identifierType: "email",
       role: "member",
       expiresAt: Date.now() - 1000,
     });
@@ -345,7 +358,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "cancel@test.com",
+      inviteeIdentifier: "cancel@test.com",
+      identifierType: "email",
       role: "member",
     });
 
@@ -374,7 +388,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "expired@test.com",
+      inviteeIdentifier: "expired@test.com",
+      identifierType: "email",
       role: "member",
       expiresAt: Date.now() - 1000,
     });
@@ -410,7 +425,8 @@ describe("invitations", () => {
     const { invitationId } = await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "double-cancel@test.com",
+      inviteeIdentifier: "double-cancel@test.com",
+      identifierType: "email",
       role: "member",
     });
 

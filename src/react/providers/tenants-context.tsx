@@ -16,7 +16,6 @@ export interface Organization {
   ownerId: string;
   status?: "active" | "suspended" | "archived";
   role: string;
-  allowedDomains?: string[];
 }
 
 export interface Member {
@@ -35,7 +34,8 @@ export interface Member {
 export interface Invitation {
   _id: string;
   _creationTime: number;
-  email: string;
+  inviteeIdentifier: string;
+  identifierType?: string;
   organizationId: string;
   role: string;
   teamId?: string | null;
@@ -95,7 +95,6 @@ export interface TenantsContextValue {
     logo?: string | null;
     metadata?: any;
     status?: "active" | "suspended" | "archived";
-    allowedDomains?: string[] | null;
   }) => Promise<void>;
   deleteOrganization: () => Promise<void>;
   leaveOrganization: () => Promise<void>;
@@ -109,11 +108,12 @@ export interface TenantsContextValue {
 
   // Invitation actions
   inviteMember: (data: {
-    email: string;
+    inviteeIdentifier: string;
+    identifierType?: string;
     role: string;
     teamId?: string;
     message?: string;
-  }) => Promise<{ invitationId: string; email: string; expiresAt: number } | null>;
+  }) => Promise<{ invitationId: string; inviteeIdentifier: string; expiresAt: number } | null>;
   resendInvitation: (invitationId: string) => Promise<void>;
   cancelInvitation: (invitationId: string) => Promise<void>;
 

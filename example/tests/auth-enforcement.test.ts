@@ -104,7 +104,7 @@ describe("makeTenantsAPI - auth enforcement", () => {
       const t = initConvexTest();
 
       await expect(
-        t.query(api.testHelpers.strictGetPendingInvitations, { email: "someone@example.com" })
+        t.query(api.testHelpers.strictGetPendingInvitations, { identifier: "someone@example.com" })
       ).rejects.toThrow("Not authenticated");
     });
   });
@@ -124,7 +124,8 @@ describe("makeTenantsAPI - auth enforcement", () => {
       await expect(
         t.mutation(api.testHelpers.strictInviteMember, {
           organizationId: "nonexistent",
-          email: "test@example.com",
+          inviteeIdentifier: "test@example.com",
+          identifierType: "email",
           role: "member",
         })
       ).rejects.toThrow("Not authenticated");

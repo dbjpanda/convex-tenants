@@ -270,7 +270,7 @@ export function MembersTable({
             (invitation): UnifiedInvitation => ({
               type: "invitation",
               _id: invitation._id,
-              email: invitation.email,
+              email: invitation.inviteeIdentifier, // Use inviteeIdentifier as email display
               name: null,
               role: invitation.role,
               teamId: invitation.teamId,
@@ -620,7 +620,7 @@ export function MembersTable({
                 renderInvitationRow({
                   type: "invitation",
                   _id: invitation._id,
-                  email: invitation.email,
+                  email: invitation.inviteeIdentifier, // Use inviteeIdentifier as email display
                   name: null,
                   role: invitation.role,
                   teamId: invitation.teamId,

@@ -7,7 +7,9 @@ export interface Invitation {
   _id: string;
   _creationTime: number;
   organizationId: string;
-  email: string;
+  organizationName?: string;
+  inviteeIdentifier: string;
+  identifierType?: string;
   role: string;
   teamId: string | null;
   inviterId: string;
@@ -40,8 +42,8 @@ export interface UseInvitationsOptions {
   inviteMemberMutation: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; email: string; role: string; teamId?: string },
-    { invitationId: string; email: string; expiresAt: number }
+    { organizationId: string; inviteeIdentifier: string; identifierType?: string; role: string; teamId?: string },
+    { invitationId: string; inviteeIdentifier: string; expiresAt: number }
   >;
   
   /**
@@ -89,7 +91,8 @@ export function useInvitations(options: UseInvitationsOptions) {
 
   const inviteMember = useCallback(
     async (data: {
-      email: string;
+      inviteeIdentifier: string;
+      identifierType?: string;
       role: string;
       teamId?: string;
     }) => {
@@ -99,7 +102,8 @@ export function useInvitations(options: UseInvitationsOptions) {
       try {
         const result = await inviteMemberMut({
           organizationId,
-          email: data.email,
+          inviteeIdentifier: data.inviteeIdentifier,
+          identifierType: data.identifierType,
           role: data.role,
           teamId: data.teamId,
         });

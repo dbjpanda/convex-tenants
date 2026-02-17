@@ -55,10 +55,27 @@ export interface InviteMemberDialogProps {
    * Callback when inviting a member
    */
   onInvite: (data: {
-    email: string;
+    inviteeIdentifier: string;
+    identifierType?: string;
     role: string;
     teamId?: string;
-  }) => Promise<{ invitationId: string; email: string; expiresAt: number } | null | undefined>;
+  }) => Promise<{ invitationId: string; inviteeIdentifier: string; expiresAt: number } | null | undefined>;
+  
+  /**
+   * Type of identifier (defaults to "email")
+   * Can be "email", "phone", "username", etc.
+   */
+  identifierType?: string;
+  
+  /**
+   * Label for identifier input (defaults to "Email Address")
+   */
+  identifierLabel?: string;
+  
+  /**
+   * Placeholder for identifier input (defaults to "colleague@example.com")
+   */
+  identifierPlaceholder?: string;
 
   /**
    * Base URL for invitation links (defaults to window.location.origin)
@@ -141,9 +158,12 @@ export function InviteMemberDialog({
   linkIcon,
   onToast,
   expirationText = "48 hours",
+  identifierType = "email",
+  identifierLabel = "Email Address",
+  identifierPlaceholder = "colleague@example.com",
 }: InviteMemberDialogProps) {
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
+  const [inviteeIdentifier, setInviteeIdentifier] = useState("");
   const [role, setRole] = useState("member");
   const [teamId, setTeamId] = useState<string | undefined>(undefined);
   const [isInviting, setIsInviting] = useState(false);
@@ -159,13 +179,14 @@ export function InviteMemberDialog({
   const shouldShowTeams = showTeamSelection && teams && teams.length > 0;
 
   const handleInvite = async () => {
-    if (!email) return;
+    if (!inviteeIdentifier) return;
 
     setIsInviting(true);
     setError(null);
     try {
       const result = await onInvite({
-        email,
+        inviteeIdentifier,
+        identifierType,
         role,
         teamId: shouldShowTeams && teamId && teamId !== "none" ? teamId : undefined,
       });
@@ -204,7 +225,7 @@ export function InviteMemberDialog({
 
   const handleClose = () => {
     setOpen(false);
-    setEmail("");
+    setInviteeIdentifier("");
     setRole("member");
     setTeamId(undefined);
     setInvitationId(null);
@@ -237,13 +258,13 @@ export function InviteMemberDialog({
           <>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="inviteeIdentifier">{identifierLabel}</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="colleague@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="inviteeIdentifier"
+                  type={identifierType === "email" ? "email" : identifierType === "phone" ? "tel" : "text"}
+                  placeholder={identifierPlaceholder}
+                  value={inviteeIdentifier}
+                  onChange={(e) => setInviteeIdentifier(e.target.value)}
                   disabled={isInviting}
                 />
               </div>
@@ -307,7 +328,7 @@ export function InviteMemberDialog({
               <Button variant="outline" onClick={handleClose} disabled={isInviting}>
                 Cancel
               </Button>
-              <Button onClick={handleInvite} disabled={isInviting || !email}>
+              <Button onClick={handleInvite} disabled={isInviting || !inviteeIdentifier}>
                 {isInviting ? "Creating..." : "Create Invitation"}
               </Button>
             </DialogFooter>
@@ -322,7 +343,7 @@ export function InviteMemberDialog({
                 </div>
                 <p className="font-medium">Invitation Created!</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  An invitation has been created for <strong>{email}</strong>
+                  An invitation has been created for <strong>{inviteeIdentifier}</strong>
                 </p>
               </div>
 
@@ -357,7 +378,7 @@ export function InviteMemberDialog({
                 variant="outline"
                 onClick={() => {
                   setInvitationId(null);
-                  setEmail("");
+                  setInviteeIdentifier("");
                   setCopied(false);
                 }}
               >

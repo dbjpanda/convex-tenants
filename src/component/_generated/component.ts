@@ -28,8 +28,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          acceptingEmail?: string;
           acceptingUserId: string;
+          acceptingUserIdentifier?: string;
           invitationId: string;
         },
         null,
@@ -41,7 +41,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           expiresAt?: number;
           invitations: Array<{
-            email: string;
+            identifierType?: string;
+            inviteeIdentifier: string;
             message?: string;
             role: string;
             teamId?: string;
@@ -51,11 +52,15 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           userId: string;
         },
         {
-          errors: Array<{ code: string; email: string; message: string }>;
+          errors: Array<{
+            code: string;
+            inviteeIdentifier: string;
+            message: string;
+          }>;
           success: Array<{
-            email: string;
             expiresAt: number;
             invitationId: string;
+            inviteeIdentifier: string;
           }>;
         },
         Name
@@ -81,32 +86,36 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null | {
           _creationTime: number;
           _id: string;
-          email: string;
           expiresAt: number;
+          identifierType?: string;
+          inviteeIdentifier: string;
           inviterId: string;
           inviterName?: string;
           isExpired: boolean;
           message?: string;
           organizationId: string;
+          organizationName: string;
           role: string;
           status: "pending" | "accepted" | "cancelled" | "expired";
           teamId: null | string;
         },
         Name
       >;
-      getPendingInvitationsForEmail: FunctionReference<
+      getPendingInvitationsForIdentifier: FunctionReference<
         "query",
         "internal",
-        { email: string },
+        { identifier: string },
         Array<{
           _creationTime: number;
           _id: string;
-          email: string;
           expiresAt: number;
+          identifierType?: string;
+          inviteeIdentifier: string;
           inviterId: string;
           inviterName?: string;
           isExpired: boolean;
           organizationId: string;
+          organizationName: string;
           role: string;
           teamId: null | string;
         }>,
@@ -116,8 +125,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          email: string;
           expiresAt?: number;
+          identifierType?: string;
+          inviteeIdentifier: string;
           inviterName?: string;
           message?: string;
           organizationId: string;
@@ -125,7 +135,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           teamId?: string;
           userId: string;
         },
-        { email: string; expiresAt: number; invitationId: string },
+        { expiresAt: number; invitationId: string; inviteeIdentifier: string },
         Name
       >;
       listInvitations: FunctionReference<
@@ -133,14 +143,15 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           organizationId: string;
-          sortBy?: "email" | "expiresAt" | "createdAt";
+          sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt";
           sortOrder?: "asc" | "desc";
         },
         Array<{
           _creationTime: number;
           _id: string;
-          email: string;
           expiresAt: number;
+          identifierType?: string;
+          inviteeIdentifier: string;
           inviterId: string;
           inviterName?: string;
           isExpired: boolean;
@@ -173,7 +184,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         { invitationId: string; userId: string },
-        { email: string; invitationId: string },
+        { invitationId: string; inviteeIdentifier: string },
         Name
       >;
     };
@@ -253,18 +264,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           suspendedAt?: number;
           userId: string;
         },
-        Name
-      >;
-      joinByDomain: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          organizationId: string;
-          role?: string;
-          userEmail: string;
-          userId: string;
-        },
-        null,
         Name
       >;
       leaveOrganization: FunctionReference<
@@ -352,7 +351,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          allowedDomains?: Array<string>;
           creatorRole?: string;
           logo?: string;
           metadata?: any;
@@ -381,7 +379,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null | {
           _creationTime: number;
           _id: string;
-          allowedDomains?: Array<string>;
           logo: null | string;
           metadata?: any;
           name: string;
@@ -402,7 +399,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null | {
           _creationTime: number;
           _id: string;
-          allowedDomains?: Array<string>;
           logo: null | string;
           metadata?: any;
           name: string;
@@ -416,13 +412,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         },
         Name
       >;
-      listOrganizationsJoinableByDomain: FunctionReference<
-        "query",
-        "internal",
-        { email: string },
-        Array<{ _id: string; name: string; slug: string }>,
-        Name
-      >;
       listUserOrganizations: FunctionReference<
         "query",
         "internal",
@@ -434,7 +423,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Array<{
           _creationTime: number;
           _id: string;
-          allowedDomains?: Array<string>;
           logo: null | string;
           metadata?: any;
           name: string;
@@ -465,7 +453,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          allowedDomains?: null | Array<string>;
           logo?: null | string;
           metadata?: any;
           name?: string;

@@ -197,7 +197,8 @@ describe("organizations", () => {
     await t.mutation(api.invitations.inviteMember, {
       userId: "user_123",
       organizationId: orgId,
-      email: "test@example.com",
+      inviteeIdentifier: "test@example.com",
+      identifierType: "email",
       role: "member",
     });
 

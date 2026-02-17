@@ -9,6 +9,5 @@ export { MembersSection, type MembersSectionProps } from "./members-section.js";
 export { TeamsSection, type TeamsSectionProps } from "./teams-section.js";
 export { MemberModerationSection } from "./member-moderation-section.js";
 export { BulkInviteSection } from "./bulk-invite-section.js";
-export { JoinByDomainSection, type JoinByDomainSectionProps } from "./join-by-domain-section.js";
 export { NestedTeamsSection } from "./nested-teams-section.js";
 export { OrgSettingsPanel } from "./org-settings-panel.js";

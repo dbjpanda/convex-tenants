@@ -136,7 +136,8 @@ export function MembersSection({
   const transformedInvitations: Invitation[] = useMemo(() => invitations.map((inv) => ({
     _id: inv._id,
     _creationTime: inv._creationTime,
-    email: inv.email,
+    inviteeIdentifier: inv.inviteeIdentifier,
+    identifierType: inv.identifierType,
     organizationId: inv.organizationId,
     role: inv.role,
     teamId: inv.teamId ?? null,

@@ -35,7 +35,6 @@ export const listUserOrganizations = query({
           requireInvitationToJoin: v.optional(v.boolean()),
         })
       ),
-      allowedDomains: v.optional(v.array(v.string())),
       ownerId: v.string(),
       status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
       role: v.string(),
@@ -52,7 +51,7 @@ export const listUserOrganizations = query({
         const org = await ctx.db.get(membership.organizationId);
         if (!org) return null;
 
-        const orgExt = org as { settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean }; allowedDomains?: string[] };
+        const orgExt = org as { settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean } };
         return {
           _id: org._id as string,
           _creationTime: org._creationTime,
@@ -61,7 +60,6 @@ export const listUserOrganizations = query({
           logo: org.logo,
           metadata: org.metadata,
           settings: orgExt.settings,
-          allowedDomains: orgExt.allowedDomains,
           ownerId: org.ownerId,
           status: (org as { status?: "active" | "suspended" | "archived" }).status,
           role: membership.role,
@@ -99,7 +97,6 @@ export const getOrganization = query({
           requireInvitationToJoin: v.optional(v.boolean()),
         })
       ),
-      allowedDomains: v.optional(v.array(v.string())),
       ownerId: v.string(),
       status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
     })
@@ -107,7 +104,7 @@ export const getOrganization = query({
   handler: async (ctx, args) => {
     const org = await ctx.db.get(args.organizationId as Id<"organizations">);
     if (!org) return null;
-    const o = org as { status?: "active" | "suspended" | "archived"; settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean }; allowedDomains?: string[] };
+    const o = org as { status?: "active" | "suspended" | "archived"; settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean } };
     return {
       _id: org._id as string,
       _creationTime: org._creationTime,
@@ -116,7 +113,6 @@ export const getOrganization = query({
       logo: org.logo,
       metadata: org.metadata,
       settings: o.settings,
-      allowedDomains: o.allowedDomains,
       ownerId: org.ownerId,
       status: o.status,
     };
@@ -140,7 +136,6 @@ export const getOrganizationBySlug = query({
           requireInvitationToJoin: v.optional(v.boolean()),
         })
       ),
-      allowedDomains: v.optional(v.array(v.string())),
       ownerId: v.string(),
       status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
     })
@@ -152,7 +147,7 @@ export const getOrganizationBySlug = query({
       .unique();
 
     if (!org) return null;
-    const o = org as { status?: "active" | "suspended" | "archived"; settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean }; allowedDomains?: string[] };
+    const o = org as { status?: "active" | "suspended" | "archived"; settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean } };
     return {
       _id: org._id as string,
       _creationTime: org._creationTime,
@@ -161,7 +156,6 @@ export const getOrganizationBySlug = query({
       logo: org.logo,
       metadata: org.metadata,
       settings: o.settings,
-      allowedDomains: o.allowedDomains,
       ownerId: org.ownerId,
       status: o.status,
     };
@@ -173,33 +167,6 @@ function domainFromEmailQuery(email: string): string {
   if (at === -1) return "";
   return email.trim().toLowerCase().slice(at + 1);
 }
-
-export const listOrganizationsJoinableByDomain = query({
-  args: { email: v.string() },
-  returns: v.array(
-    v.object({
-      _id: v.string(),
-      name: v.string(),
-      slug: v.string(),
-    })
-  ),
-  handler: async (ctx, args) => {
-    const domain = domainFromEmailQuery(args.email);
-    if (!domain) return [];
-    const allOrgs = await ctx.db.query("organizations").collect();
-    const joinable: { _id: string; name: string; slug: string }[] = [];
-    const domainsLower = domain.toLowerCase();
-    for (const org of allOrgs) {
-      const status = (org as { status?: string }).status ?? "active";
-      if (status !== "active") continue;
-      const allowedDomains = (org as { allowedDomains?: string[] }).allowedDomains;
-      if (!allowedDomains?.length) continue;
-      const allowed = allowedDomains.some((d) => d.trim().toLowerCase() === domainsLower);
-      if (allowed) joinable.push({ _id: org._id as string, name: org.name, slug: org.slug });
-    }
-    return joinable;
-  },
-});
 
 // ============================================================================
 // Mutations
@@ -213,7 +180,6 @@ export const createOrganization = mutation({
     logo: v.optional(v.string()),
     metadata: v.optional(v.any()),
     settings: organizationSettingsValidator,
-    allowedDomains: v.optional(v.array(v.string())),
     creatorRole: v.optional(v.string()),
   },
   returns: v.string(),
@@ -225,7 +191,6 @@ export const createOrganization = mutation({
       logo: args.logo ?? null,
       metadata: args.metadata,
       settings: args.settings,
-      allowedDomains: args.allowedDomains,
       ownerId: args.userId,
       status: "active",
     });
@@ -247,7 +212,6 @@ export const updateOrganization = mutation({
     logo: v.optional(v.union(v.null(), v.string())),
     metadata: v.optional(v.any()),
     settings: organizationSettingsValidator,
-    allowedDomains: v.optional(v.union(v.null(), v.array(v.string()))),
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
   },
   returns: v.null(),
@@ -258,7 +222,6 @@ export const updateOrganization = mutation({
     if (args.logo !== undefined) updates.logo = args.logo;
     if (args.metadata !== undefined) updates.metadata = args.metadata;
     if (args.settings !== undefined) updates.settings = args.settings;
-    if (args.allowedDomains !== undefined) updates.allowedDomains = args.allowedDomains ?? undefined;
     if (args.status !== undefined) updates.status = args.status;
     if (args.slug !== undefined) {
       updates.slug = await ensureUniqueSlug(ctx, args.slug);

@@ -23,6 +23,14 @@ const strictApi = makeTenantsAPI(components.tenants, {
     email: `${userId}@test.com`,
   }),
 
+  validateInvitationAccept: async (_ctx, { invitation, acceptingUserIdentifier }) => {
+    const normalize = (s: string) => s.trim().toLowerCase();
+    if (normalize(acceptingUserIdentifier) !== normalize(invitation.inviteeIdentifier)) {
+      return { allowed: false, reason: "Invitation identifier does not match authenticated user" };
+    }
+    return { allowed: true };
+  },
+
   // Organization callbacks
   onBeforeCreateOrganization: async (ctx, data) => {
     await ctx.db.insert("callbackLog", { type: "onBeforeCreateOrganization", data });
@@ -141,7 +149,6 @@ export const strictUnsuspendMember = strictApi.unsuspendMember;
 export const strictLeaveOrganization = strictApi.leaveOrganization;
 export const strictBulkAddMembers = strictApi.bulkAddMembers;
 export const strictBulkRemoveMembers = strictApi.bulkRemoveMembers;
-export const strictJoinByDomain = strictApi.joinByDomain;
 // Teams
 export const strictListTeams = strictApi.listTeams;
 export const strictListTeamsAsTree = strictApi.listTeamsAsTree;
@@ -160,7 +167,6 @@ export const strictRemoveTeamMember = strictApi.removeTeamMember;
 export const strictListInvitations = strictApi.listInvitations;
 export const strictListInvitationsPaginated = strictApi.listInvitationsPaginated;
 export const strictBulkInviteMembers = strictApi.bulkInviteMembers;
-export const strictListOrganizationsJoinableByDomain = strictApi.listOrganizationsJoinableByDomain;
 export const strictCountInvitations = strictApi.countInvitations;
 export const strictGetInvitation = strictApi.getInvitation;
 export const strictGetPendingInvitations = strictApi.getPendingInvitations;

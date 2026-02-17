@@ -40,7 +40,6 @@ export interface TenantsAPI {
       logo?: string | null;
       metadata?: any;
       status?: "active" | "suspended" | "archived";
-      allowedDomains?: string[] | null;
     },
     null
   >;
@@ -87,8 +86,8 @@ export interface TenantsAPI {
   inviteMember: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; email: string; role: string; teamId?: string; message?: string },
-    { invitationId: string; email: string; expiresAt: number } | null
+    { organizationId: string; inviteeIdentifier: string; identifierType?: string; role: string; teamId?: string; message?: string },
+    { invitationId: string; inviteeIdentifier: string; expiresAt: number } | null
   >;
   resendInvitation: FunctionReference<
     "mutation",
@@ -170,18 +169,6 @@ export interface TenantsAPI {
     "mutation",
     "public",
     { organizationId: string; newOwnerUserId: string },
-    null
-  >;
-  listOrganizationsJoinableByDomain?: FunctionReference<
-    "query",
-    "public",
-    { email: string },
-    { _id: string; name: string; slug: string }[]
-  >;
-  joinByDomain?: FunctionReference<
-    "mutation",
-    "public",
-    { organizationId: string; userEmail: string; role?: string },
     null
   >;
   listTeamsAsTree?: FunctionReference<
@@ -373,7 +360,6 @@ export function TenantsProvider({
       logo?: string | null;
       metadata?: any;
       status?: "active" | "suspended" | "archived";
-      allowedDomains?: string[] | null;
     }) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
@@ -458,7 +444,7 @@ export function TenantsProvider({
   );
 
   const inviteMember = useCallback(
-    async (data: { email: string; role: string; teamId?: string; message?: string }) => {
+    async (data: { inviteeIdentifier: string; identifierType?: string; role: string; teamId?: string; message?: string }) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         const result = await inviteMemberMutation({

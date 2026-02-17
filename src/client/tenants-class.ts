@@ -110,7 +110,6 @@ export class Tenants {
       logo?: string;
       metadata?: Record<string, unknown>;
       settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean };
-      allowedDomains?: string[];
     }
   ): Promise<string> {
     const createPermission = this.permissionMap.createOrganization;
@@ -126,7 +125,6 @@ export class Tenants {
       logo: options?.logo,
       metadata: options?.metadata,
       settings: options?.settings,
-      allowedDomains: options?.allowedDomains,
       creatorRole,
     });
     await this.authz.assignRole(ctx, userId, creatorRole, orgScope(orgId), undefined, userId);
@@ -143,7 +141,6 @@ export class Tenants {
       logo?: string | null;
       metadata?: Record<string, unknown>;
       settings?: { allowPublicSignup?: boolean; requireInvitationToJoin?: boolean };
-      allowedDomains?: string[] | null;
       status?: "active" | "suspended" | "archived";
     }
   ): Promise<void> {
@@ -153,29 +150,6 @@ export class Tenants {
       organizationId,
       ...updates,
     });
-  }
-
-  async joinByDomain(
-    ctx: MutationCtx,
-    userId: string,
-    organizationId: string,
-    userEmail: string,
-    role?: string
-  ): Promise<void> {
-    await ctx.runMutation(this.component.members.joinByDomain, {
-      organizationId,
-      userId,
-      userEmail,
-      role,
-    });
-    const member = await this.getMember(ctx, organizationId, userId);
-    if (member) {
-      await this.authz.assignRole(ctx, userId, member.role, orgScope(organizationId), undefined, userId);
-    }
-  }
-
-  async listOrganizationsJoinableByDomain(ctx: QueryCtx, email: string) {
-    return await ctx.runQuery(this.component.organizations.listOrganizationsJoinableByDomain, { email });
   }
 
   async transferOwnership(
@@ -775,7 +749,7 @@ export class Tenants {
   async listInvitations(
     ctx: QueryCtx,
     organizationId: string,
-    options?: { sortBy?: "email" | "expiresAt" | "createdAt"; sortOrder?: "asc" | "desc" }
+    options?: { sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt"; sortOrder?: "asc" | "desc" }
   ): Promise<Invitation[]> {
     return await ctx.runQuery(this.component.invitations.listInvitations, {
       organizationId,
@@ -805,19 +779,19 @@ export class Tenants {
 
   async getPendingInvitations(
     ctx: QueryCtx,
-    email: string
+    identifier: string
   ): Promise<Array<Omit<Invitation, "status">>> {
-    return await ctx.runQuery(this.component.invitations.getPendingInvitationsForEmail, { email });
+    return await ctx.runQuery(this.component.invitations.getPendingInvitationsForIdentifier, { identifier });
   }
 
   async inviteMember(
     ctx: MutationCtx,
     userId: string,
     organizationId: string,
-    email: string,
+    inviteeIdentifier: string,
     role: string,
-    options?: { teamId?: string; message?: string; inviterName?: string; expiresAt?: number }
-  ): Promise<{ invitationId: string; email: string; expiresAt: number }> {
+    options?: { teamId?: string; message?: string; inviterName?: string; expiresAt?: number; identifierType?: string }
+  ): Promise<{ invitationId: string; inviteeIdentifier: string; expiresAt: number }> {
     await this.authzRequireOperation(ctx, userId, "inviteMember", orgScope(organizationId));
     const expiresAt =
       options?.expiresAt ??
@@ -825,7 +799,8 @@ export class Tenants {
     return await ctx.runMutation(this.component.invitations.inviteMember, {
       userId,
       organizationId,
-      email,
+      inviteeIdentifier,
+      identifierType: options?.identifierType,
       role,
       teamId: options?.teamId,
       message: options?.message,
@@ -838,11 +813,11 @@ export class Tenants {
     ctx: MutationCtx,
     userId: string,
     organizationId: string,
-    invitations: Array<{ email: string; role: string; message?: string; teamId?: string }>,
+    invitations: Array<{ inviteeIdentifier: string; identifierType?: string; role: string; message?: string; teamId?: string }>,
     options?: { inviterName?: string; expiresAt?: number }
   ): Promise<{
-    success: Array<{ invitationId: string; email: string; expiresAt: number }>;
-    errors: Array<{ email: string; code: string; message: string }>;
+    success: Array<{ invitationId: string; inviteeIdentifier: string; expiresAt: number }>;
+    errors: Array<{ inviteeIdentifier: string; code: string; message: string }>;
   }> {
     await this.authzRequireOperation(ctx, userId, "bulkInviteMembers", orgScope(organizationId));
     return await ctx.runMutation(this.component.invitations.bulkInviteMembers, {
@@ -858,13 +833,13 @@ export class Tenants {
     ctx: MutationCtx,
     invitationId: string,
     acceptingUserId: string,
-    options?: { acceptingEmail?: string }
+    options?: { acceptingUserIdentifier?: string }
   ): Promise<void> {
     const invitation = await this.getInvitation(ctx, invitationId);
     await ctx.runMutation(this.component.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId,
-      acceptingEmail: options?.acceptingEmail,
+      acceptingUserIdentifier: options?.acceptingUserIdentifier,
     });
     if (invitation) {
       await this.authz.assignRole(
@@ -891,7 +866,7 @@ export class Tenants {
     ctx: MutationCtx,
     userId: string,
     invitationId: string
-  ): Promise<{ invitationId: string; email: string }> {
+  ): Promise<{ invitationId: string; inviteeIdentifier: string }> {
     const invitation = await this.getInvitation(ctx, invitationId);
     if (!invitation) throw new Error("Invitation not found");
     await this.authzRequireOperation(ctx, userId, "resendInvitation", orgScope(invitation.organizationId));

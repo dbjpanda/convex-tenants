@@ -21,7 +21,8 @@ describe("makeTenantsAPI - invitation message", () => {
 
     const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
       organizationId: orgId,
-      email: "newuser@example.com",
+      inviteeIdentifier: "newuser@example.com",
+      identifierType: "email",
       role: "member",
       message: "Welcome to the team! Please join us.",
     });
@@ -43,7 +44,8 @@ describe("makeTenantsAPI - invitation message", () => {
 
     const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
       organizationId: orgId,
-      email: "nomsg@example.com",
+      inviteeIdentifier: "nomsg@example.com",
+      identifierType: "email",
       role: "admin",
     });
 
@@ -64,13 +66,15 @@ describe("makeTenantsAPI - invitation message", () => {
 
     await asAlice.mutation(api.testHelpers.strictInviteMember, {
       organizationId: orgId,
-      email: "with-msg@example.com",
+      inviteeIdentifier: "with-msg@example.com",
+      identifierType: "email",
       role: "member",
       message: "Custom message one",
     });
     await asAlice.mutation(api.testHelpers.strictInviteMember, {
       organizationId: orgId,
-      email: "no-msg@example.com",
+      inviteeIdentifier: "no-msg@example.com",
+      identifierType: "email",
       role: "member",
     });
 
@@ -79,8 +83,8 @@ describe("makeTenantsAPI - invitation message", () => {
     });
 
     expect(invitations).toHaveLength(2);
-    const withMsg = invitations.find((i: any) => i.email === "with-msg@example.com");
-    const noMsg = invitations.find((i: any) => i.email === "no-msg@example.com");
+    const withMsg = invitations.find((i: any) => i.inviteeIdentifier === "with-msg@example.com");
+    const noMsg = invitations.find((i: any) => i.inviteeIdentifier === "no-msg@example.com");
     expect(withMsg?.message).toBe("Custom message one");
     expect(noMsg?.message).toBeUndefined();
   });

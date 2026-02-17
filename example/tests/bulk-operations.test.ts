@@ -134,14 +134,14 @@ describe("makeTenantsAPI - bulk operations", () => {
       const result = await asAlice.mutation(api.testHelpers.strictBulkInviteMembers, {
         organizationId: orgId,
         invitations: [
-          { email: "bob@test.com", role: "member" },
-          { email: "carol@test.com", role: "admin" },
+          { inviteeIdentifier: "bob@test.com", identifierType: "email", role: "member" },
+          { inviteeIdentifier: "carol@test.com", identifierType: "email", role: "admin" },
         ],
       });
 
       expect(result.success).toHaveLength(2);
-      expect(result.success.map((s) => s.email)).toContain("bob@test.com");
-      expect(result.success.map((s) => s.email)).toContain("carol@test.com");
+      expect(result.success.map((s) => s.inviteeIdentifier)).toContain("bob@test.com");
+      expect(result.success.map((s) => s.inviteeIdentifier)).toContain("carol@test.com");
       expect(result.errors).toHaveLength(0);
 
       const invitations = await asAlice.query(api.testHelpers.strictListInvitations, {
@@ -159,22 +159,23 @@ describe("makeTenantsAPI - bulk operations", () => {
       });
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "bob@test.com",
+        inviteeIdentifier: "bob@test.com",
+        identifierType: "email",
         role: "member",
       });
 
       const result = await asAlice.mutation(api.testHelpers.strictBulkInviteMembers, {
         organizationId: orgId,
         invitations: [
-          { email: "bob@test.com", role: "admin" },
-          { email: "carol@test.com", role: "member" },
+          { inviteeIdentifier: "bob@test.com", identifierType: "email", role: "admin" },
+          { inviteeIdentifier: "carol@test.com", identifierType: "email", role: "member" },
         ],
       });
 
       expect(result.success).toHaveLength(1);
-      expect(result.success[0].email).toBe("carol@test.com");
+      expect(result.success[0].inviteeIdentifier).toBe("carol@test.com");
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].email).toBe("bob@test.com");
+      expect(result.errors[0].inviteeIdentifier).toBe("bob@test.com");
       expect(result.errors[0].code).toBe("ALREADY_EXISTS");
     });
 
@@ -189,7 +190,7 @@ describe("makeTenantsAPI - bulk operations", () => {
       const result = await asAlice.mutation(api.testHelpers.strictBulkInviteMembers, {
         organizationId: orgId,
         invitations: [
-          { email: "bob@test.com", role: "member", teamId: "teams:000000000000000000000" },
+          { inviteeIdentifier: "bob@test.com", identifierType: "email", role: "member", teamId: "teams:000000000000000000000" },
         ],
       });
 
@@ -219,7 +220,7 @@ describe("makeTenantsAPI - bulk operations", () => {
       const result = await asAlice.mutation(api.testHelpers.strictBulkInviteMembers, {
         organizationId: org1Id,
         invitations: [
-          { email: "carol@test.com", role: "member", teamId: teamInOrg2 },
+          { inviteeIdentifier: "carol@test.com", identifierType: "email", role: "member", teamId: teamInOrg2 },
         ],
       });
 

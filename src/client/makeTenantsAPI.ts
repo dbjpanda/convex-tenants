@@ -173,24 +173,59 @@ export function makeTenantsAPI(
       data: { teamId: string; userId: string; removedBy: string }
     ) => Promise<void>;
 
+    /**
+     * Validate invitation creation before sending
+     * Return { allowed: false, reason: string } to prevent invitation
+     */
+    validateInvitationCreate?: (
+      ctx: any,
+      data: {
+        organizationId: string;
+        inviterUserId: string;
+        inviteeIdentifier: string;
+        identifierType?: string;
+        role: string;
+        teamId?: string;
+      }
+    ) => Promise<{ allowed: boolean; reason?: string }>;
+
+    /**
+     * Validate invitation acceptance before adding user
+     * Return { allowed: false, reason: string } to prevent acceptance
+     */
+    validateInvitationAccept?: (
+      ctx: any,
+      data: {
+        invitation: {
+          _id: string;
+          organizationId: string;
+          inviteeIdentifier: string;
+          identifierType?: string;
+          role: string;
+        };
+        acceptingUserId: string;
+        acceptingUserIdentifier: string;
+      }
+    ) => Promise<{ allowed: boolean; reason?: string }>;
+
     onBeforeInviteMember?: (
       ctx: any,
-      data: { organizationId: string; email: string; role: string; teamId?: string; message?: string }
+      data: { organizationId: string; inviteeIdentifier: string; identifierType?: string; role: string; teamId?: string; message?: string }
     ) => Promise<void>;
 
     onInvitationCreated?: (
       ctx: any,
-      invitation: { invitationId: string; email: string; organizationId: string; organizationName: string; role: InvitationRole; inviterName?: string; expiresAt: number }
+      invitation: { invitationId: string; inviteeIdentifier: string; identifierType?: string; organizationId: string; organizationName: string; role: InvitationRole; inviterName?: string; expiresAt: number }
     ) => Promise<void>;
 
     onInvitationResent?: (
       ctx: any,
-      invitation: { invitationId: string; email: string; organizationId: string; organizationName: string; role: InvitationRole; inviterName?: string; expiresAt: number }
+      invitation: { invitationId: string; inviteeIdentifier: string; identifierType?: string; organizationId: string; organizationName: string; role: InvitationRole; inviterName?: string; expiresAt: number }
     ) => Promise<void>;
 
     onInvitationAccepted?: (
       ctx: any,
-      data: { invitationId: string; organizationId: string; organizationName: string; userId: string; role: InvitationRole; email: string }
+      data: { invitationId: string; organizationId: string; organizationName: string; userId: string; role: InvitationRole; inviteeIdentifier: string; identifierType?: string }
     ) => Promise<void>;
 
     defaultInvitationExpiration?: number;
@@ -305,14 +340,6 @@ export function makeTenantsAPI(
       },
     }),
 
-    listOrganizationsJoinableByDomain: queryGeneric({
-      args: { email: v.string() },
-      handler: async (ctx, args) => {
-        await requireAuth(ctx);
-        return await tenants.listOrganizationsJoinableByDomain(ctx, args.email);
-      },
-    }),
-
     createOrganization: mutationGeneric({
       args: {
         name: v.string(),
@@ -325,7 +352,6 @@ export function makeTenantsAPI(
             requireInvitationToJoin: v.optional(v.boolean()),
           })
         ),
-        allowedDomains: v.optional(v.array(v.string())),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
@@ -350,7 +376,6 @@ export function makeTenantsAPI(
           logo: args.logo,
           metadata: args.metadata,
           settings: args.settings,
-          allowedDomains: args.allowedDomains,
         });
 
         if (options.onOrganizationCreated) {
@@ -392,7 +417,6 @@ export function makeTenantsAPI(
             requireInvitationToJoin: v.optional(v.boolean()),
           })
         ),
-        allowedDomains: v.optional(v.union(v.null(), v.array(v.string()))),
         status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
       },
       handler: async (ctx, args) => {
@@ -417,7 +441,6 @@ export function makeTenantsAPI(
           logo: args.logo,
           metadata: args.metadata,
           settings: args.settings,
-          allowedDomains: args.allowedDomains,
           status: args.status,
         });
       },
@@ -732,26 +755,6 @@ export function makeTenantsAPI(
       },
     }),
 
-    joinByDomain: mutationGeneric({
-      args: {
-        organizationId: v.string(),
-        userEmail: v.string(),
-        role: v.optional(v.string()),
-      },
-      handler: async (ctx, args) => {
-        const userId = await requireAuth(ctx);
-        await tenants.joinByDomain(ctx, userId, args.organizationId, args.userEmail, args.role);
-        if (options.onMemberAdded) {
-          await options.onMemberAdded(ctx, {
-            organizationId: args.organizationId,
-            userId,
-            role: args.role ?? "member",
-            addedBy: userId,
-          });
-        }
-      },
-    }),
-
     suspendMember: mutationGeneric({
       args: { organizationId: v.string(), memberUserId: v.string() },
       handler: async (ctx, args) => {
@@ -1056,7 +1059,7 @@ export function makeTenantsAPI(
     listInvitations: queryGeneric({
       args: {
         organizationId: v.string(),
-        sortBy: v.optional(v.union(v.literal("email"), v.literal("expiresAt"), v.literal("createdAt"))),
+        sortBy: v.optional(v.union(v.literal("inviteeIdentifier"), v.literal("expiresAt"), v.literal("createdAt"))),
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
       },
       handler: async (ctx, args) => {
@@ -1102,35 +1105,36 @@ export function makeTenantsAPI(
     }),
 
     getPendingInvitations: queryGeneric({
-      args: { email: v.string() },
+      args: { identifier: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         if (!options.getUser) {
           throw new Error(
-            "getUser callback with email is required for getPendingInvitations"
+            "getUser callback is required for getPendingInvitations"
           );
         }
 
         const user = await options.getUser(ctx, userId);
-        const userEmail = user?.email;
-        if (!userEmail) {
+        const userIdentifier = user?.email; // Can be email, phone, username, etc.
+        if (!userIdentifier) {
           throw new Error(
-            "Authenticated user email is required for getPendingInvitations"
+            "Authenticated user identifier is required for getPendingInvitations"
           );
         }
 
-        if (normalizeEmail(args.email) !== normalizeEmail(userEmail)) {
-          throw new Error("Cannot query invitations for another email");
+        if (normalizeEmail(args.identifier) !== normalizeEmail(userIdentifier)) {
+          throw new Error("Cannot query invitations for another identifier");
         }
 
-        return await tenants.getPendingInvitations(ctx, normalizeEmail(userEmail));
+        return await tenants.getPendingInvitations(ctx, normalizeEmail(userIdentifier));
       },
     }),
 
     inviteMember: mutationGeneric({
       args: {
         organizationId: v.string(),
-        email: v.string(),
+        inviteeIdentifier: v.string(),
+        identifierType: v.optional(v.string()),
         role: v.string(),
         teamId: v.optional(v.string()),
         message: v.optional(v.string()),
@@ -1139,10 +1143,27 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        
+        // Validate invitation creation
+        if (options.validateInvitationCreate) {
+          const validation = await options.validateInvitationCreate(ctx, {
+            organizationId: args.organizationId,
+            inviterUserId: userId,
+            inviteeIdentifier: args.inviteeIdentifier,
+            identifierType: args.identifierType,
+            role: args.role,
+            teamId: args.teamId,
+          });
+          if (!validation.allowed) {
+            throw new Error(validation.reason || "Invitation not allowed");
+          }
+        }
+        
         if (options.onBeforeInviteMember) {
           await options.onBeforeInviteMember(ctx, {
             organizationId: args.organizationId,
-            email: args.email,
+            inviteeIdentifier: args.inviteeIdentifier,
+            identifierType: args.identifierType,
             role: args.role,
             teamId: args.teamId,
             message: args.message,
@@ -1153,15 +1174,17 @@ export function makeTenantsAPI(
           const user = await options.getUser(ctx, userId);
           inviterName = user?.name;
         }
-        const result = await tenants.inviteMember(ctx, userId, args.organizationId, args.email, args.role, {
+        const result = await tenants.inviteMember(ctx, userId, args.organizationId, args.inviteeIdentifier, args.role, {
           teamId: args.teamId,
           message: args.message,
           inviterName,
+          identifierType: args.identifierType,
         });
         if (options.onInvitationCreated) {
           const org = await tenants.getOrganization(ctx, args.organizationId);
           await options.onInvitationCreated(ctx, {
-            invitationId: result.invitationId, email: result.email,
+            invitationId: result.invitationId, inviteeIdentifier: result.inviteeIdentifier,
+            identifierType: args.identifierType,
             organizationId: args.organizationId, organizationName: org?.name ?? "Unknown",
             role: args.role, inviterName, expiresAt: result.expiresAt,
           });
@@ -1174,7 +1197,8 @@ export function makeTenantsAPI(
       args: {
         organizationId: v.string(),
         invitations: v.array(v.object({
-          email: v.string(),
+          inviteeIdentifier: v.string(),
+          identifierType: v.optional(v.string()),
           role: v.string(),
           message: v.optional(v.string()),
           teamId: v.optional(v.string()),
@@ -1184,6 +1208,24 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        
+        // Validate each invitation if callback provided
+        if (options.validateInvitationCreate) {
+          for (const inv of args.invitations) {
+            const validation = await options.validateInvitationCreate(ctx, {
+              organizationId: args.organizationId,
+              inviterUserId: userId,
+              inviteeIdentifier: inv.inviteeIdentifier,
+              identifierType: inv.identifierType,
+              role: inv.role,
+              teamId: inv.teamId,
+            });
+            if (!validation.allowed) {
+              throw new Error(`${inv.inviteeIdentifier}: ${validation.reason || "Invitation not allowed"}`);
+            }
+          }
+        }
+        
         let inviterName: string | undefined;
         if (options.getUser) {
           const user = await options.getUser(ctx, userId);
@@ -1195,10 +1237,12 @@ export function makeTenantsAPI(
         if (options.onInvitationCreated) {
           const org = await tenants.getOrganization(ctx, args.organizationId);
           for (const s of result.success) {
+            const origInvitation = args.invitations.find((i) => i.inviteeIdentifier.toLowerCase() === s.inviteeIdentifier.toLowerCase());
             await options.onInvitationCreated(ctx, {
-              invitationId: s.invitationId, email: s.email,
+              invitationId: s.invitationId, inviteeIdentifier: s.inviteeIdentifier,
+              identifierType: origInvitation?.identifierType,
               organizationId: args.organizationId, organizationName: org?.name ?? "Unknown",
-              role: args.invitations.find((i) => i.email.toLowerCase() === s.email.toLowerCase())?.role ?? "member",
+              role: origInvitation?.role ?? "member",
               inviterName, expiresAt: s.expiresAt,
             });
           }
@@ -1212,36 +1256,63 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const inv = await tenants.getInvitation(ctx, args.invitationId);
-        if (inv) await requireActiveOrganization(ctx, inv.organizationId);
+        if (!inv) throw new Error("Invitation not found");
+        
+        await requireActiveOrganization(ctx, inv.organizationId);
+        
         if (!options.getUser) {
           throw new Error(
-            "getUser callback with email is required for invitation acceptance"
+            "getUser callback is required for invitation acceptance"
           );
         }
 
         const user = await options.getUser(ctx, userId);
-        const acceptingEmail = user?.email;
-        if (!acceptingEmail) {
+        const acceptingUserIdentifier = user?.email; // Can be email, phone, username, etc.
+        if (!acceptingUserIdentifier) {
           throw new Error(
-            "Authenticated user email is required for invitation acceptance"
+            "Authenticated user identifier is required for invitation acceptance"
           );
         }
 
-        let invitationData: { organizationId: string; role: InvitationRole; email: string } | null = null;
-        if (options.onInvitationAccepted) {
-          const inv = await tenants.getInvitation(ctx, args.invitationId);
-          if (inv) {
-            invitationData = { organizationId: inv.organizationId, role: inv.role, email: inv.email };
+        // Validate invitation acceptance
+        if (options.validateInvitationAccept) {
+          const validation = await options.validateInvitationAccept(ctx, {
+            invitation: {
+              _id: inv._id,
+              organizationId: inv.organizationId,
+              inviteeIdentifier: inv.inviteeIdentifier,
+              identifierType: inv.identifierType,
+              role: inv.role,
+            },
+            acceptingUserId: userId,
+            acceptingUserIdentifier,
+          });
+          if (!validation.allowed) {
+            throw new Error(validation.reason || "You cannot accept this invitation");
           }
         }
+
+        let invitationData: { organizationId: string; role: InvitationRole; inviteeIdentifier: string; identifierType?: string } | null = null;
+        if (options.onInvitationAccepted) {
+          invitationData = { 
+            organizationId: inv.organizationId, 
+            role: inv.role, 
+            inviteeIdentifier: inv.inviteeIdentifier,
+            identifierType: inv.identifierType,
+          };
+        }
+        
         await tenants.acceptInvitation(ctx, args.invitationId, userId, {
-          acceptingEmail,
+          acceptingUserIdentifier,
         });
+        
         if (options.onInvitationAccepted && invitationData) {
           const org = await tenants.getOrganization(ctx, invitationData.organizationId);
           await options.onInvitationAccepted(ctx, {
             invitationId: args.invitationId, organizationId: invitationData.organizationId,
-            organizationName: org?.name ?? "Unknown", userId, role: invitationData.role, email: invitationData.email,
+            organizationName: org?.name ?? "Unknown", userId, role: invitationData.role, 
+            inviteeIdentifier: invitationData.inviteeIdentifier,
+            identifierType: invitationData.identifierType,
           });
         }
       },
@@ -1267,7 +1338,8 @@ export function makeTenantsAPI(
               inviterName = user?.name;
             }
             await options.onInvitationResent(ctx, {
-              invitationId: result.invitationId, email: result.email,
+              invitationId: result.invitationId, inviteeIdentifier: result.inviteeIdentifier,
+              identifierType: invForCallback.identifierType,
               organizationId: invForCallback.organizationId, organizationName: org?.name ?? "Unknown",
               role: invForCallback.role, inviterName, expiresAt: invForCallback.expiresAt,
             });

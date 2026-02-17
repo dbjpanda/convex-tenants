@@ -17,7 +17,7 @@ import {
 import { useTenants } from "../providers/tenants-context.js";
 
 /**
- * Organization settings: logo, details (name, slug, status, allowedDomains), transfer ownership, leave, danger zone.
+ * Organization settings: logo, details (name, slug, status), transfer ownership, leave, danger zone.
  * Optional api: getCurrentMember, transferOwnership, generateLogoUploadUrl.
  */
 export function OrgSettingsPanel() {
@@ -44,8 +44,6 @@ export function OrgSettingsPanel() {
   const [name, setName] = useState(currentOrganization?.name ?? "");
   const [slug, setSlug] = useState(currentOrganization?.slug ?? "");
   const [status, setStatus] = useState<"active" | "suspended" | "archived">(currentOrganization?.status ?? "active");
-  const [allowedDomains, setAllowedDomains] = useState<string[]>(currentOrganization?.allowedDomains ?? []);
-  const [newDomain, setNewDomain] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -59,10 +57,9 @@ export function OrgSettingsPanel() {
     setName(currentOrganization?.name ?? "");
     setSlug(currentOrganization?.slug ?? "");
     setStatus(currentOrganization?.status ?? "active");
-    setAllowedDomains(currentOrganization?.allowedDomains ?? []);
     setConfirmDelete(false);
     setConfirmLeave(false);
-  }, [currentOrganization?._id, currentOrganization?.name, currentOrganization?.slug, currentOrganization?.status, currentOrganization?.allowedDomains]);
+  }, [currentOrganization?._id, currentOrganization?.name, currentOrganization?.slug, currentOrganization?.status]);
 
   const handleSave = async () => {
     if (!currentOrganization) return;
@@ -72,25 +69,12 @@ export function OrgSettingsPanel() {
         name,
         slug,
         status,
-        allowedDomains: allowedDomains.length ? allowedDomains : null,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
     }
-  };
-
-  const addDomain = () => {
-    const d = newDomain.trim().toLowerCase();
-    if (d && !allowedDomains.includes(d)) {
-      setAllowedDomains([...allowedDomains, d]);
-      setNewDomain("");
-    }
-  };
-
-  const removeDomain = (domain: string) => {
-    setAllowedDomains(allowedDomains.filter((x) => x !== domain));
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,24 +153,6 @@ export function OrgSettingsPanel() {
               <option value="archived">Archived</option>
             </select>
             <p className="mt-1 text-xs text-muted-foreground">Suspended/archived orgs block member mutations until set back to active.</p>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Allowed email domains (for domain join)</label>
-            <p className="mb-2 text-xs text-muted-foreground">Users whose email matches one of these domains can join this org via &quot;Join by domain&quot; without an invitation.</p>
-            <div className="flex flex-wrap gap-2">
-              {allowedDomains.map((d) => (
-                <span key={d} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-sm">
-                  {d}
-                  <button type="button" onClick={() => removeDomain(d)} className="rounded hover:bg-background" aria-label={`Remove ${d}`}>
-                    <X className="size-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="mt-2 flex gap-2">
-              <input value={newDomain} onChange={(e) => setNewDomain(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDomain())} placeholder="e.g. company.com" className="flex h-9 flex-1 max-w-xs rounded-md border border-input bg-background px-3 text-sm" />
-              <button type="button" onClick={addDomain} className="inline-flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent">Add domain</button>
-            </div>
           </div>
           <button type="button" onClick={handleSave} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
             {saving ? <Loader2 className="size-4 animate-spin" /> : saved ? <CheckCircle className="size-4" /> : <Check className="size-4" />}

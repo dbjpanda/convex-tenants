@@ -12,7 +12,7 @@ import type { Id } from "./_generated/dataModel";
 export const listInvitations = query({
   args: {
     organizationId: v.string(),
-    sortBy: v.optional(v.union(v.literal("email"), v.literal("expiresAt"), v.literal("createdAt"))),
+    sortBy: v.optional(v.union(v.literal("inviteeIdentifier"), v.literal("expiresAt"), v.literal("createdAt"))),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
   },
   returns: v.array(
@@ -20,7 +20,8 @@ export const listInvitations = query({
       _id: v.string(),
       _creationTime: v.number(),
       organizationId: v.string(),
-      email: v.string(),
+      inviteeIdentifier: v.string(),
+      identifierType: v.optional(v.string()),
       role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
@@ -48,18 +49,19 @@ export const listInvitations = query({
     const order = args.sortOrder ?? "desc";
     const mult = order === "asc" ? 1 : -1;
     const sorted = [...invitations].sort((a, b) => {
-      const va = sortBy === "email" ? a.email : sortBy === "expiresAt" ? a.expiresAt : a._creationTime;
-      const vb = sortBy === "email" ? b.email : sortBy === "expiresAt" ? b.expiresAt : b._creationTime;
+      const va = sortBy === "inviteeIdentifier" ? a.inviteeIdentifier : sortBy === "expiresAt" ? a.expiresAt : a._creationTime;
+      const vb = sortBy === "inviteeIdentifier" ? b.inviteeIdentifier : sortBy === "expiresAt" ? b.expiresAt : b._creationTime;
       return va < vb ? -mult : va > vb ? mult : 0;
     });
 
     return sorted.map((inv) => {
-      const i = inv as { message?: string; inviterName?: string };
+      const i = inv as { message?: string; inviterName?: string; identifierType?: string };
       return {
         _id: inv._id as string,
         _creationTime: inv._creationTime,
         organizationId: inv.organizationId as string,
-        email: inv.email,
+        inviteeIdentifier: inv.inviteeIdentifier,
+        identifierType: i.identifierType,
         role: inv.role,
         teamId: inv.teamId ? (inv.teamId as string) : null,
         inviterId: inv.inviterId,
@@ -104,12 +106,13 @@ export const listInvitationsPaginated = query({
     return {
       ...result,
       page: result.page.map((inv) => {
-        const i = inv as { message?: string; inviterName?: string };
+        const i = inv as { message?: string; inviterName?: string; identifierType?: string };
         return {
           _id: inv._id as string,
           _creationTime: inv._creationTime,
           organizationId: inv.organizationId as string,
-          email: inv.email,
+          inviteeIdentifier: inv.inviteeIdentifier,
+          identifierType: i.identifierType,
           role: inv.role,
           teamId: inv.teamId ? (inv.teamId as string) : null,
           inviterId: inv.inviterId,
@@ -132,7 +135,9 @@ export const getInvitation = query({
       _id: v.string(),
       _creationTime: v.number(),
       organizationId: v.string(),
-      email: v.string(),
+      organizationName: v.string(),
+      inviteeIdentifier: v.string(),
+      identifierType: v.optional(v.string()),
       role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
@@ -151,12 +156,19 @@ export const getInvitation = query({
   handler: async (ctx, args) => {
     const invitation = await ctx.db.get(args.invitationId as Id<"invitations">);
     if (!invitation) return null;
-    const i = invitation as { message?: string; inviterName?: string };
+    
+    // Fetch organization to get its name
+    const organization = await ctx.db.get(invitation.organizationId);
+    if (!organization) return null;
+    
+    const i = invitation as { message?: string; inviterName?: string; identifierType?: string };
     return {
       _id: invitation._id as string,
       _creationTime: invitation._creationTime,
       organizationId: invitation.organizationId as string,
-      email: invitation.email,
+      organizationName: organization.name,
+      inviteeIdentifier: invitation.inviteeIdentifier,
+      identifierType: i.identifierType,
       role: invitation.role,
       teamId: invitation.teamId ? (invitation.teamId as string) : null,
       inviterId: invitation.inviterId,
@@ -169,14 +181,16 @@ export const getInvitation = query({
   },
 });
 
-export const getPendingInvitationsForEmail = query({
-  args: { email: v.string() },
+export const getPendingInvitationsForIdentifier = query({
+  args: { identifier: v.string() },
   returns: v.array(
     v.object({
       _id: v.string(),
       _creationTime: v.number(),
       organizationId: v.string(),
-      email: v.string(),
+      organizationName: v.string(),
+      inviteeIdentifier: v.string(),
+      identifierType: v.optional(v.string()),
       role: v.string(),
       teamId: v.union(v.null(), v.string()),
       inviterId: v.string(),
@@ -188,28 +202,33 @@ export const getPendingInvitationsForEmail = query({
   handler: async (ctx, args) => {
     const invitations = await ctx.db
       .query("invitations")
-      .withIndex("by_email_and_status", (q) =>
-        q.eq("email", args.email).eq("status", "pending")
+      .withIndex("by_invitee_identifier_and_status", (q) =>
+        q.eq("inviteeIdentifier", args.identifier).eq("status", "pending")
       )
       .collect();
 
-    return invitations
-      .filter((inv) => !isInvitationExpired(inv))
-      .map((inv) => {
-        const i = inv as { inviterName?: string };
-        return {
-          _id: inv._id as string,
-          _creationTime: inv._creationTime,
-          organizationId: inv.organizationId as string,
-          email: inv.email,
-          role: inv.role,
-          teamId: inv.teamId ? (inv.teamId as string) : null,
-          inviterId: inv.inviterId,
-          inviterName: i.inviterName,
-          expiresAt: inv.expiresAt,
-          isExpired: false,
-        };
+    const result = [];
+    for (const inv of invitations.filter((inv) => !isInvitationExpired(inv))) {
+      const organization = await ctx.db.get(inv.organizationId);
+      if (!organization) continue;
+      
+      const i = inv as { inviterName?: string; identifierType?: string };
+      result.push({
+        _id: inv._id as string,
+        _creationTime: inv._creationTime,
+        organizationId: inv.organizationId as string,
+        organizationName: organization.name,
+        inviteeIdentifier: inv.inviteeIdentifier,
+        identifierType: i.identifierType,
+        role: inv.role,
+        teamId: inv.teamId ? (inv.teamId as string) : null,
+        inviterId: inv.inviterId,
+        inviterName: i.inviterName,
+        expiresAt: inv.expiresAt,
+        isExpired: false,
       });
+    }
+    return result;
   },
 });
 
@@ -221,7 +240,8 @@ export const inviteMember = mutation({
   args: {
     userId: v.string(),
     organizationId: v.string(),
-    email: v.string(),
+    inviteeIdentifier: v.string(),
+    identifierType: v.optional(v.string()),
     role: v.string(),
     teamId: v.optional(v.string()),
     message: v.optional(v.string()),
@@ -230,12 +250,12 @@ export const inviteMember = mutation({
   },
   returns: v.object({
     invitationId: v.string(),
-    email: v.string(),
+    inviteeIdentifier: v.string(),
     expiresAt: v.number(),
   }),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
-    const normalizedEmail = args.email.trim().toLowerCase();
+    const normalizedIdentifier = args.inviteeIdentifier.trim().toLowerCase();
     if (args.teamId) {
       const team = await ctx.db.get(args.teamId as Id<"teams">);
       if (!team) throw new ConvexError({ code: "NOT_FOUND", message: "Team not found" });
@@ -248,20 +268,21 @@ export const inviteMember = mutation({
     }
     const existing = await ctx.db
       .query("invitations")
-      .withIndex("by_email_and_status", (q) =>
-        q.eq("email", normalizedEmail).eq("status", "pending")
+      .withIndex("by_invitee_identifier_and_status", (q) =>
+        q.eq("inviteeIdentifier", normalizedIdentifier).eq("status", "pending")
       )
       .first();
     if (existing && existing.organizationId === orgId) {
       throw new ConvexError({
         code: "ALREADY_EXISTS",
-        message: "A pending invitation already exists for this email",
+        message: "A pending invitation already exists for this identifier",
       });
     }
     const expiresAt = args.expiresAt ?? Date.now() + 48 * 60 * 60 * 1000;
     const invitationId = await ctx.db.insert("invitations", {
       organizationId: orgId,
-      email: normalizedEmail,
+      inviteeIdentifier: normalizedIdentifier,
+      identifierType: args.identifierType,
       role: args.role,
       teamId: args.teamId ? (args.teamId as Id<"teams">) : null,
       inviterId: args.userId,
@@ -270,7 +291,7 @@ export const inviteMember = mutation({
       status: "pending",
       expiresAt,
     });
-    return { invitationId: invitationId as string, email: normalizedEmail, expiresAt };
+    return { invitationId: invitationId as string, inviteeIdentifier: normalizedIdentifier, expiresAt };
   },
 });
 
@@ -278,7 +299,7 @@ export const acceptInvitation = mutation({
   args: {
     invitationId: v.string(),
     acceptingUserId: v.string(),
-    acceptingEmail: v.optional(v.string()),
+    acceptingUserIdentifier: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -307,15 +328,7 @@ export const acceptInvitation = mutation({
         message: "You are already a member of this organization",
       });
     }
-    if (
-      args.acceptingEmail &&
-      args.acceptingEmail.trim().toLowerCase() !== invitation.email.trim().toLowerCase()
-    ) {
-      throw new ConvexError({
-        code: "FORBIDDEN",
-        message: "Invitation email does not match authenticated user",
-      });
-    }
+    // No hardcoded validation - validation will be done via callback in makeTenantsAPI
     await ctx.db.insert("members", {
       organizationId: invitation.organizationId,
       userId: args.acceptingUserId,
@@ -349,7 +362,7 @@ export const acceptInvitation = mutation({
 
 export const resendInvitation = mutation({
   args: { userId: v.string(), invitationId: v.string() },
-  returns: v.object({ invitationId: v.string(), email: v.string() }),
+  returns: v.object({ invitationId: v.string(), inviteeIdentifier: v.string() }),
   handler: async (ctx, args) => {
     const invitationId = args.invitationId as Id<"invitations">;
     const invitation = await ctx.db.get(invitationId);
@@ -367,7 +380,7 @@ export const resendInvitation = mutation({
         message: "Invitation has expired. Please create a new one.",
       });
     }
-    return { invitationId: invitation._id as string, email: invitation.email };
+    return { invitationId: invitation._id as string, inviteeIdentifier: invitation.inviteeIdentifier };
   },
 });
 
@@ -390,7 +403,8 @@ export const cancelInvitation = mutation({
 });
 
 const invitationItemValidator = v.object({
-  email: v.string(),
+  inviteeIdentifier: v.string(),
+  identifierType: v.optional(v.string()),
   role: v.string(),
   message: v.optional(v.string()),
   teamId: v.optional(v.string()),
@@ -405,27 +419,27 @@ export const bulkInviteMembers = mutation({
     expiresAt: v.optional(v.number()),
   },
   returns: v.object({
-    success: v.array(v.object({ invitationId: v.string(), email: v.string(), expiresAt: v.number() })),
-    errors: v.array(v.object({ email: v.string(), code: v.string(), message: v.string() })),
+    success: v.array(v.object({ invitationId: v.string(), inviteeIdentifier: v.string(), expiresAt: v.number() })),
+    errors: v.array(v.object({ inviteeIdentifier: v.string(), code: v.string(), message: v.string() })),
   }),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
     const defaultExpiresAt = args.expiresAt ?? Date.now() + 48 * 60 * 60 * 1000;
-    const success: { invitationId: string; email: string; expiresAt: number }[] = [];
-    const errors: { email: string; code: string; message: string }[] = [];
+    const success: { invitationId: string; inviteeIdentifier: string; expiresAt: number }[] = [];
+    const errors: { inviteeIdentifier: string; code: string; message: string }[] = [];
 
     for (const inv of args.invitations) {
-      const normalizedEmail = inv.email.trim().toLowerCase();
+      const normalizedIdentifier = inv.inviteeIdentifier.trim().toLowerCase();
       try {
         if (inv.teamId) {
           const team = await ctx.db.get(inv.teamId as Id<"teams">);
           if (!team) {
-            errors.push({ email: normalizedEmail, code: "NOT_FOUND", message: "Team not found" });
+            errors.push({ inviteeIdentifier: normalizedIdentifier, code: "NOT_FOUND", message: "Team not found" });
             continue;
           }
           if (team.organizationId !== orgId) {
             errors.push({
-              email: normalizedEmail,
+              inviteeIdentifier: normalizedIdentifier,
               code: "FORBIDDEN",
               message: "Team must belong to the organization",
             });
@@ -434,21 +448,22 @@ export const bulkInviteMembers = mutation({
         }
         const existing = await ctx.db
           .query("invitations")
-          .withIndex("by_email_and_status", (q) =>
-            q.eq("email", normalizedEmail).eq("status", "pending")
+          .withIndex("by_invitee_identifier_and_status", (q) =>
+            q.eq("inviteeIdentifier", normalizedIdentifier).eq("status", "pending")
           )
           .first();
         if (existing && existing.organizationId === orgId) {
           errors.push({
-            email: normalizedEmail,
+            inviteeIdentifier: normalizedIdentifier,
             code: "ALREADY_EXISTS",
-            message: "A pending invitation already exists for this email",
+            message: "A pending invitation already exists for this identifier",
           });
           continue;
         }
         const invitationId = await ctx.db.insert("invitations", {
           organizationId: orgId,
-          email: normalizedEmail,
+          inviteeIdentifier: normalizedIdentifier,
+          identifierType: inv.identifierType,
           role: inv.role,
           teamId: inv.teamId ? (inv.teamId as Id<"teams">) : null,
           inviterId: args.userId,
@@ -459,12 +474,12 @@ export const bulkInviteMembers = mutation({
         });
         success.push({
           invitationId: invitationId as string,
-          email: normalizedEmail,
+          inviteeIdentifier: normalizedIdentifier,
           expiresAt: defaultExpiresAt,
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        errors.push({ email: normalizedEmail, code: "ERROR", message: msg });
+        errors.push({ inviteeIdentifier: normalizedIdentifier, code: "ERROR", message: msg });
       }
     }
     return { success, errors };

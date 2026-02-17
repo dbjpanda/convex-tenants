@@ -328,7 +328,8 @@ describe("makeTenantsAPI - event hook callbacks", () => {
         api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
-          email: "bob@test.com",
+          inviteeIdentifier: "bob@test.com",
+          identifierType: "email",
           role: "admin",
         }
       );
@@ -344,7 +345,7 @@ describe("makeTenantsAPI - event hook callbacks", () => {
       expect(logs[0].data.organizationName).toBe("Accept Hook Org");
       expect(logs[0].data.userId).toBe("bob");
       expect(logs[0].data.role).toBe("admin");
-      expect(logs[0].data.email).toBe("bob@test.com");
+      expect(logs[0].data.inviteeIdentifier).toBe("bob@test.com");
     });
   });
 });

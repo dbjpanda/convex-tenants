@@ -5,7 +5,7 @@ import type { Invitation } from "./use-invitations.js";
 
 // Extended invitation with organization details
 export interface InvitationWithOrg extends Invitation {
-  organizationName?: string;
+  organizationName: string;
 }
 
 // Organization type
@@ -30,14 +30,15 @@ export interface UseInvitationOptions {
     "query",
     "public",
     { invitationId: string },
-    Invitation | null
+    InvitationWithOrg | null
   >;
   
   /**
-   * Query function reference to get organization details
+   * Optional query function reference to get organization details
    * Example: api.tenants.getOrganization
+   * @deprecated No longer needed as getInvitation now returns organizationName
    */
-  getOrganizationQuery: FunctionReference<
+  getOrganizationQuery?: FunctionReference<
     "query",
     "public",
     { organizationId: string },
@@ -69,14 +70,15 @@ export function useInvitation(options: UseInvitationOptions) {
   const [isAccepting, setIsAccepting] = useState(false);
   const acceptingRef = useRef(false);
 
-  // Load invitation data
+  // Load invitation data (now includes organizationName)
   const invitation = useQuery(getInvitationQuery, { invitationId });
   const isLoading = invitation === undefined;
   
-  // Load organization details if invitation exists
+  // Optionally load full organization details if query is provided and user has access
+  // This is now optional since invitation includes organizationName
   const organization = useQuery(
-    getOrganizationQuery,
-    invitation ? { organizationId: invitation.organizationId } : "skip"
+    getOrganizationQuery ?? ("skip" as any),
+    invitation && getOrganizationQuery ? { organizationId: invitation.organizationId } : "skip"
   );
   
   // Accept invitation mutation
@@ -111,6 +113,7 @@ export function useInvitation(options: UseInvitationOptions) {
   return {
     invitation,
     organization,
+    organizationName: invitation?.organizationName,
     isLoading,
     isAccepting,
     accepted,

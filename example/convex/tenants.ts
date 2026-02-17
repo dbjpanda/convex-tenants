@@ -14,13 +14,11 @@ export const {
   listOrganizations,
   getOrganization,
   getOrganizationBySlug,
-  listOrganizationsJoinableByDomain,
   createOrganization,
   updateOrganization,
   generateLogoUploadUrl,
   transferOwnership,
   deleteOrganization,
-  joinByDomain,
   // Members
   listMembers,
   listMembersPaginated,
@@ -88,6 +86,59 @@ export const {
     };
   },
 
+  // Invitation validation callbacks
+  validateInvitationCreate: async (ctx, data) => {
+    // Example: Only allow email invitations with domain validation
+    const { inviteeIdentifier, identifierType, organizationId } = data;
+    
+    if (identifierType !== "email" && !inviteeIdentifier.includes('@')) {
+      return {
+        allowed: false,
+        reason: "Only email invitations are supported in this example"
+      };
+    }
+    
+    // Optional: Domain whitelist from org metadata
+    const org = await ctx.db.get(organizationId as any);
+    const allowedDomains = org?.metadata?.allowedDomains as string[] | undefined;
+    
+    if (allowedDomains && allowedDomains.length > 0) {
+      const domain = inviteeIdentifier.split('@')[1]?.toLowerCase();
+      
+      if (!allowedDomains.includes(domain)) {
+        return {
+          allowed: false,
+          reason: `Only emails from ${allowedDomains.join(', ')} can be invited`
+        };
+      }
+    }
+    
+    return { allowed: true };
+  },
+  
+  validateInvitationAccept: async (ctx, data) => {
+    // Example: Allow same email or same domain
+    const { invitation, acceptingUserIdentifier } = data;
+    
+    // Exact match - always allow
+    if (invitation.inviteeIdentifier.toLowerCase() === acceptingUserIdentifier.toLowerCase()) {
+      return { allowed: true };
+    }
+    
+    // Same domain - allow
+    const invitedDomain = invitation.inviteeIdentifier.split('@')[1]?.toLowerCase();
+    const userDomain = acceptingUserIdentifier.split('@')[1]?.toLowerCase();
+    
+    if (invitedDomain && userDomain && invitedDomain === userDomain) {
+      return { allowed: true };
+    }
+    
+    return {
+      allowed: false,
+      reason: "Invitation identifier doesn't match your account"
+    };
+  },
+
   // Event hooks
   onOrganizationCreated: async (ctx, data) => console.log(`Organization created: ${data.name}`),
   onOrganizationDeleted: async (ctx, data) => console.log(`Organization deleted: ${data.name}`),
@@ -99,8 +150,8 @@ export const {
   onTeamDeleted: async (ctx, data) => console.log(`Team deleted: ${data.name}`),
   onTeamMemberAdded: async (ctx, data) => console.log(`Team member ${data.userId} added`),
   onTeamMemberRemoved: async (ctx, data) => console.log(`Team member ${data.userId} removed`),
-  onInvitationCreated: async (ctx, data) => console.log(`Invitation sent to ${data.email}`),
-  onInvitationResent: async (ctx, data) => console.log(`Invitation resent to ${data.email}`),
+  onInvitationCreated: async (ctx, data) => console.log(`Invitation sent to ${data.inviteeIdentifier}`),
+  onInvitationResent: async (ctx, data) => console.log(`Invitation resent to ${data.inviteeIdentifier}`),
   onInvitationAccepted: async (ctx, data) => console.log(`Invitation accepted by ${data.userId}`),
 
   defaultInvitationExpiration: 48 * 60 * 60 * 1000, // 48 hours

@@ -26,7 +26,8 @@ describe("makeTenantsAPI - invitations", () => {
 
       const result = await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "invited@example.com",
+        inviteeIdentifier: "invited@example.com",
+        identifierType: "email",
         role: "admin",
       });
 
@@ -35,7 +36,7 @@ describe("makeTenantsAPI - invitations", () => {
       const logs = allLogs.filter((l: any) => l.type === "invitationCreated");
 
       expect(logs).toHaveLength(1);
-      expect(logs[0].data.email).toBe("invited@example.com");
+      expect(logs[0].data.inviteeIdentifier).toBe("invited@example.com");
       expect(logs[0].data.organizationName).toBe("Callback Test Org");
       expect(logs[0].data.role).toBe("admin");
       expect(logs[0].data.inviterName).toBe("User alice");
@@ -58,7 +59,8 @@ describe("makeTenantsAPI - invitations", () => {
 
       await asBob.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "someone@example.com",
+        inviteeIdentifier: "someone@example.com",
+        identifierType: "email",
         role: "member",
       });
 
@@ -88,7 +90,8 @@ describe("makeTenantsAPI - invitations", () => {
         api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
-          email: "resend@example.com",
+          inviteeIdentifier: "resend@example.com",
+          identifierType: "email",
           role: "member",
         }
       );
@@ -107,7 +110,7 @@ describe("makeTenantsAPI - invitations", () => {
       expect(createdLog).toBeDefined();
       expect(resentLog).toBeDefined();
 
-      expect(resentLog!.data.email).toBe("resend@example.com");
+      expect(resentLog!.data.inviteeIdentifier).toBe("resend@example.com");
       expect(resentLog!.data.organizationName).toBe("Resend Org");
       expect(resentLog!.data.role).toBe("member");
       expect(resentLog!.data.inviterName).toBe("User alice");
@@ -130,13 +133,15 @@ describe("makeTenantsAPI - invitations", () => {
 
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "user1@example.com",
+        inviteeIdentifier: "user1@example.com",
+        identifierType: "email",
         role: "member",
       });
 
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "user2@example.com",
+        inviteeIdentifier: "user2@example.com",
+        identifierType: "email",
         role: "admin",
       });
 
@@ -145,10 +150,10 @@ describe("makeTenantsAPI - invitations", () => {
       });
 
       expect(invitations).toHaveLength(2);
-      expect(invitations.map((i: any) => i.email)).toContain(
+      expect(invitations.map((i: any) => i.inviteeIdentifier)).toContain(
         "user1@example.com"
       );
-      expect(invitations.map((i: any) => i.email)).toContain(
+      expect(invitations.map((i: any) => i.inviteeIdentifier)).toContain(
         "user2@example.com"
       );
     });
@@ -168,14 +173,16 @@ describe("makeTenantsAPI - invitations", () => {
 
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "a@example.com",
+        inviteeIdentifier: "a@example.com",
+        identifierType: "email",
         role: "member",
       });
       expect(await asAlice.query(api.testHelpers.strictCountInvitations, { organizationId: orgId })).toBe(1);
 
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "b@example.com",
+        inviteeIdentifier: "b@example.com",
+        identifierType: "email",
         role: "admin",
       });
       expect(await asAlice.query(api.testHelpers.strictCountInvitations, { organizationId: orgId })).toBe(2);
@@ -197,7 +204,8 @@ describe("makeTenantsAPI - invitations", () => {
         api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
-          email: "invited@example.com",
+          inviteeIdentifier: "invited@example.com",
+          identifierType: "email",
           role: "member",
         }
       );
@@ -207,7 +215,7 @@ describe("makeTenantsAPI - invitations", () => {
       });
 
       expect(invitation).not.toBeNull();
-      expect(invitation?.email).toBe("invited@example.com");
+      expect(invitation?.inviteeIdentifier).toBe("invited@example.com");
       expect(invitation?.role).toBe("member");
       expect(invitation?.status).toBe("pending");
       expect(invitation?.organizationId).toBe(orgId);
@@ -237,17 +245,20 @@ describe("makeTenantsAPI - invitations", () => {
 
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "a@test.com",
+        inviteeIdentifier: "a@test.com",
+        identifierType: "email",
         role: "member",
       });
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "b@test.com",
+        inviteeIdentifier: "b@test.com",
+        identifierType: "email",
         role: "member",
       });
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "c@test.com",
+        inviteeIdentifier: "c@test.com",
+        identifierType: "email",
         role: "member",
       });
 
@@ -294,20 +305,22 @@ describe("makeTenantsAPI - invitations", () => {
 
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: org1Id,
-        email: "target@test.com",
+        inviteeIdentifier: "target@test.com",
+        identifierType: "email",
         role: "member",
       });
 
       await asBob.mutation(api.testHelpers.strictInviteMember, {
         organizationId: org2Id,
-        email: "target@test.com",
+        inviteeIdentifier: "target@test.com",
+        identifierType: "email",
         role: "admin",
       });
 
       // Must be authenticated to query pending invitations
       const pending = await asTarget.query(
         api.testHelpers.strictGetPendingInvitations,
-        { email: "target@test.com" }
+        { identifier: "target@test.com" }
       );
 
       expect(pending).toHaveLength(2);
@@ -315,7 +328,7 @@ describe("makeTenantsAPI - invitations", () => {
       // Unauthenticated callers are rejected
       await expect(
         t.query(api.testHelpers.strictGetPendingInvitations, {
-          email: "target@test.com",
+          identifier: "target@test.com",
         })
       ).rejects.toThrow("Not authenticated");
     });
@@ -338,15 +351,16 @@ describe("makeTenantsAPI - invitations", () => {
 
       await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "alice@test.com",
+        inviteeIdentifier: "alice@test.com",
+        identifierType: "email",
         role: "member",
       });
 
       await expect(
         asTarget.query(api.testHelpers.strictGetPendingInvitations, {
-          email: "alice@test.com",
+          identifier: "alice@test.com",
         })
-      ).rejects.toThrow("Cannot query invitations for another email");
+      ).rejects.toThrow("Cannot query invitations for another identifier");
     });
 
     test("acceptInvitation adds user as member with invited role", async () => {
@@ -369,7 +383,8 @@ describe("makeTenantsAPI - invitations", () => {
         api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
-          email: "bob@test.com",
+          inviteeIdentifier: "bob@test.com",
+          identifierType: "email",
           role: "admin",
         }
       );
@@ -403,7 +418,7 @@ describe("makeTenantsAPI - invitations", () => {
       ).rejects.toThrow("Not authenticated");
     });
 
-    test("acceptInvitation rejects when authenticated email does not match invitation email", async () => {
+    test("acceptInvitation rejects when authenticated identifier does not match invitation inviteeIdentifier", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({
         subject: "alice",
@@ -423,7 +438,8 @@ describe("makeTenantsAPI - invitations", () => {
         api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
-          email: "alice@test.com",
+          inviteeIdentifier: "alice@test.com",
+          identifierType: "email",
           role: "member",
         }
       );
@@ -432,7 +448,7 @@ describe("makeTenantsAPI - invitations", () => {
         asBob.mutation(api.testHelpers.strictAcceptInvitation, {
           invitationId,
         })
-      ).rejects.toThrow("Invitation email does not match authenticated user");
+      ).rejects.toThrow("Invitation identifier does not match authenticated user");
     });
 
     test("cancelInvitation sets status to cancelled", async () => {
@@ -451,7 +467,8 @@ describe("makeTenantsAPI - invitations", () => {
         api.testHelpers.strictInviteMember,
         {
           organizationId: orgId,
-          email: "cancel@example.com",
+          inviteeIdentifier: "cancel@example.com",
+          identifierType: "email",
           role: "member",
         }
       );
@@ -474,6 +491,55 @@ describe("makeTenantsAPI - invitations", () => {
           invitationId: "nonexistent",
         })
       ).rejects.toThrow("Not authenticated");
+    });
+
+    test("getInvitation returns organizationName for new users", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({
+        subject: "alice",
+        issuer: "https://test.com",
+      });
+      const asNewUser = t.withIdentity({
+        subject: "newuser",
+        issuer: "https://test.com",
+      });
+
+      const orgId = await asAlice.mutation(
+        api.testHelpers.strictCreateOrganization,
+        { name: "Test Organization with Name" }
+      );
+
+      const { invitationId } = await asAlice.mutation(
+        api.testHelpers.strictInviteMember,
+        {
+          organizationId: orgId,
+          inviteeIdentifier: "newuser@test.com",
+          identifierType: "email",
+          role: "member",
+        }
+      );
+
+      // New user (not yet a member) should be able to get invitation with org name
+      const invitation = await asNewUser.query(api.testHelpers.strictGetInvitation, {
+        invitationId,
+      });
+
+      expect(invitation).not.toBeNull();
+      expect(invitation?.organizationName).toBe("Test Organization with Name");
+      expect(invitation?.inviteeIdentifier).toBe("newuser@test.com");
+
+      // New user should be able to accept invitation
+      await asNewUser.mutation(api.testHelpers.strictAcceptInvitation, {
+        invitationId,
+      });
+
+      // Verify user is now a member
+      const member = await asAlice.query(api.testHelpers.strictGetMember, {
+        organizationId: orgId,
+        userId: "newuser",
+      });
+      expect(member).not.toBeNull();
+      expect(member?.role).toBe("member");
     });
   });
 });

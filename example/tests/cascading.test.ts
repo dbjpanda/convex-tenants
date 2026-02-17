@@ -97,7 +97,8 @@ describe("makeTenantsAPI - cascading operations", () => {
       // Invite bob with teamId
       const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
         organizationId: orgId,
-        email: "bob@test.com",
+        inviteeIdentifier: "bob@test.com",
+        identifierType: "email",
         role: "member",
         teamId,
       });
@@ -140,7 +141,8 @@ describe("makeTenantsAPI - cascading operations", () => {
       await expect(
         asAlice.mutation(api.testHelpers.strictInviteMember, {
           organizationId: orgAId,
-          email: "bob@test.com",
+          inviteeIdentifier: "bob@test.com",
+          identifierType: "email",
           role: "member",
           teamId: orgBTeamId,
         })

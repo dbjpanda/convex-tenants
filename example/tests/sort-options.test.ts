@@ -92,7 +92,7 @@ describe("makeTenantsAPI - sort options", () => {
     expect(desc.map((t) => t.name)).toEqual(["Zebra Team", "Alpha Team"]);
   });
 
-  test("listInvitations with sortBy email", async () => {
+  test("listInvitations with sortBy inviteeIdentifier", async () => {
     const t = initConvexTest();
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
 
@@ -102,21 +102,23 @@ describe("makeTenantsAPI - sort options", () => {
     });
     await asAlice.mutation(api.testHelpers.strictInviteMember, {
       organizationId: orgId,
-      email: "z@test.com",
+      inviteeIdentifier: "z@test.com",
+      identifierType: "email",
       role: "member",
     });
     await asAlice.mutation(api.testHelpers.strictInviteMember, {
       organizationId: orgId,
-      email: "a@test.com",
+      inviteeIdentifier: "a@test.com",
+      identifierType: "email",
       role: "member",
     });
 
     const asc = await asAlice.query(api.testHelpers.strictListInvitations, {
       organizationId: orgId,
-      sortBy: "email",
+      sortBy: "inviteeIdentifier",
       sortOrder: "asc",
     });
-    expect(asc.map((i) => i.email)).toEqual(["a@test.com", "z@test.com"]);
+    expect(asc.map((i) => i.inviteeIdentifier)).toEqual(["a@test.com", "z@test.com"]);
   });
 
   test("listTeamMembers with sortBy role", async () => {

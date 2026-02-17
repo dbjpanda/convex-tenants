@@ -243,60 +243,6 @@ export const addMember = mutation({
   },
 });
 
-export const joinByDomain = mutation({
-  args: {
-    organizationId: v.string(),
-    userId: v.string(),
-    userEmail: v.string(),
-    role: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const orgId = args.organizationId as Id<"organizations">;
-    const org = await ctx.db.get(orgId);
-    if (!org) throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
-    const status = (org as { status?: string }).status ?? "active";
-    if (status !== "active") {
-      throw new ConvexError({
-        code: "FORBIDDEN",
-        message: "Organization is not accepting new members by domain",
-      });
-    }
-    const allowedDomains = (org as { allowedDomains?: string[] }).allowedDomains;
-    if (!allowedDomains?.length) {
-      throw new ConvexError({
-        code: "FORBIDDEN",
-        message: "Organization does not allow domain-based join",
-      });
-    }
-    const domain = domainFromEmail(args.userEmail);
-    if (!domain || !allowedDomains.map((d) => d.trim().toLowerCase()).includes(domain)) {
-      throw new ConvexError({
-        code: "FORBIDDEN",
-        message: "Your email domain is not allowed to join this organization",
-      });
-    }
-    const existing = await ctx.db
-      .query("members")
-      .withIndex("by_organization_and_user", (q) =>
-        q.eq("organizationId", orgId).eq("userId", args.userId)
-      )
-      .unique();
-    if (existing) {
-      throw new ConvexError({ code: "ALREADY_EXISTS", message: "You are already a member of this organization" });
-    }
-    const joinedAt = Date.now();
-    await ctx.db.insert("members", {
-      organizationId: orgId,
-      userId: args.userId,
-      role: args.role ?? "member",
-      status: "active",
-      joinedAt,
-    });
-    return null;
-  },
-});
-
 export const removeMember = mutation({
   args: { userId: v.string(), organizationId: v.string(), memberUserId: v.string() },
   returns: v.null(),

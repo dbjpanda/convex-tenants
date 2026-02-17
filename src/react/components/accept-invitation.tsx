@@ -201,9 +201,9 @@ export function AcceptInvitation({
           <p className="mt-1 text-sm text-muted-foreground">
             Role: <span className="font-medium capitalize">{invitation.role}</span>
           </p>
-          {invitation.email && (
+          {invitation.inviteeIdentifier && (
             <p className="text-sm text-muted-foreground">
-              Invited as: <span className="font-medium">{invitation.email}</span>
+              Invited as: <span className="font-medium">{invitation.inviteeIdentifier}</span>
             </p>
           )}
         </div>

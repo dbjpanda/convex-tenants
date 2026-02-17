@@ -21,8 +21,6 @@ export default defineSchema({
         requireInvitationToJoin: v.optional(v.boolean()),
       })
     ),
-    /** Domains that can join without invitation (e.g. ["acme.com"]). Used for domain-based auto-join. */
-    allowedDomains: v.optional(v.array(v.string())),
     ownerId: v.string(), // References parent app's users table
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))), // default active
   })
@@ -69,7 +67,8 @@ export default defineSchema({
   // Invitations table
   invitations: defineTable({
     organizationId: v.id("organizations"),
-    email: v.string(),
+    inviteeIdentifier: v.string(), // Flexible: email, phone, username, etc.
+    identifierType: v.optional(v.string()), // Optional: "email", "phone", "username", etc.
     role: v.string(), // Flexible: developer defines roles in authz.ts
     teamId: v.union(v.null(), v.id("teams")),
     inviterId: v.string(), // References parent app's users table
@@ -84,7 +83,7 @@ export default defineSchema({
     expiresAt: v.number(),
   })
     .index("by_organization", ["organizationId"])
-    .index("by_email", ["email"])
+    .index("by_invitee_identifier", ["inviteeIdentifier"])
     .index("by_status", ["status"])
-    .index("by_email_and_status", ["email", "status"]),
+    .index("by_invitee_identifier_and_status", ["inviteeIdentifier", "status"]),
 });

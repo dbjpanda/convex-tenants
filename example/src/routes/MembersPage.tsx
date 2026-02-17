@@ -3,7 +3,6 @@ import {
   MembersSection,
   BulkInviteSection,
   MemberModerationSection,
-  JoinByDomainSection,
 } from "@djpanda/convex-tenants/react";
 import { EmptyState } from "../components/EmptyState";
 import { OrgInfoBar } from "../components/OrgInfoBar";
@@ -40,9 +39,6 @@ export function MembersPage() {
           <MemberModerationSection />
         </>
       )}
-
-      {/* Join by domain — listOrganizationsJoinableByDomain + joinByDomain */}
-      <JoinByDomainSection />
     </>
   );
 }

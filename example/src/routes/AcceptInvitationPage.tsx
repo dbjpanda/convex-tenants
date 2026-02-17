@@ -11,7 +11,7 @@ export function AcceptInvitationPage() {
 
   const {
     invitation,
-    organization,
+    organizationName,
     isLoading,
     isAccepting,
     accepted,
@@ -20,7 +20,6 @@ export function AcceptInvitationPage() {
   } = useInvitation({
     invitationId,
     getInvitationQuery: api.tenants.getInvitation as any,
-    getOrganizationQuery: api.tenants.getOrganization as any,
     acceptInvitationMutation: api.tenants.acceptInvitation as any,
   });
 
@@ -40,7 +39,7 @@ export function AcceptInvitationPage() {
   return (
     <AcceptInvitation
       invitation={invitation ?? null}
-      organizationName={organization?.name}
+      organizationName={organizationName}
       isLoading={isLoading}
       isAuthenticated={isAuthenticated}
       isAccepting={isAccepting}

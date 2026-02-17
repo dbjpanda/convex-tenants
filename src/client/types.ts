@@ -20,7 +20,6 @@ export interface Organization {
   logo: string | null;
   metadata?: Record<string, unknown>;
   settings?: OrganizationSettings;
-  allowedDomains?: string[];
   ownerId: string;
   status?: "active" | "suspended" | "archived";
 }
@@ -69,7 +68,8 @@ export interface Invitation {
   _id: string;
   _creationTime: number;
   organizationId: string;
-  email: string;
+  inviteeIdentifier: string;
+  identifierType?: string;
   role: InvitationRole;
   teamId: string | null;
   inviterId: string;
