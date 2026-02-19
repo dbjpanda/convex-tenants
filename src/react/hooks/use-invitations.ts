@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, usePaginatedQuery, useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import type { PaginatedQueryReference } from "convex/react";
@@ -20,7 +20,24 @@ export interface Invitation {
   isExpired: boolean;
 }
 
-export interface UseInvitationsOptions {
+/** Extended invitation with organization details (e.g. for accept-invitation page) */
+export interface InvitationWithOrg extends Invitation {
+  organizationName: string;
+}
+
+/** Organization shape for optional getOrganization query (accept-invitation flow) */
+export interface InvitationOrganization {
+  _id: string;
+  name: string;
+  slug: string;
+  logo: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// useOrganizationInvitations — list/manage invitations for an organization
+// ---------------------------------------------------------------------------
+
+export interface UseOrganizationInvitationsOptions {
   /**
    * The organization ID to list invitations for
    */
@@ -86,7 +103,7 @@ export interface UseInvitationsOptions {
   >;
 }
 
-export function useInvitations(options: UseInvitationsOptions) {
+export function useOrganizationInvitations(options: UseOrganizationInvitationsOptions) {
   const {
     organizationId,
     listInvitationsQuery,
@@ -180,5 +197,108 @@ export function useInvitations(options: UseInvitationsOptions) {
     inviteMember,
     resendInvitation,
     cancelInvitation,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useAcceptInvitation — load one invitation by ID and accept it (accept-invitation page)
+// ---------------------------------------------------------------------------
+
+export interface UseAcceptInvitationOptions {
+  /**
+   * The invitation ID to fetch
+   */
+  invitationId: string;
+
+  /**
+   * Query function reference to get invitation details
+   * Example: api.tenants.getInvitation
+   */
+  getInvitationQuery: FunctionReference<
+    "query",
+    "public",
+    { invitationId: string },
+    InvitationWithOrg | null
+  >;
+
+  /**
+   * Optional query function reference to get organization details
+   * Example: api.tenants.getOrganization
+   * @deprecated No longer needed as getInvitation now returns organizationName
+   */
+  getOrganizationQuery?: FunctionReference<
+    "query",
+    "public",
+    { organizationId: string },
+    InvitationOrganization | null
+  >;
+
+  /**
+   * Mutation function reference to accept an invitation
+   * Example: api.tenants.acceptInvitation
+   */
+  acceptInvitationMutation: FunctionReference<
+    "mutation",
+    "public",
+    { invitationId: string },
+    null
+  >;
+}
+
+export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
+  const {
+    invitationId,
+    getInvitationQuery,
+    getOrganizationQuery,
+    acceptInvitationMutation,
+  } = options;
+
+  const [error, setError] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
+  const acceptingRef = useRef(false);
+
+  const invitation = useQuery(getInvitationQuery, { invitationId });
+  const isLoading = invitation === undefined;
+
+  const organization = useQuery(
+    getOrganizationQuery ?? ("skip" as any),
+    invitation && getOrganizationQuery ? { organizationId: invitation.organizationId } : "skip"
+  );
+
+  const acceptMutation = useMutation(acceptInvitationMutation);
+
+  const acceptInvitation = useCallback(async () => {
+    if (acceptingRef.current || isAccepting) {
+      return;
+    }
+    try {
+      acceptingRef.current = true;
+      setIsAccepting(true);
+      setError(null);
+      await acceptMutation({ invitationId });
+      setAccepted(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to accept invitation");
+      acceptingRef.current = false;
+      setIsAccepting(false);
+    }
+  }, [invitationId, isAccepting, acceptMutation]);
+
+  const resetError = useCallback(() => {
+    setError(null);
+    acceptingRef.current = false;
+  }, []);
+
+  return {
+    invitation,
+    organization,
+    organizationName: invitation?.organizationName,
+    isLoading,
+    isAccepting,
+    accepted,
+    error,
+    acceptInvitation,
+    resetError,
   };
 }

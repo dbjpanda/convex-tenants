@@ -73,7 +73,7 @@ Base path: `node_modules/@djpanda/convex-tenants/docs/`. **Select the doc that m
 | **permission-map** | `docs/permission-map.md` | Permissions, permissionMap, who can do what, operation permissions, overriding permissions, guards, access control per operation |
 | **flexible-roles** | `docs/flexible-roles.md` | Roles, custom roles, owner/admin/member, creatorRole, defineRoles, structural owner, transferOwnership, add/remove roles |
 | **invitation-system** | `docs/invitation-system.md` | Invitations, inviteMember, acceptInvitation, validateInvitationCreate, validateInvitationAccept, identifier type, email/phone/username, domain whitelist, rate limiting invitations |
-| **react-components** | `docs/react-components.md` | TenantsProvider, OrganizationSwitcher, MembersSection, TeamsSection, InviteMemberDialog, useOrganization, useMembers, useTeams, useInvitations, MembersTable, TeamsGrid, AcceptInvitation, JoinByDomainSection, paginated hooks |
+| **react-components** | `docs/react-components.md` | TenantsProvider, OrganizationSwitcher, MembersSection, TeamsSection, InviteMemberDialog, useOrganization, useMembers, useTeams, useOrganizationInvitations, MembersTable, TeamsGrid, AcceptInvitation, JoinByDomainSection, paginated hooks |
 | **organization-store** | `docs/organization-store.md` | Active organization, switching orgs, useOrganizationStore, setActiveOrganizationId, localStorage, storageKey, configureOrganizationStore |
 
 ## Installation

@@ -131,7 +131,7 @@ export interface InviteMemberDialogProps {
  * import { InviteMemberDialog } from "@djpanda/convex-tenants/react";
  *
  * function MyApp() {
- *   const { inviteMember } = useInvitations(...);
+ *   const { inviteMember } = useOrganizationInvitations(...);
  *
  *   return (
  *     <InviteMemberDialog

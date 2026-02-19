@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useInvitation, AcceptInvitation } from "@djpanda/convex-tenants/react";
+import { useAcceptInvitation, AcceptInvitation } from "@djpanda/convex-tenants/react";
 
 export function AcceptInvitationPage() {
   const { invitationId } = useParams({ strict: false }) as { invitationId: string };
@@ -17,7 +17,7 @@ export function AcceptInvitationPage() {
     accepted,
     error,
     acceptInvitation,
-  } = useInvitation({
+  } = useAcceptInvitation({
     invitationId,
     getInvitationQuery: api.tenants.getInvitation as any,
     acceptInvitationMutation: api.tenants.acceptInvitation as any,

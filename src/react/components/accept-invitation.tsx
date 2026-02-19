@@ -86,7 +86,7 @@ export interface AcceptInvitationProps {
  * import { AcceptInvitation } from "@djpanda/convex-tenants/react";
  *
  * function AcceptInvitationPage() {
- *   const { invitation, organization, isLoading, isAccepting, accepted, error, acceptInvitation } = useInvitation(...);
+ *   const { invitation, organization, isLoading, isAccepting, accepted, error, acceptInvitation } = useAcceptInvitation(...);
  *
  *   return (
  *     <AcceptInvitation

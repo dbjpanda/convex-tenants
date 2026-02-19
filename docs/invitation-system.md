@@ -403,7 +403,7 @@ The React components automatically support flexible identifiers:
 import { InviteMemberDialog } from "@djpanda/convex-tenants/react";
 
 function MyComponent() {
-  const { inviteMember } = useInvitations(/* ... */);
+  const { inviteMember } = useOrganizationInvitations(/* ... */);
   
   return (
     <InviteMemberDialog

@@ -169,7 +169,7 @@ type UnifiedData = UnifiedMember | UnifiedInvitation;
  *
  * function MyApp() {
  *   const { members, removeMember, updateMemberRole } = useMembers(...);
- *   const { invitations, resendInvitation, cancelInvitation } = useInvitations(...);
+ *   const { invitations, resendInvitation, cancelInvitation } = useOrganizationInvitations(options);
  *
  *   return (
  *     <MembersTable

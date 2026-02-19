@@ -21,9 +21,9 @@ import {
   AcceptInvitation,
   useOrganization,
   useMembers,
-  useInvitations,
+  useOrganizationInvitations,
   useTeams,
-  useInvitation,
+  useAcceptInvitation,
   useOrganizationStore,
   configureOrganizationStore,
   cn,
@@ -35,11 +35,11 @@ For active-organization persistence and a custom storage key, see [Organization 
 
 ## Pagination
 
-For large lists, pass `pagination: { initialNumItems?: number }` to `useMembers`, `useTeams`, or `useInvitations`. The hook uses `usePaginatedQuery` and returns `status`, `loadMore`, and the same mutations.
+For large lists, pass `pagination: { initialNumItems?: number }` to `useMembers`, `useTeams`, or `useOrganizationInvitations`. The hook uses `usePaginatedQuery` and returns `status`, `loadMore`, and the same mutations.
 
 - **`useMembers({ ..., pagination: { initialNumItems: 20 } })`** — Returns `{ members, status, loadMore, isLoading, removeMember, updateMemberRole }`.
 - **`useTeams({ ..., pagination: { initialNumItems: 20 } })`** — Returns `{ teams, status, loadMore, isLoading, createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember }`.
-- **`useInvitations({ ..., pagination: { initialNumItems: 20 } })`** — Returns `{ invitations, status, loadMore, isLoading, inviteMember, resendInvitation, cancelInvitation }`.
+- **`useOrganizationInvitations({ ..., pagination: { initialNumItems: 20 } })`** — Returns `{ invitations, status, loadMore, isLoading, inviteMember, resendInvitation, cancelInvitation }`.
 
 Use `status === "CanLoadMore"` to show a “Load more” button and call `loadMore(n)` to fetch the next page. See [Convex pagination](https://docs.convex.dev/database/pagination).
 
@@ -148,12 +148,12 @@ The section renders nothing when the user has no email, when there are no joinab
 
 ## AcceptInvitation
 
-Page component for accepting an invitation. Use with `useInvitation`:
+Page component for accepting an invitation. Use with `useAcceptInvitation`:
 
 ```tsx
 function AcceptInvitationPage({ invitationId }) {
   const { invitation, organization, isLoading, isAccepting, accepted, error, acceptInvitation } =
-    useInvitation({
+    useAcceptInvitation({
       invitationId,
       getInvitationQuery: api.tenants.getInvitation,
       getOrganizationQuery: api.tenants.getOrganization,
