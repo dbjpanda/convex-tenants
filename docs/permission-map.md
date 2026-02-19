@@ -12,12 +12,15 @@ Every guarded mutation checks a permission string via `@djpanda/convex-authz` be
 | `updateMemberRole` | `members:updateRole` |
 | `suspendMember` | `members:suspend` |
 | `unsuspendMember` | `members:unsuspend` |
+| `listMembers` | `members:list` |
 | `createTeam` | `teams:create` |
 | `updateTeam` | `teams:update` |
 | `deleteTeam` | `teams:delete` |
 | `addTeamMember` | `teams:addMember` |
 | `updateTeamMemberRole` | `teams:updateMemberRole` |
 | `removeTeamMember` | `teams:removeMember` |
+| `listTeams` | `teams:list` (list teams only; no member details) |
+| `listTeamMembers` | `teams:listMembers` (list members of a team) |
 | `inviteMember` | `invitations:create` |
 | `bulkInviteMembers` | `invitations:create` |
 | `bulkAddMembers` | `members:add` |
@@ -51,3 +54,5 @@ makeTenantsAPI(components.tenants, {
 ```
 
 The `TENANTS_PERMISSIONS` and `TENANTS_ROLES` exports provide a set of permissions and roles that cover all default operations. You can import and extend them in your `authz.ts`, or define your own from scratch.
+
+**Default member role:** The `member` role has `teams:list` (can list teams) but not `teams:listMembers` (cannot list who is in each team). Owner and admin have both.

@@ -85,12 +85,15 @@ export const DEFAULT_TENANTS_PERMISSION_MAP = {
   updateMemberRole: "members:updateRole",
   suspendMember: "members:suspend",
   unsuspendMember: "members:unsuspend",
+  listMembers: "members:list",
   createTeam: "teams:create",
   updateTeam: "teams:update",
   deleteTeam: "teams:delete",
   addTeamMember: "teams:addMember",
   updateTeamMemberRole: "teams:updateMemberRole",
   removeTeamMember: "teams:removeMember",
+  listTeams: "teams:list",
+  listTeamMembers: "teams:listMembers",
   inviteMember: "invitations:create",
   bulkInviteMembers: "invitations:create",
   bulkAddMembers: "members:add",
@@ -152,7 +155,8 @@ export const TENANTS_PERMISSIONS = definePermissions({
     addMember: true,
     updateMemberRole: true,
     removeMember: true,
-    list: true,
+    list: true, // list teams (names/metadata only)
+    listMembers: true, // list members of a team
   },
   invitations: {
     create: true,
@@ -199,6 +203,7 @@ export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
       "updateMemberRole",
       "removeMember",
       "list",
+      "listMembers",
     ],
     invitations: ["create", "cancel", "resend", "list"],
     permissions: ["grant", "deny"],
@@ -214,14 +219,15 @@ export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
       "updateMemberRole",
       "removeMember",
       "list",
+      "listMembers",
     ],
     invitations: ["create", "cancel", "resend", "list"],
     permissions: ["grant", "deny"],
   },
   member: {
     organizations: ["read"],
-    members: ["list"],
-    teams: ["list"],
+    members: [], // can't list org members (see other members in the organization)
+    teams: [], // can't list teams; listMembers not granted — cannot list team members
     invitations: ["list"],
   },
 });

@@ -270,4 +270,35 @@ describe("makeTenantsAPI - teams", () => {
       expect(first.page[0].userId === "alice" || first.page[0].userId === "bob").toBe(true);
     });
   });
+
+  describe("list teams vs list team members by role", () => {
+    test("member can list teams (teams:list) but cannot list team members (teams:listMembers denied)", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Role Permission Org",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+      const teamId = await asAlice.mutation(api.testHelpers.strictCreateTeam, {
+        organizationId: orgId,
+        name: "Engineering",
+      });
+
+      // Bob (member role) has teams:list → can list teams
+      const teams = await asBob.query(api.testHelpers.strictListTeams, { organizationId: orgId });
+      expect(teams).toHaveLength(1);
+      expect((teams as any)[0].name).toBe("Engineering");
+
+      // Bob (member role) does not have teams:listMembers → permission denied
+      await expect(
+        asBob.query(api.testHelpers.strictListTeamMembers, { teamId })
+      ).rejects.toThrow(/Permission denied.*teams:listMembers/);
+    });
+  });
 });

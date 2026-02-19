@@ -61,6 +61,16 @@ export class Tenants {
     await this.authz.require(ctx, userId, permission, scope);
   }
 
+  /** Require a permission for an operation (for use by API layer, e.g. listTeamMembers). */
+  async requireOperation(
+    ctx: QueryCtx,
+    userId: string,
+    operation: keyof TenantsPermissionMap,
+    scope: { type: string; id: string }
+  ): Promise<void> {
+    await this.authzRequireOperation(ctx, userId, operation, scope);
+  }
+
   private async resolvePermissionScope(
     ctx: QueryCtx,
     organizationId: string,

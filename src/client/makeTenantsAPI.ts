@@ -9,7 +9,7 @@ import type { AuthzClient } from "./authz.js";
 import type { TenantsPermissionMap } from "./authz.js";
 import { Tenants } from "./tenants-class.js";
 import type { Member, OrgRole, InvitationRole, QueryCtx, TeamMember } from "./types.js";
-import { normalizeEmail } from "./helpers.js";
+import { normalizeEmail, orgScope } from "./helpers.js";
 
 /**
  * Create an API for tenants that can be re-exported from your app.
@@ -498,6 +498,7 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
+        await tenants.requireOperation(ctx, userId, "listMembers", orgScope(args.organizationId));
 
         const result = await tenants.listMembers(ctx, args.organizationId, {
           status: args.status,
@@ -775,6 +776,7 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
+        await tenants.requireOperation(ctx, userId, "listTeams", orgScope(args.organizationId));
         return await tenants.listTeams(ctx, args.organizationId, {
           parentTeamId: args.parentTeamId,
           sortBy: args.sortBy,
@@ -789,6 +791,7 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
+        await tenants.requireOperation(ctx, userId, "listTeams", orgScope(args.organizationId));
         return await tenants.listTeamsAsTree(ctx, args.organizationId);
       },
     }),
@@ -824,9 +827,13 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) {
-          await requireMembership(ctx, userId, team.organizationId);
+        if (!team) {
+          return args.paginationOpts
+            ? { page: [], isDone: true, continueCursor: "" }
+            : [];
         }
+        await requireMembership(ctx, userId, team.organizationId);
+        await tenants.requireOperation(ctx, userId, "listTeamMembers", orgScope(team.organizationId));
 
         const result = await tenants.listTeamMembers(ctx, args.teamId, {
           sortBy: args.sortBy,
