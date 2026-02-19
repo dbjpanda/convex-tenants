@@ -8,26 +8,61 @@ import type { Id } from "./_generated/dataModel";
 // Queries
 // ============================================================================
 
+const memberShape = v.object({
+  _id: v.string(),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  userId: v.string(),
+  role: v.string(),
+  status: v.optional(v.union(v.literal("active"), v.literal("suspended"))),
+  suspendedAt: v.optional(v.number()),
+  joinedAt: v.optional(v.number()),
+});
+
 export const listOrganizationMembers = query({
   args: {
     organizationId: v.string(),
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
     sortBy: v.optional(v.union(v.literal("role"), v.literal("joinedAt"), v.literal("createdAt"), v.literal("userId"))),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+    paginationOpts: v.optional(paginationOptsValidator),
   },
-  returns: v.array(
+  returns: v.union(
+    v.array(memberShape),
     v.object({
-      _id: v.string(),
-      _creationTime: v.number(),
-      organizationId: v.string(),
-      userId: v.string(),
-      role: v.string(),
-      status: v.optional(v.union(v.literal("active"), v.literal("suspended"))),
-      suspendedAt: v.optional(v.number()),
-      joinedAt: v.optional(v.number()),
+      page: v.array(memberShape),
+      isDone: v.boolean(),
+      continueCursor: v.string(),
     })
   ),
   handler: async (ctx, args) => {
+    if (args.paginationOpts) {
+      const result = await ctx.db
+        .query("members")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", args.organizationId as Id<"organizations">)
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+      const statusFilter = args.status ?? "active";
+      const filteredPage =
+        statusFilter === "all"
+          ? result.page
+          : result.page.filter((m) => (m.status ?? "active") === statusFilter);
+      return {
+        ...result,
+        page: filteredPage.map((member) => ({
+          _id: member._id as string,
+          _creationTime: member._creationTime,
+          organizationId: member.organizationId as string,
+          userId: member.userId,
+          role: member.role,
+          status: member.status,
+          suspendedAt: member.suspendedAt,
+          joinedAt: member.joinedAt,
+        })),
+      };
+    }
     const members = await ctx.db
       .query("members")
       .withIndex("by_organization", (q) =>
@@ -63,41 +98,6 @@ export const listOrganizationMembers = query({
       suspendedAt: member.suspendedAt,
       joinedAt: member.joinedAt,
     }));
-  },
-});
-
-export const listOrganizationMembersPaginated = query({
-  args: {
-    organizationId: v.string(),
-    paginationOpts: paginationOptsValidator,
-    status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
-  },
-  handler: async (ctx, args) => {
-    const result = await ctx.db
-      .query("members")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId as Id<"organizations">)
-      )
-      .order("desc")
-      .paginate(args.paginationOpts);
-    const statusFilter = args.status ?? "active";
-    const filteredPage =
-      statusFilter === "all"
-        ? result.page
-        : result.page.filter((m) => (m.status ?? "active") === statusFilter);
-    return {
-      ...result,
-      page: filteredPage.map((member) => ({
-        _id: member._id as string,
-        _creationTime: member._creationTime,
-        organizationId: member.organizationId as string,
-        userId: member.userId,
-        role: member.role,
-        status: member.status,
-        suspendedAt: member.suspendedAt,
-        joinedAt: member.joinedAt,
-      })),
-    };
   },
 });
 

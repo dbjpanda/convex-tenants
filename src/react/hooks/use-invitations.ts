@@ -1,6 +1,7 @@
 import { useCallback } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, usePaginatedQuery, useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
+import type { PaginatedQueryReference } from "convex/react";
 
 // Type for invitation from the component
 export interface Invitation {
@@ -13,6 +14,7 @@ export interface Invitation {
   role: string;
   teamId: string | null;
   inviterId: string;
+  message?: string;
   status: "pending" | "accepted" | "cancelled" | "expired";
   expiresAt: number;
   isExpired: boolean;
@@ -23,18 +25,26 @@ export interface UseInvitationsOptions {
    * The organization ID to list invitations for
    */
   organizationId: string | undefined;
-  
+
   /**
-   * Query function reference to list organization invitations
+   * Query function reference to list organization invitations.
    * Example: api.tenants.listInvitations
+   * Pass `pagination: { initialNumItems }` to use cursor-based pagination.
    */
   listInvitationsQuery: FunctionReference<
     "query",
     "public",
-    { organizationId: string },
-    Invitation[]
+    { organizationId: string; paginationOpts?: { numItems: number; cursor: string | null } },
+    | Invitation[]
+    | { page: Invitation[]; isDone: boolean; continueCursor: string }
   >;
-  
+
+  /**
+   * When set, uses usePaginatedQuery and returns status, loadMore.
+   * Omit for a single useQuery that returns all invitations.
+   */
+  pagination?: { initialNumItems?: number };
+
   /**
    * Mutation function reference to invite a member
    * Example: api.tenants.inviteMember
@@ -42,10 +52,17 @@ export interface UseInvitationsOptions {
   inviteMemberMutation: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; inviteeIdentifier: string; identifierType?: string; role: string; teamId?: string },
-    { invitationId: string; inviteeIdentifier: string; expiresAt: number }
+    {
+      organizationId: string;
+      inviteeIdentifier: string;
+      identifierType?: string;
+      role: string;
+      teamId?: string;
+      message?: string;
+    },
+    { invitationId: string; inviteeIdentifier: string; expiresAt: number } | null
   >;
-  
+
   /**
    * Mutation function reference to resend an invitation
    * Example: api.tenants.resendInvitation
@@ -54,9 +71,9 @@ export interface UseInvitationsOptions {
     "mutation",
     "public",
     { invitationId: string },
-    { invitationId: string; email: string }
+    null
   >;
-  
+
   /**
    * Mutation function reference to cancel an invitation
    * Example: api.tenants.cancelInvitation
@@ -73,18 +90,12 @@ export function useInvitations(options: UseInvitationsOptions) {
   const {
     organizationId,
     listInvitationsQuery,
+    pagination,
     inviteMemberMutation,
     resendInvitationMutation,
     cancelInvitationMutation,
   } = options;
 
-  // Get invitations for the organization
-  const invitations = useQuery(
-    listInvitationsQuery,
-    organizationId ? { organizationId } : "skip"
-  );
-  
-  // Mutations
   const inviteMemberMut = useMutation(inviteMemberMutation);
   const resendInvitationMut = useMutation(resendInvitationMutation);
   const cancelInvitationMut = useMutation(cancelInvitationMutation);
@@ -95,6 +106,7 @@ export function useInvitations(options: UseInvitationsOptions) {
       identifierType?: string;
       role: string;
       teamId?: string;
+      message?: string;
     }) => {
       if (!organizationId) {
         throw new Error("No organization selected");
@@ -106,6 +118,7 @@ export function useInvitations(options: UseInvitationsOptions) {
           identifierType: data.identifierType,
           role: data.role,
           teamId: data.teamId,
+          message: data.message,
         });
         return result;
       } catch (error) {
@@ -140,11 +153,32 @@ export function useInvitations(options: UseInvitationsOptions) {
     [cancelInvitationMut]
   );
 
+  if (pagination !== undefined) {
+    const { results, status, loadMore, isLoading } = usePaginatedQuery(
+      listInvitationsQuery as PaginatedQueryReference,
+      organizationId ? { organizationId } : "skip",
+      { initialNumItems: pagination.initialNumItems ?? 20 }
+    );
+    return {
+      invitations: results ?? [],
+      status,
+      loadMore,
+      isLoading,
+      inviteMember,
+      resendInvitation,
+      cancelInvitation,
+    };
+  }
+
+  const invitations = useQuery(
+    listInvitationsQuery,
+    organizationId ? { organizationId } : "skip"
+  );
   return {
-    invitations: invitations ?? [],
+    invitations: (Array.isArray(invitations) ? invitations : []) as Invitation[],
     isLoading: invitations === undefined,
     inviteMember,
-    cancelInvitation,
     resendInvitation,
+    cancelInvitation,
   };
 }

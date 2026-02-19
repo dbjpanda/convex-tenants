@@ -143,32 +143,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           organizationId: string;
-          sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt";
-          sortOrder?: "asc" | "desc";
-        },
-        Array<{
-          _creationTime: number;
-          _id: string;
-          expiresAt: number;
-          identifierType?: string;
-          inviteeIdentifier: string;
-          inviterId: string;
-          inviterName?: string;
-          isExpired: boolean;
-          message?: string;
-          organizationId: string;
-          role: string;
-          status: "pending" | "accepted" | "cancelled" | "expired";
-          teamId: null | string;
-        }>,
-        Name
-      >;
-      listInvitationsPaginated: FunctionReference<
-        "query",
-        "internal",
-        {
-          organizationId: string;
-          paginationOpts: {
+          paginationOpts?: {
             cursor: string | null;
             endCursor?: string | null;
             id?: number;
@@ -176,8 +151,43 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             maximumRowsRead?: number;
             numItems: number;
           };
+          sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt";
+          sortOrder?: "asc" | "desc";
         },
-        any,
+        | Array<{
+            _creationTime: number;
+            _id: string;
+            expiresAt: number;
+            identifierType?: string;
+            inviteeIdentifier: string;
+            inviterId: string;
+            inviterName?: string;
+            isExpired: boolean;
+            message?: string;
+            organizationId: string;
+            role: string;
+            status: "pending" | "accepted" | "cancelled" | "expired";
+            teamId: null | string;
+          }>
+        | {
+            continueCursor: string;
+            isDone: boolean;
+            page: Array<{
+              _creationTime: number;
+              _id: string;
+              expiresAt: number;
+              identifierType?: string;
+              inviteeIdentifier: string;
+              inviterId: string;
+              inviterName?: string;
+              isExpired: boolean;
+              message?: string;
+              organizationId: string;
+              role: string;
+              status: "pending" | "accepted" | "cancelled" | "expired";
+              teamId: null | string;
+            }>;
+          },
         Name
       >;
       resendInvitation: FunctionReference<
@@ -278,28 +288,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           organizationId: string;
-          sortBy?: "role" | "joinedAt" | "createdAt" | "userId";
-          sortOrder?: "asc" | "desc";
-          status?: "active" | "suspended" | "all";
-        },
-        Array<{
-          _creationTime: number;
-          _id: string;
-          joinedAt?: number;
-          organizationId: string;
-          role: string;
-          status?: "active" | "suspended";
-          suspendedAt?: number;
-          userId: string;
-        }>,
-        Name
-      >;
-      listOrganizationMembersPaginated: FunctionReference<
-        "query",
-        "internal",
-        {
-          organizationId: string;
-          paginationOpts: {
+          paginationOpts?: {
             cursor: string | null;
             endCursor?: string | null;
             id?: number;
@@ -307,9 +296,34 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             maximumRowsRead?: number;
             numItems: number;
           };
+          sortBy?: "role" | "joinedAt" | "createdAt" | "userId";
+          sortOrder?: "asc" | "desc";
           status?: "active" | "suspended" | "all";
         },
-        any,
+        | Array<{
+            _creationTime: number;
+            _id: string;
+            joinedAt?: number;
+            organizationId: string;
+            role: string;
+            status?: "active" | "suspended";
+            suspendedAt?: number;
+            userId: string;
+          }>
+        | {
+            continueCursor: string;
+            isDone: boolean;
+            page: Array<{
+              _creationTime: number;
+              _id: string;
+              joinedAt?: number;
+              organizationId: string;
+              role: string;
+              status?: "active" | "suspended";
+              suspendedAt?: number;
+              userId: string;
+            }>;
+          },
         Name
       >;
       removeMember: FunctionReference<
@@ -533,24 +547,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "query",
         "internal",
         {
-          sortBy?: "userId" | "role" | "createdAt";
-          sortOrder?: "asc" | "desc";
-          teamId: string;
-        },
-        Array<{
-          _creationTime: number;
-          _id: string;
-          role?: string;
-          teamId: string;
-          userId: string;
-        }>,
-        Name
-      >;
-      listTeamMembersPaginated: FunctionReference<
-        "query",
-        "internal",
-        {
-          paginationOpts: {
+          paginationOpts?: {
             cursor: string | null;
             endCursor?: string | null;
             id?: number;
@@ -558,9 +555,28 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             maximumRowsRead?: number;
             numItems: number;
           };
+          sortBy?: "userId" | "role" | "createdAt";
+          sortOrder?: "asc" | "desc";
           teamId: string;
         },
-        any,
+        | Array<{
+            _creationTime: number;
+            _id: string;
+            role?: string;
+            teamId: string;
+            userId: string;
+          }>
+        | {
+            continueCursor: string;
+            isDone: boolean;
+            page: Array<{
+              _creationTime: number;
+              _id: string;
+              role?: string;
+              teamId: string;
+              userId: string;
+            }>;
+          },
         Name
       >;
       listTeams: FunctionReference<
@@ -568,20 +584,42 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           organizationId: string;
+          paginationOpts?: {
+            cursor: string | null;
+            endCursor?: string | null;
+            id?: number;
+            maximumBytesRead?: number;
+            maximumRowsRead?: number;
+            numItems: number;
+          };
           parentTeamId?: null | string;
           sortBy?: "name" | "createdAt" | "slug";
           sortOrder?: "asc" | "desc";
         },
-        Array<{
-          _creationTime: number;
-          _id: string;
-          description: null | string;
-          metadata?: any;
-          name: string;
-          organizationId: string;
-          parentTeamId?: string;
-          slug?: string;
-        }>,
+        | Array<{
+            _creationTime: number;
+            _id: string;
+            description: null | string;
+            metadata?: any;
+            name: string;
+            organizationId: string;
+            parentTeamId?: string;
+            slug?: string;
+          }>
+        | {
+            continueCursor: string;
+            isDone: boolean;
+            page: Array<{
+              _creationTime: number;
+              _id: string;
+              description: null | string;
+              metadata?: any;
+              name: string;
+              organizationId: string;
+              parentTeamId?: string;
+              slug?: string;
+            }>;
+          },
         Name
       >;
       listTeamsAsTree: FunctionReference<
@@ -601,23 +639,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             slug?: string;
           };
         }>,
-        Name
-      >;
-      listTeamsPaginated: FunctionReference<
-        "query",
-        "internal",
-        {
-          organizationId: string;
-          paginationOpts: {
-            cursor: string | null;
-            endCursor?: string | null;
-            id?: number;
-            maximumBytesRead?: number;
-            maximumRowsRead?: number;
-            numItems: number;
-          };
-        },
-        any,
         Name
       >;
       removeTeamMember: FunctionReference<

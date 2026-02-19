@@ -1,6 +1,7 @@
 import { useCallback } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, usePaginatedQuery, useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
+import type { PaginatedQueryReference } from "convex/react";
 
 // Type for member from the component
 export interface Member {
@@ -14,7 +15,7 @@ export interface Member {
     name?: string;
     email?: string;
     image?: string;
-  };
+  } | null;
   // Teams the member belongs to (optional, if enriched)
   teams?: Array<{
     _id: string;
@@ -27,18 +28,26 @@ export interface UseMembersOptions {
    * The organization ID to list members for
    */
   organizationId: string | undefined;
-  
+
   /**
-   * Query function reference to list organization members
+   * Query function reference to list organization members.
    * Example: api.tenants.listMembers
+   * Pass `pagination: { initialNumItems }` to use cursor-based pagination.
    */
   listMembersQuery: FunctionReference<
     "query",
     "public",
-    { organizationId: string },
-    Member[]
+    { organizationId: string; paginationOpts?: { numItems: number; cursor: string | null } },
+    | Member[]
+    | { page: Member[]; isDone: boolean; continueCursor: string }
   >;
-  
+
+  /**
+   * When set, uses usePaginatedQuery and returns status, loadMore.
+   * Omit for a single useQuery that returns all members.
+   */
+  pagination?: { initialNumItems?: number };
+
   /**
    * Mutation function reference to remove a member
    * Example: api.tenants.removeMember
@@ -49,7 +58,7 @@ export interface UseMembersOptions {
     { organizationId: string; memberUserId: string },
     null
   >;
-  
+
   /**
    * Mutation function reference to update member role
    * Example: api.tenants.updateMemberRole
@@ -66,17 +75,11 @@ export function useMembers(options: UseMembersOptions) {
   const {
     organizationId,
     listMembersQuery,
+    pagination,
     removeMemberMutation,
     updateMemberRoleMutation,
   } = options;
 
-  // Get members with user data
-  const members = useQuery(
-    listMembersQuery,
-    organizationId ? { organizationId } : "skip"
-  );
-  
-  // Mutations
   const removeMemberMut = useMutation(removeMemberMutation);
   const updateMemberRoleMut = useMutation(updateMemberRoleMutation);
 
@@ -110,8 +113,28 @@ export function useMembers(options: UseMembersOptions) {
     [organizationId, updateMemberRoleMut]
   );
 
+  if (pagination !== undefined) {
+    const { results, status, loadMore, isLoading } = usePaginatedQuery(
+      listMembersQuery as PaginatedQueryReference,
+      organizationId ? { organizationId } : "skip",
+      { initialNumItems: pagination.initialNumItems ?? 20 }
+    );
+    return {
+      members: results ?? [],
+      status,
+      loadMore,
+      isLoading,
+      removeMember,
+      updateMemberRole,
+    };
+  }
+
+  const members = useQuery(
+    listMembersQuery,
+    organizationId ? { organizationId } : "skip"
+  );
   return {
-    members: members ?? [],
+    members: (Array.isArray(members) ? members : []) as Member[],
     isLoading: members === undefined,
     removeMember,
     updateMemberRole,

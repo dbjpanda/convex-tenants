@@ -182,13 +182,16 @@ export class Tenants {
     organizationId: string
   ): Promise<void> {
     await this.authzRequireOperation(ctx, userId, "deleteOrganization", orgScope(organizationId));
-    const members = await this.listMembers(ctx, organizationId);
-    const teams = await this.listTeams(ctx, organizationId);
+    const membersResult = await this.listMembers(ctx, organizationId);
+    const members = Array.isArray(membersResult) ? membersResult : membersResult.page;
+    const teamsResult = await this.listTeams(ctx, organizationId);
+    const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
     for (const member of members) {
       await this.authz.revokeRole(ctx, member.userId, member.role, orgScope(organizationId));
     }
     for (const team of teams) {
-      const tms = await this.listTeamMembers(ctx, team._id);
+      const tmsResult = await this.listTeamMembers(ctx, team._id);
+      const tms = Array.isArray(tmsResult) ? tmsResult : tmsResult.page;
       for (const tm of tms) {
         await ctx.runMutation(this.authz.component.rebac.removeRelation, {
           subjectType: "user",
@@ -209,13 +212,15 @@ export class Tenants {
       status?: "active" | "suspended" | "all";
       sortBy?: "role" | "joinedAt" | "createdAt" | "userId";
       sortOrder?: "asc" | "desc";
+      paginationOpts?: { numItems: number; cursor: string | null };
     }
-  ): Promise<Member[]> {
+  ): Promise<Member[] | { page: Member[]; isDone: boolean; continueCursor: string }> {
     return await ctx.runQuery(this.component.members.listOrganizationMembers, {
       organizationId,
       status: options?.status,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
+      paginationOpts: options?.paginationOpts,
     });
   }
 
@@ -226,19 +231,6 @@ export class Tenants {
   ): Promise<number> {
     return await ctx.runQuery(this.component.members.countOrganizationMembers, {
       organizationId,
-      status: options?.status,
-    });
-  }
-
-  async listMembersPaginated(
-    ctx: QueryCtx,
-    organizationId: string,
-    paginationOpts: { numItems: number; cursor: string | null },
-    options?: { status?: "active" | "suspended" | "all" }
-  ): Promise<{ page: Member[]; isDone: boolean; continueCursor: string }> {
-    return await ctx.runQuery(this.component.members.listOrganizationMembersPaginated, {
-      organizationId,
-      paginationOpts,
       status: options?.status,
     });
   }
@@ -290,7 +282,8 @@ export class Tenants {
     await this.authzRequireOperation(ctx, userId, "removeMember", orgScope(organizationId));
     const member = await this.getMember(ctx, organizationId, memberUserId);
     if (member) {
-      const teams = await this.listTeams(ctx, organizationId);
+      const teamsResult = await this.listTeams(ctx, organizationId);
+      const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
       for (const team of teams) {
         const isMember = await this.isTeamMember(ctx, team._id, memberUserId);
         if (isMember) {
@@ -343,7 +336,8 @@ export class Tenants {
   ): Promise<{ success: string[]; errors: Array<{ userId: string; code: string; message: string }> }> {
     await this.authzRequireOperation(ctx, userId, "bulkRemoveMembers", orgScope(organizationId));
     const rolesByUser: Record<string, string> = {};
-    const teams = await this.listTeams(ctx, organizationId);
+    const teamsResult = await this.listTeams(ctx, organizationId);
+    const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
     for (const memberUserId of memberUserIds) {
       const member = await this.getMember(ctx, organizationId, memberUserId);
       if (member) rolesByUser[memberUserId] = member.role;
@@ -433,13 +427,15 @@ export class Tenants {
     if (!member) throw new Error("Not a member of this organization");
     const creatorRole = this.options.creatorRole ?? "owner";
     if (member.role === creatorRole) {
-      const members = await this.listMembers(ctx, organizationId, { status: "active" });
-      const ownerCount = members.filter((m) => m.role === creatorRole).length;
+      const membersResult = await this.listMembers(ctx, organizationId, { status: "active" });
+      const members = Array.isArray(membersResult) ? membersResult : membersResult.page;
+      const ownerCount = members.filter((m: Member) => m.role === creatorRole).length;
       if (ownerCount <= 1) {
         throw new Error("Cannot leave: you are the last owner. Transfer ownership first.");
       }
     }
-    const teams = await this.listTeams(ctx, organizationId);
+    const teamsResult = await this.listTeams(ctx, organizationId);
+    const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
     for (const team of teams) {
       const isMember = await this.isTeamMember(ctx, team._id, userId);
       if (isMember) {
@@ -463,13 +459,15 @@ export class Tenants {
       parentTeamId?: string | null;
       sortBy?: "name" | "createdAt" | "slug";
       sortOrder?: "asc" | "desc";
+      paginationOpts?: { numItems: number; cursor: string | null };
     }
-  ): Promise<Team[]> {
+  ): Promise<Team[] | { page: Team[]; isDone: boolean; continueCursor: string }> {
     return await ctx.runQuery(this.component.teams.listTeams, {
       organizationId,
       parentTeamId: options?.parentTeamId,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
+      paginationOpts: options?.paginationOpts,
     });
   }
 
@@ -482,17 +480,6 @@ export class Tenants {
 
   async countTeams(ctx: QueryCtx, organizationId: string): Promise<number> {
     return await ctx.runQuery(this.component.teams.countTeams, { organizationId });
-  }
-
-  async listTeamsPaginated(
-    ctx: QueryCtx,
-    organizationId: string,
-    paginationOpts: { numItems: number; cursor: string | null }
-  ): Promise<{ page: Team[]; isDone: boolean; continueCursor: string }> {
-    return await ctx.runQuery(this.component.teams.listTeamsPaginated, {
-      organizationId,
-      paginationOpts,
-    });
   }
 
   async getTeam(ctx: QueryCtx, teamId: string): Promise<Team | null> {
@@ -541,7 +528,8 @@ export class Tenants {
     const team = await this.getTeam(ctx, teamId);
     if (!team) throw new Error("Team not found");
     await this.authzRequireOperation(ctx, userId, "deleteTeam", orgScope(team.organizationId));
-    const tms = await this.listTeamMembers(ctx, teamId);
+    const tmsResult = await this.listTeamMembers(ctx, teamId);
+    const tms = Array.isArray(tmsResult) ? tmsResult : tmsResult.page;
     for (const tm of tms) {
       await ctx.runMutation(this.authz.component.rebac.removeRelation, {
         subjectType: "user",
@@ -557,23 +545,17 @@ export class Tenants {
   async listTeamMembers(
     ctx: QueryCtx,
     teamId: string,
-    options?: { sortBy?: "userId" | "role" | "createdAt"; sortOrder?: "asc" | "desc" }
-  ): Promise<TeamMember[]> {
+    options?: {
+      sortBy?: "userId" | "role" | "createdAt";
+      sortOrder?: "asc" | "desc";
+      paginationOpts?: { numItems: number; cursor: string | null };
+    }
+  ): Promise<TeamMember[] | { page: TeamMember[]; isDone: boolean; continueCursor: string }> {
     return await ctx.runQuery(this.component.teams.listTeamMembers, {
       teamId,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
-    });
-  }
-
-  async listTeamMembersPaginated(
-    ctx: QueryCtx,
-    teamId: string,
-    paginationOpts: { numItems: number; cursor: string | null }
-  ): Promise<{ page: TeamMember[]; isDone: boolean; continueCursor: string }> {
-    return await ctx.runQuery(this.component.teams.listTeamMembersPaginated, {
-      teamId,
-      paginationOpts,
+      paginationOpts: options?.paginationOpts,
     });
   }
 
@@ -749,28 +731,22 @@ export class Tenants {
   async listInvitations(
     ctx: QueryCtx,
     organizationId: string,
-    options?: { sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt"; sortOrder?: "asc" | "desc" }
-  ): Promise<Invitation[]> {
+    options?: {
+      sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt";
+      sortOrder?: "asc" | "desc";
+      paginationOpts?: { numItems: number; cursor: string | null };
+    }
+  ): Promise<Invitation[] | { page: Invitation[]; isDone: boolean; continueCursor: string }> {
     return await ctx.runQuery(this.component.invitations.listInvitations, {
       organizationId,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
+      paginationOpts: options?.paginationOpts,
     });
   }
 
   async countInvitations(ctx: QueryCtx, organizationId: string): Promise<number> {
     return await ctx.runQuery(this.component.invitations.countInvitations, { organizationId });
-  }
-
-  async listInvitationsPaginated(
-    ctx: QueryCtx,
-    organizationId: string,
-    paginationOpts: { numItems: number; cursor: string | null }
-  ): Promise<{ page: Invitation[]; isDone: boolean; continueCursor: string }> {
-    return await ctx.runQuery(this.component.invitations.listInvitationsPaginated, {
-      organizationId,
-      paginationOpts,
-    });
   }
 
   async getInvitation(ctx: QueryCtx, invitationId: string): Promise<Invitation | null> {

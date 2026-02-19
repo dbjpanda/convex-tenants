@@ -9,35 +9,73 @@ import type { Id } from "./_generated/dataModel";
 // Queries
 // ============================================================================
 
+const invitationShape = v.object({
+  _id: v.string(),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  inviteeIdentifier: v.string(),
+  identifierType: v.optional(v.string()),
+  role: v.string(),
+  teamId: v.union(v.null(), v.string()),
+  inviterId: v.string(),
+  inviterName: v.optional(v.string()),
+  message: v.optional(v.string()),
+  status: v.union(
+    v.literal("pending"),
+    v.literal("accepted"),
+    v.literal("cancelled"),
+    v.literal("expired")
+  ),
+  expiresAt: v.number(),
+  isExpired: v.boolean(),
+});
+
 export const listInvitations = query({
   args: {
     organizationId: v.string(),
     sortBy: v.optional(v.union(v.literal("inviteeIdentifier"), v.literal("expiresAt"), v.literal("createdAt"))),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+    paginationOpts: v.optional(paginationOptsValidator),
   },
-  returns: v.array(
+  returns: v.union(
+    v.array(invitationShape),
     v.object({
-      _id: v.string(),
-      _creationTime: v.number(),
-      organizationId: v.string(),
-      inviteeIdentifier: v.string(),
-      identifierType: v.optional(v.string()),
-      role: v.string(),
-      teamId: v.union(v.null(), v.string()),
-      inviterId: v.string(),
-      inviterName: v.optional(v.string()),
-      message: v.optional(v.string()),
-      status: v.union(
-        v.literal("pending"),
-        v.literal("accepted"),
-        v.literal("cancelled"),
-        v.literal("expired")
-      ),
-      expiresAt: v.number(),
-      isExpired: v.boolean(),
+      page: v.array(invitationShape),
+      isDone: v.boolean(),
+      continueCursor: v.string(),
     })
   ),
   handler: async (ctx, args) => {
+    if (args.paginationOpts) {
+      const result = await ctx.db
+        .query("invitations")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", args.organizationId as Id<"organizations">)
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+      return {
+        ...result,
+        page: result.page.map((inv) => {
+          const i = inv as { message?: string; inviterName?: string; identifierType?: string };
+          return {
+            _id: inv._id as string,
+            _creationTime: inv._creationTime,
+            organizationId: inv.organizationId as string,
+            inviteeIdentifier: inv.inviteeIdentifier,
+            identifierType: i.identifierType,
+            role: inv.role,
+            teamId: inv.teamId ? (inv.teamId as string) : null,
+            inviterId: inv.inviterId,
+            inviterName: i.inviterName,
+            message: i.message,
+            status: inv.status,
+            expiresAt: inv.expiresAt,
+            isExpired: isInvitationExpired(inv),
+          };
+        }),
+      };
+    }
     const invitations = await ctx.db
       .query("invitations")
       .withIndex("by_organization", (q) =>
@@ -86,44 +124,6 @@ export const countInvitations = query({
       )
       .collect();
     return invitations.length;
-  },
-});
-
-export const listInvitationsPaginated = query({
-  args: {
-    organizationId: v.string(),
-    paginationOpts: paginationOptsValidator,
-  },
-  handler: async (ctx, args) => {
-    const result = await ctx.db
-      .query("invitations")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId as Id<"organizations">)
-      )
-      .order("desc")
-      .paginate(args.paginationOpts);
-
-    return {
-      ...result,
-      page: result.page.map((inv) => {
-        const i = inv as { message?: string; inviterName?: string; identifierType?: string };
-        return {
-          _id: inv._id as string,
-          _creationTime: inv._creationTime,
-          organizationId: inv.organizationId as string,
-          inviteeIdentifier: inv.inviteeIdentifier,
-          identifierType: i.identifierType,
-          role: inv.role,
-          teamId: inv.teamId ? (inv.teamId as string) : null,
-          inviterId: inv.inviterId,
-          inviterName: i.inviterName,
-          message: i.message,
-          status: inv.status,
-          expiresAt: inv.expiresAt,
-          isExpired: isInvitationExpired(inv),
-        };
-      }),
-    };
   },
 });
 

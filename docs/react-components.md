@@ -21,11 +21,8 @@ import {
   AcceptInvitation,
   useOrganization,
   useMembers,
-  useMembersPaginated,
   useInvitations,
-  useInvitationsPaginated,
   useTeams,
-  useTeamsPaginated,
   useInvitation,
   useOrganizationStore,
   configureOrganizationStore,
@@ -36,13 +33,13 @@ import {
 
 For active-organization persistence and a custom storage key, see [Organization Store](organization-store.md).
 
-## Paginated hooks
+## Pagination
 
-For large lists, use the paginated hooks with Convex’s cursor-based pagination. They wrap `usePaginatedQuery` and expose `results`, `status`, `loadMore`, and `isLoading`, plus the same mutations as the non-paginated hooks.
+For large lists, pass `pagination: { initialNumItems?: number }` to `useMembers`, `useTeams`, or `useInvitations`. The hook uses `usePaginatedQuery` and returns `status`, `loadMore`, and the same mutations.
 
-- **`useMembersPaginated`** — Pass `listMembersQuery` (e.g. `api.tenants.listMembers`), `organizationId`, optional `initialNumItems`, and the same member mutations as `useMembers`. Returns `{ members, status, loadMore, isLoading, removeMember, updateMemberRole }`.
-- **`useTeamsPaginated`** — Same pattern with `listTeamsQuery` (e.g. `api.tenants.listTeams`) and team mutations. Returns `{ teams, status, loadMore, isLoading, createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember }`.
-- **`useInvitationsPaginated`** — Same pattern with `listInvitationsQuery` (e.g. `api.tenants.listInvitations`). Returns `{ invitations, status, loadMore, isLoading, inviteMember, resendInvitation, cancelInvitation }`.
+- **`useMembers({ ..., pagination: { initialNumItems: 20 } })`** — Returns `{ members, status, loadMore, isLoading, removeMember, updateMemberRole }`.
+- **`useTeams({ ..., pagination: { initialNumItems: 20 } })`** — Returns `{ teams, status, loadMore, isLoading, createTeam, updateTeam, deleteTeam, addTeamMember, removeTeamMember }`.
+- **`useInvitations({ ..., pagination: { initialNumItems: 20 } })`** — Returns `{ invitations, status, loadMore, isLoading, inviteMember, resendInvitation, cancelInvitation }`.
 
 Use `status === "CanLoadMore"` to show a “Load more” button and call `loadMore(n)` to fetch the next page. See [Convex pagination](https://docs.convex.dev/database/pagination).
 

@@ -8,7 +8,7 @@ import type { ComponentApi } from "../component/_generated/component.js";
 import type { AuthzClient } from "./authz.js";
 import type { TenantsPermissionMap } from "./authz.js";
 import { Tenants } from "./tenants-class.js";
-import type { Member, OrgRole, InvitationRole, QueryCtx } from "./types.js";
+import type { Member, OrgRole, InvitationRole, QueryCtx, TeamMember } from "./types.js";
 import { normalizeEmail } from "./helpers.js";
 
 /**
@@ -499,30 +499,28 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
 
+        const result = await tenants.listMembers(ctx, args.organizationId, {
+          status: args.status,
+          sortBy: args.sortBy,
+          sortOrder: args.sortOrder,
+          paginationOpts: args.paginationOpts,
+        });
+
         if (args.paginationOpts) {
-          const result = await tenants.listMembersPaginated(
-            ctx,
-            args.organizationId,
-            args.paginationOpts,
-            { status: args.status }
-          );
-          if (options.getUser && result.page.length > 0) {
+          const res = result as { page: Member[]; isDone: boolean; continueCursor: string };
+          if (options.getUser && res.page.length > 0) {
             const page = await Promise.all(
-              result.page.map(async (member) => ({
+              res.page.map(async (member) => ({
                 ...member,
                 user: await options.getUser!(ctx, member.userId),
               }))
             );
-            return { ...result, page };
+            return { ...res, page };
           }
-          return result;
+          return res;
         }
 
-        const members = await tenants.listMembers(ctx, args.organizationId, {
-          status: args.status,
-          sortBy: args.sortBy,
-          sortOrder: args.sortOrder,
-        });
+        const members = result as Member[];
         if (options.getUser) {
           return await Promise.all(
             members.map(async (member) => ({
@@ -777,17 +775,11 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        if (args.paginationOpts) {
-          return await tenants.listTeamsPaginated(
-            ctx,
-            args.organizationId,
-            args.paginationOpts
-          );
-        }
         return await tenants.listTeams(ctx, args.organizationId, {
           parentTeamId: args.parentTeamId,
           sortBy: args.sortBy,
           sortOrder: args.sortOrder,
+          paginationOpts: args.paginationOpts,
         });
       },
     }),
@@ -836,28 +828,27 @@ export function makeTenantsAPI(
           await requireMembership(ctx, userId, team.organizationId);
         }
 
+        const result = await tenants.listTeamMembers(ctx, args.teamId, {
+          sortBy: args.sortBy,
+          sortOrder: args.sortOrder,
+          paginationOpts: args.paginationOpts,
+        });
+
         if (args.paginationOpts) {
-          const result = await tenants.listTeamMembersPaginated(
-            ctx,
-            args.teamId,
-            args.paginationOpts
-          );
-          if (options.getUser && result.page.length > 0) {
+          const res = result as { page: TeamMember[]; isDone: boolean; continueCursor: string };
+          if (options.getUser && res.page.length > 0) {
             const page = await Promise.all(
-              result.page.map(async (member) => ({
+              res.page.map(async (member) => ({
                 ...member,
                 user: await options.getUser!(ctx, member.userId),
               }))
             );
-            return { ...result, page };
+            return { ...res, page };
           }
-          return result;
+          return res;
         }
 
-        const members = await tenants.listTeamMembers(ctx, args.teamId, {
-          sortBy: args.sortBy,
-          sortOrder: args.sortOrder,
-        });
+        const members = result as TeamMember[];
         if (options.getUser) {
           return await Promise.all(
             members.map(async (member) => ({
@@ -1039,16 +1030,10 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        if (args.paginationOpts) {
-          return await tenants.listInvitationsPaginated(
-            ctx,
-            args.organizationId,
-            args.paginationOpts
-          );
-        }
         return await tenants.listInvitations(ctx, args.organizationId, {
           sortBy: args.sortBy,
           sortOrder: args.sortOrder,
+          paginationOpts: args.paginationOpts,
         });
       },
     }),

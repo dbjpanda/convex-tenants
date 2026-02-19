@@ -9,26 +9,59 @@ import type { Id } from "./_generated/dataModel";
 // Queries
 // ============================================================================
 
+const teamShape = v.object({
+  _id: v.string(),
+  _creationTime: v.number(),
+  name: v.string(),
+  slug: v.optional(v.string()),
+  organizationId: v.string(),
+  parentTeamId: v.optional(v.string()),
+  description: v.union(v.null(), v.string()),
+  metadata: v.optional(v.any()),
+});
+
 export const listTeams = query({
   args: {
     organizationId: v.string(),
     parentTeamId: v.optional(v.union(v.null(), v.string())),
     sortBy: v.optional(v.union(v.literal("name"), v.literal("createdAt"), v.literal("slug"))),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+    paginationOpts: v.optional(paginationOptsValidator),
   },
-  returns: v.array(
+  returns: v.union(
+    v.array(teamShape),
     v.object({
-      _id: v.string(),
-      _creationTime: v.number(),
-      name: v.string(),
-      slug: v.optional(v.string()),
-      organizationId: v.string(),
-      parentTeamId: v.optional(v.string()),
-      description: v.union(v.null(), v.string()),
-      metadata: v.optional(v.any()),
+      page: v.array(teamShape),
+      isDone: v.boolean(),
+      continueCursor: v.string(),
     })
   ),
   handler: async (ctx, args) => {
+    if (args.paginationOpts) {
+      const result = await ctx.db
+        .query("teams")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", args.organizationId as Id<"organizations">)
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+      return {
+        ...result,
+        page: result.page.map((team) => {
+          const t = team as { slug?: string; metadata?: any; parentTeamId?: Id<"teams"> };
+          return {
+            _id: team._id as string,
+            _creationTime: team._creationTime,
+            name: team.name,
+            slug: t.slug,
+            organizationId: team.organizationId as string,
+            parentTeamId: t.parentTeamId ? (t.parentTeamId as string) : undefined,
+            description: team.description,
+            metadata: t.metadata,
+          };
+        }),
+      };
+    }
     let teams = await ctx.db
       .query("teams")
       .withIndex("by_organization", (q) =>
@@ -65,17 +98,6 @@ export const listTeams = query({
       };
     });
   },
-});
-
-const teamShape = v.object({
-  _id: v.string(),
-  _creationTime: v.number(),
-  name: v.string(),
-  slug: v.optional(v.string()),
-  organizationId: v.string(),
-  parentTeamId: v.optional(v.string()),
-  description: v.union(v.null(), v.string()),
-  metadata: v.optional(v.any()),
 });
 
 export type TreeNode = {
@@ -155,39 +177,6 @@ export const countTeams = query({
   },
 });
 
-export const listTeamsPaginated = query({
-  args: {
-    organizationId: v.string(),
-    paginationOpts: paginationOptsValidator,
-  },
-  handler: async (ctx, args) => {
-    const result = await ctx.db
-      .query("teams")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId as Id<"organizations">)
-      )
-      .order("desc")
-      .paginate(args.paginationOpts);
-
-    return {
-      ...result,
-      page: result.page.map((team) => {
-        const t = team as { slug?: string; metadata?: any; parentTeamId?: Id<"teams"> };
-        return {
-          _id: team._id as string,
-          _creationTime: team._creationTime,
-          name: team.name,
-          slug: t.slug,
-          organizationId: team.organizationId as string,
-          parentTeamId: t.parentTeamId ? (t.parentTeamId as string) : undefined,
-          description: team.description,
-          metadata: t.metadata,
-        };
-      }),
-    };
-  },
-});
-
 export const getTeam = query({
   args: { teamId: v.string() },
   returns: v.union(
@@ -220,22 +209,50 @@ export const getTeam = query({
   },
 });
 
+const teamMemberShape = v.object({
+  _id: v.string(),
+  _creationTime: v.number(),
+  teamId: v.string(),
+  userId: v.string(),
+  role: v.optional(v.string()),
+});
+
 export const listTeamMembers = query({
   args: {
     teamId: v.string(),
     sortBy: v.optional(v.union(v.literal("userId"), v.literal("role"), v.literal("createdAt"))),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+    paginationOpts: v.optional(paginationOptsValidator),
   },
-  returns: v.array(
+  returns: v.union(
+    v.array(teamMemberShape),
     v.object({
-      _id: v.string(),
-      _creationTime: v.number(),
-      teamId: v.string(),
-      userId: v.string(),
-      role: v.optional(v.string()),
+      page: v.array(teamMemberShape),
+      isDone: v.boolean(),
+      continueCursor: v.string(),
     })
   ),
   handler: async (ctx, args) => {
+    if (args.paginationOpts) {
+      const result = await ctx.db
+        .query("teamMembers")
+        .withIndex("by_team", (q) => q.eq("teamId", args.teamId as Id<"teams">))
+        .order("desc")
+        .paginate(args.paginationOpts);
+      return {
+        ...result,
+        page: result.page.map((tm) => {
+          const t = tm as { role?: string };
+          return {
+            _id: tm._id as string,
+            _creationTime: tm._creationTime,
+            teamId: tm.teamId as string,
+            userId: tm.userId,
+            role: t.role,
+          };
+        }),
+      };
+    }
     const teamMembers = await ctx.db
       .query("teamMembers")
       .withIndex("by_team", (q) => q.eq("teamId", args.teamId as Id<"teams">))
@@ -261,34 +278,6 @@ export const listTeamMembers = query({
         role: t.role,
       };
     });
-  },
-});
-
-export const listTeamMembersPaginated = query({
-  args: {
-    teamId: v.string(),
-    paginationOpts: paginationOptsValidator,
-  },
-  handler: async (ctx, args) => {
-    const result = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId as Id<"teams">))
-      .order("desc")
-      .paginate(args.paginationOpts);
-
-    return {
-      ...result,
-      page: result.page.map((tm) => {
-        const t = tm as { role?: string };
-        return {
-          _id: tm._id as string,
-          _creationTime: tm._creationTime,
-          teamId: tm.teamId as string,
-          userId: tm.userId,
-          role: t.role,
-        };
-      }),
-    };
   },
 });
 
