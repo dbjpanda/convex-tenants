@@ -231,7 +231,7 @@ describe("makeTenantsAPI - invitations", () => {
       expect(invitation).toBeNull();
     });
 
-    test("listInvitationsPaginated returns paginated invitations", async () => {
+    test("listInvitations with paginationOpts returns paginated invitations", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({
         subject: "alice",
@@ -262,7 +262,7 @@ describe("makeTenantsAPI - invitations", () => {
         role: "member",
       });
 
-      const result = await asAlice.query(api.testHelpers.strictListInvitationsPaginated, {
+      const result = await asAlice.query(api.testHelpers.strictListInvitations, {
         organizationId: orgId,
         paginationOpts: { numItems: 2, cursor: null },
       });
@@ -271,7 +271,7 @@ describe("makeTenantsAPI - invitations", () => {
       expect(result.isDone).toBe(false);
       expect(result.continueCursor).toBeDefined();
 
-      const nextPage = await asAlice.query(api.testHelpers.strictListInvitationsPaginated, {
+      const nextPage = await asAlice.query(api.testHelpers.strictListInvitations, {
         organizationId: orgId,
         paginationOpts: { numItems: 2, cursor: result.continueCursor },
       });

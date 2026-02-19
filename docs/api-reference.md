@@ -85,8 +85,7 @@ All hooks receive `ctx` as the first argument.
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `listMembers` | query | List members. Optional args: `status` (`"active" \| "suspended" \| "all"`), `sortBy` (`"role" \| "joinedAt" \| "createdAt" \| "userId"`), `sortOrder` (`"asc" \| "desc"`). Returns include `status?`, `suspendedAt?`, `joinedAt?`. Enriched with `user` if `getUser` is set. |
-| `listMembersPaginated` | query | Cursor-based pagination. Args: `organizationId`, `paginationOpts`, optional `status`. Returns `{ page, isDone, continueCursor }`. Use with [usePaginatedQuery](https://docs.convex.dev/database/pagination). |
+| `listMembers` | query | List members. Optional args: `status` (`"active" \| "suspended" \| "all"`), `sortBy` (`"role" \| "joinedAt" \| "createdAt" \| "userId"`), `sortOrder` (`"asc" \| "desc"`), `paginationOpts` (`{ numItems, cursor }`). Without `paginationOpts` returns `Member[]`; with `paginationOpts` returns `{ page, isDone, continueCursor }`. Use with [usePaginatedQuery](https://docs.convex.dev/database/pagination) when passing `paginationOpts`. Enriched with `user` if `getUser` is set. |
 | `countMembers` | query | Count members in org. Args: `organizationId`, optional `status`. Returns `number`. Requires membership. |
 | `getMember` | query | Get member by org + userId. Returns include `status?`, `suspendedAt?`, `joinedAt?`. |
 | `getCurrentMember` | query | Current user’s membership in org. |
@@ -106,13 +105,11 @@ All hooks receive `ctx` as the first argument.
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `listTeams` | query | List teams. Optional args: `parentTeamId` (string or `null` for root-only), `sortBy` (`"name" \| "createdAt" \| "slug"`), `sortOrder` (`"asc" \| "desc"`). Returns include `slug?`, `metadata?`, `parentTeamId?`. |
+| `listTeams` | query | List teams. Optional args: `parentTeamId` (string or `null` for root-only), `sortBy` (`"name" \| "createdAt" \| "slug"`), `sortOrder` (`"asc" \| "desc"`), `paginationOpts` (`{ numItems, cursor }`). Without `paginationOpts` returns `Team[]`; with `paginationOpts` returns `{ page, isDone, continueCursor }`. Returns include `slug?`, `metadata?`, `parentTeamId?`. |
 | `listTeamsAsTree` | query | List teams as a tree. Args: `organizationId`. Returns `{ team, children }[]` (children are same shape recursively). |
-| `listTeamsPaginated` | query | Same as `listTeams` with cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. |
 | `countTeams` | query | Count teams in org. Args: `organizationId`. Returns `number`. Requires membership. |
 | `getTeam` | query | Get team by ID. Returns `name`, `description`, `slug?`, `metadata?`, `parentTeamId?`. |
-| `listTeamMembers` | query | List team members. Optional args: `sortBy` (`"userId" \| "role" \| "createdAt"`), `sortOrder`. Returns include `role?`. Enriched with `user` if `getUser` set. |
-| `listTeamMembersPaginated` | query | Cursor-based pagination for team members. Args: `teamId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. Use with [usePaginatedQuery](https://docs.convex.dev/database/pagination). |
+| `listTeamMembers` | query | List team members. Optional args: `sortBy` (`"userId" \| "role" \| "createdAt"`), `sortOrder`, `paginationOpts` (`{ numItems, cursor }`). Without `paginationOpts` returns array; with `paginationOpts` returns `{ page, isDone, continueCursor }`. Use with [usePaginatedQuery](https://docs.convex.dev/database/pagination) when passing `paginationOpts`. Returns include `role?`. Enriched with `user` if `getUser` set. |
 | `isTeamMember` | query | Whether current user is in team. |
 | `createTeam` | mutation | Args: `organizationId`, `name`, optional `description`, `slug`, `metadata`, `parentTeamId`. Slug derived from name if omitted. |
 | `updateTeam` | mutation | Args: `teamId`, optional `name`, `description`, `slug`, `metadata`, `parentTeamId` (string or `null`). Cycle validation applied when setting parent. |
@@ -129,8 +126,7 @@ All hooks receive `ctx` as the first argument.
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `listInvitations` | query | List invitations for org. Optional args: `sortBy` (`"email" \| "expiresAt" \| "createdAt"`), `sortOrder` (`"asc" \| "desc"`). Returns include `message?`, `inviterName?` (stored at invite time from `getUser`). |
-| `listInvitationsPaginated` | query | Same as `listInvitations` with cursor-based pagination. Args: `organizationId`, `paginationOpts`. Returns `{ page, isDone, continueCursor }`. |
+| `listInvitations` | query | List invitations for org. Optional args: `sortBy` (`"email" \| "expiresAt" \| "createdAt"`), `sortOrder` (`"asc" \| "desc"`), `paginationOpts` (`{ numItems, cursor }`). Without `paginationOpts` returns `Invitation[]`; with `paginationOpts` returns `{ page, isDone, continueCursor }`. Returns include `message?`, `inviterName?` (stored at invite time from `getUser`). |
 | `countInvitations` | query | Count invitations for org. Args: `organizationId`. Returns `number`. Requires membership. |
 | `getInvitation` | query | Get invitation by ID. Returns include `message?`, `inviterName?`. |
 | `getPendingInvitations` | query | Pending invitations for an email. |

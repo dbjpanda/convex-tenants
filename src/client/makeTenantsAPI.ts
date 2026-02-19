@@ -493,10 +493,30 @@ export function makeTenantsAPI(
         status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
         sortBy: v.optional(v.union(v.literal("role"), v.literal("joinedAt"), v.literal("createdAt"), v.literal("userId"))),
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+        paginationOpts: v.optional(paginationOptsValidator),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
+
+        if (args.paginationOpts) {
+          const result = await tenants.listMembersPaginated(
+            ctx,
+            args.organizationId,
+            args.paginationOpts,
+            { status: args.status }
+          );
+          if (options.getUser && result.page.length > 0) {
+            const page = await Promise.all(
+              result.page.map(async (member) => ({
+                ...member,
+                user: await options.getUser!(ctx, member.userId),
+              }))
+            );
+            return { ...result, page };
+          }
+          return result;
+        }
 
         const members = await tenants.listMembers(ctx, args.organizationId, {
           status: args.status,
@@ -511,35 +531,6 @@ export function makeTenantsAPI(
           );
         }
         return members;
-      },
-    }),
-
-    listMembersPaginated: queryGeneric({
-      args: {
-        organizationId: v.string(),
-        paginationOpts: paginationOptsValidator,
-        status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
-      },
-      handler: async (ctx, args) => {
-        const userId = await requireAuth(ctx);
-        await requireMembership(ctx, userId, args.organizationId);
-
-        const result = await tenants.listMembersPaginated(
-          ctx,
-          args.organizationId,
-          args.paginationOpts,
-          { status: args.status }
-        );
-        if (options.getUser && result.page.length > 0) {
-          const page = await Promise.all(
-            result.page.map(async (member) => ({
-              ...member,
-              user: await options.getUser!(ctx, member.userId),
-            }))
-          );
-          return { ...result, page };
-        }
-        return result;
       },
     }),
 
@@ -781,10 +772,18 @@ export function makeTenantsAPI(
         parentTeamId: v.optional(v.union(v.null(), v.string())),
         sortBy: v.optional(v.union(v.literal("name"), v.literal("createdAt"), v.literal("slug"))),
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+        paginationOpts: v.optional(paginationOptsValidator),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
+        if (args.paginationOpts) {
+          return await tenants.listTeamsPaginated(
+            ctx,
+            args.organizationId,
+            args.paginationOpts
+          );
+        }
         return await tenants.listTeams(ctx, args.organizationId, {
           parentTeamId: args.parentTeamId,
           sortBy: args.sortBy,
@@ -799,22 +798,6 @@ export function makeTenantsAPI(
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
         return await tenants.listTeamsAsTree(ctx, args.organizationId);
-      },
-    }),
-
-    listTeamsPaginated: queryGeneric({
-      args: {
-        organizationId: v.string(),
-        paginationOpts: paginationOptsValidator,
-      },
-      handler: async (ctx, args) => {
-        const userId = await requireAuth(ctx);
-        await requireMembership(ctx, userId, args.organizationId);
-        return await tenants.listTeamsPaginated(
-          ctx,
-          args.organizationId,
-          args.paginationOpts
-        );
       },
     }),
 
@@ -844,12 +827,31 @@ export function makeTenantsAPI(
         teamId: v.string(),
         sortBy: v.optional(v.union(v.literal("userId"), v.literal("role"), v.literal("createdAt"))),
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+        paginationOpts: v.optional(paginationOptsValidator),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
         if (team) {
           await requireMembership(ctx, userId, team.organizationId);
+        }
+
+        if (args.paginationOpts) {
+          const result = await tenants.listTeamMembersPaginated(
+            ctx,
+            args.teamId,
+            args.paginationOpts
+          );
+          if (options.getUser && result.page.length > 0) {
+            const page = await Promise.all(
+              result.page.map(async (member) => ({
+                ...member,
+                user: await options.getUser!(ctx, member.userId),
+              }))
+            );
+            return { ...result, page };
+          }
+          return result;
         }
 
         const members = await tenants.listTeamMembers(ctx, args.teamId, {
@@ -864,35 +866,6 @@ export function makeTenantsAPI(
           );
         }
         return members;
-      },
-    }),
-
-    listTeamMembersPaginated: queryGeneric({
-      args: {
-        teamId: v.string(),
-        paginationOpts: paginationOptsValidator,
-      },
-      handler: async (ctx, args) => {
-        const userId = await requireAuth(ctx);
-        const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) {
-          await requireMembership(ctx, userId, team.organizationId);
-        }
-        const result = await tenants.listTeamMembersPaginated(
-          ctx,
-          args.teamId,
-          args.paginationOpts
-        );
-        if (options.getUser && result.page.length > 0) {
-          const page = await Promise.all(
-            result.page.map(async (member) => ({
-              ...member,
-              user: await options.getUser!(ctx, member.userId),
-            }))
-          );
-          return { ...result, page };
-        }
-        return result;
       },
     }),
 
@@ -1061,30 +1034,22 @@ export function makeTenantsAPI(
         organizationId: v.string(),
         sortBy: v.optional(v.union(v.literal("inviteeIdentifier"), v.literal("expiresAt"), v.literal("createdAt"))),
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+        paginationOpts: v.optional(paginationOptsValidator),
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
+        if (args.paginationOpts) {
+          return await tenants.listInvitationsPaginated(
+            ctx,
+            args.organizationId,
+            args.paginationOpts
+          );
+        }
         return await tenants.listInvitations(ctx, args.organizationId, {
           sortBy: args.sortBy,
           sortOrder: args.sortOrder,
         });
-      },
-    }),
-
-    listInvitationsPaginated: queryGeneric({
-      args: {
-        organizationId: v.string(),
-        paginationOpts: paginationOptsValidator,
-      },
-      handler: async (ctx, args) => {
-        const userId = await requireAuth(ctx);
-        await requireMembership(ctx, userId, args.organizationId);
-        return await tenants.listInvitationsPaginated(
-          ctx,
-          args.organizationId,
-          args.paginationOpts
-        );
       },
     }),
 

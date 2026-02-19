@@ -14,7 +14,7 @@ export interface Team {
 
 export interface UseTeamsPaginatedOptions {
   organizationId: string | undefined;
-  listTeamsPaginatedQuery: FunctionReference<
+  listTeamsQuery: FunctionReference<
     "query",
     "public",
     { organizationId: string; paginationOpts: { numItems: number; cursor: string | null } },
@@ -56,7 +56,7 @@ export interface UseTeamsPaginatedOptions {
 export function useTeamsPaginated(options: UseTeamsPaginatedOptions) {
   const {
     organizationId,
-    listTeamsPaginatedQuery,
+    listTeamsQuery,
     initialNumItems = 20,
     createTeamMutation,
     updateTeamMutation,
@@ -66,7 +66,7 @@ export function useTeamsPaginated(options: UseTeamsPaginatedOptions) {
   } = options;
 
   const { results, status, loadMore, isLoading } = usePaginatedQuery(
-    listTeamsPaginatedQuery,
+    listTeamsQuery,
     organizationId ? { organizationId } : "skip",
     { initialNumItems }
   );

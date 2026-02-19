@@ -228,7 +228,7 @@ describe("makeTenantsAPI - teams", () => {
       expect(await asAlice.query(api.testHelpers.strictCountTeams, { organizationId: orgId })).toBe(2);
     });
 
-    test("listTeamMembersPaginated returns paginated team members", async () => {
+    test("listTeamMembers with paginationOpts returns paginated team members", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({
         subject: "alice",
@@ -255,7 +255,7 @@ describe("makeTenantsAPI - teams", () => {
       });
 
       const first = await asAlice.query(
-        api.testHelpers.strictListTeamMembersPaginated,
+        api.testHelpers.strictListTeamMembers,
         { teamId, paginationOpts: { numItems: 1, cursor: null } }
       );
       expect(first.page).toHaveLength(1);
@@ -263,7 +263,7 @@ describe("makeTenantsAPI - teams", () => {
       expect(first.continueCursor).toBeTruthy();
 
       const second = await asAlice.query(
-        api.testHelpers.strictListTeamMembersPaginated,
+        api.testHelpers.strictListTeamMembers,
         { teamId, paginationOpts: { numItems: 10, cursor: first.continueCursor } }
       );
       expect(second.page.length).toBeGreaterThanOrEqual(0);

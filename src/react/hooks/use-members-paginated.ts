@@ -16,12 +16,12 @@ export interface Member {
   teams?: Array<{ _id: string; name: string }>;
 }
 
-/** Pagination result page item type for listMembersPaginated */
+/** Pagination result page item type for listMembers with paginationOpts */
 export type MembersPaginatedPageItem = Member;
 
 export interface UseMembersPaginatedOptions {
   organizationId: string | undefined;
-  listMembersPaginatedQuery: FunctionReference<
+  listMembersQuery: FunctionReference<
     "query",
     "public",
     { organizationId: string; paginationOpts: { numItems: number; cursor: string | null } },
@@ -45,14 +45,14 @@ export interface UseMembersPaginatedOptions {
 export function useMembersPaginated(options: UseMembersPaginatedOptions) {
   const {
     organizationId,
-    listMembersPaginatedQuery,
+    listMembersQuery,
     initialNumItems = 20,
     removeMemberMutation,
     updateMemberRoleMutation,
   } = options;
 
   const { results, status, loadMore, isLoading } = usePaginatedQuery(
-    listMembersPaginatedQuery,
+    listMembersQuery,
     organizationId ? { organizationId } : "skip",
     { initialNumItems }
   );

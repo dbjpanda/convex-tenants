@@ -136,7 +136,6 @@ export const strictTransferOwnership = strictApi.transferOwnership;
 export const strictDeleteOrganization = strictApi.deleteOrganization;
 // Members
 export const strictListMembers = strictApi.listMembers;
-export const strictListMembersPaginated = strictApi.listMembersPaginated;
 export const strictCountMembers = strictApi.countMembers;
 export const strictGetMember = strictApi.getMember;
 export const strictGetCurrentMember = strictApi.getCurrentMember;
@@ -155,7 +154,6 @@ export const strictListTeamsAsTree = strictApi.listTeamsAsTree;
 export const strictCountTeams = strictApi.countTeams;
 export const strictGetTeam = strictApi.getTeam;
 export const strictListTeamMembers = strictApi.listTeamMembers;
-export const strictListTeamMembersPaginated = strictApi.listTeamMembersPaginated;
 export const strictIsTeamMember = strictApi.isTeamMember;
 export const strictCreateTeam = strictApi.createTeam;
 export const strictUpdateTeam = strictApi.updateTeam;
@@ -165,7 +163,6 @@ export const strictUpdateTeamMemberRole = strictApi.updateTeamMemberRole;
 export const strictRemoveTeamMember = strictApi.removeTeamMember;
 // Invitations
 export const strictListInvitations = strictApi.listInvitations;
-export const strictListInvitationsPaginated = strictApi.listInvitationsPaginated;
 export const strictBulkInviteMembers = strictApi.bulkInviteMembers;
 export const strictCountInvitations = strictApi.countInvitations;
 export const strictGetInvitation = strictApi.getInvitation;

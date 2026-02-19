@@ -21,7 +21,6 @@ export const {
   deleteOrganization,
   // Members
   listMembers,
-  listMembersPaginated,
   countMembers,
   getMember,
   getCurrentMember,
@@ -38,11 +37,9 @@ export const {
   // Teams
   listTeams,
   listTeamsAsTree,
-  listTeamsPaginated,
   countTeams,
   getTeam,
   listTeamMembers,
-  listTeamMembersPaginated,
   isTeamMember,
   createTeam,
   updateTeam,
@@ -52,7 +49,6 @@ export const {
   removeTeamMember,
   // Invitations
   listInvitations,
-  listInvitationsPaginated,
   countInvitations,
   getInvitation,
   getPendingInvitations,

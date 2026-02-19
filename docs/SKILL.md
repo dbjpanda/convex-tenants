@@ -69,7 +69,7 @@ Base path: `node_modules/@djpanda/convex-tenants/docs/`. **Select the doc that m
 | Doc | Path | Load when user asks about… |
 |-----|------|----------------------------|
 | **quick-start** | `docs/quick-start.md` | Setup, install, first-time integration, convex.config, authz.ts, tenants.ts, getting started, initial setup |
-| **api-reference** | `docs/api-reference.md` | Function names (listOrganizations, createOrganization, addMember, inviteMember, etc.), makeTenantsAPI options, event hooks, mutation/query args, pagination (listMembersPaginated, listTeamsPaginated), API signatures |
+| **api-reference** | `docs/api-reference.md` | Function names (listOrganizations, createOrganization, addMember, inviteMember, etc.), makeTenantsAPI options, event hooks, mutation/query args, pagination (listMembers/listTeams/listTeamMembers/listInvitations with optional paginationOpts), API signatures |
 | **permission-map** | `docs/permission-map.md` | Permissions, permissionMap, who can do what, operation permissions, overriding permissions, guards, access control per operation |
 | **flexible-roles** | `docs/flexible-roles.md` | Roles, custom roles, owner/admin/member, creatorRole, defineRoles, structural owner, transferOwnership, add/remove roles |
 | **invitation-system** | `docs/invitation-system.md` | Invitations, inviteMember, acceptInvitation, validateInvitationCreate, validateInvitationAccept, identifier type, email/phone/username, domain whitelist, rate limiting invitations |

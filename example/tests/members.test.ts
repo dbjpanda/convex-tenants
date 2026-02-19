@@ -248,7 +248,7 @@ describe("makeTenantsAPI - members", () => {
       expect(all).toHaveLength(3);
     });
 
-    test("listMembersPaginated returns paginated members", async () => {
+    test("listMembers with paginationOpts returns paginated members", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
 
@@ -266,7 +266,7 @@ describe("makeTenantsAPI - members", () => {
         role: "member",
       });
 
-      const result = await asAlice.query(api.testHelpers.strictListMembersPaginated, {
+      const result = await asAlice.query(api.testHelpers.strictListMembers, {
         organizationId: orgId,
         paginationOpts: { numItems: 2, cursor: null },
       });
@@ -275,7 +275,7 @@ describe("makeTenantsAPI - members", () => {
       expect(result.isDone).toBe(false);
       expect(result.continueCursor).toBeDefined();
 
-      const nextPage = await asAlice.query(api.testHelpers.strictListMembersPaginated, {
+      const nextPage = await asAlice.query(api.testHelpers.strictListMembers, {
         organizationId: orgId,
         paginationOpts: { numItems: 2, cursor: result.continueCursor },
       });

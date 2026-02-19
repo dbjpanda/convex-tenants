@@ -60,8 +60,8 @@ export interface TenantsAPI {
   listMembers: FunctionReference<
     "query",
     "public",
-    { organizationId: string },
-    Member[]
+    { organizationId: string; paginationOpts?: { numItems: number; cursor: string | null } },
+    Member[] | { page: Member[]; isDone: boolean; continueCursor: string }
   >;
   removeMember: FunctionReference<
     "mutation",
@@ -80,8 +80,8 @@ export interface TenantsAPI {
   listInvitations: FunctionReference<
     "query",
     "public",
-    { organizationId: string },
-    Invitation[]
+    { organizationId: string; paginationOpts?: { numItems: number; cursor: string | null } },
+    Invitation[] | { page: Invitation[]; isDone: boolean; continueCursor: string }
   >;
   inviteMember: FunctionReference<
     "mutation",
@@ -106,8 +106,8 @@ export interface TenantsAPI {
   listTeams: FunctionReference<
     "query",
     "public",
-    { organizationId: string },
-    Team[]
+    { organizationId: string; paginationOpts?: { numItems: number; cursor: string | null } },
+    Team[] | { page: Team[]; isDone: boolean; continueCursor: string }
   >;
   createTeam: FunctionReference<
     "mutation",
@@ -263,24 +263,33 @@ export function TenantsProvider({
     }
   }, [organizations, activeOrganizationId, setActiveOrganizationId]);
 
-  // Organization-scoped queries (skip if no org)
+  // Organization-scoped queries (skip if no org; no paginationOpts => array result)
   const membersRaw = useQuery(
     api.listMembers,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
-  const members = useMemo(() => membersRaw ?? [], [membersRaw]);
+  const members = useMemo(
+    () => (membersRaw === undefined ? [] : Array.isArray(membersRaw) ? membersRaw : membersRaw.page),
+    [membersRaw]
+  );
 
   const invitationsRaw = useQuery(
     api.listInvitations,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
-  const invitations = useMemo(() => invitationsRaw ?? [], [invitationsRaw]);
+  const invitations = useMemo(
+    () => (invitationsRaw === undefined ? [] : Array.isArray(invitationsRaw) ? invitationsRaw : invitationsRaw.page),
+    [invitationsRaw]
+  );
 
   const teamsRaw = useQuery(
     api.listTeams,
     currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
-  const teams = useMemo(() => teamsRaw ?? [], [teamsRaw]);
+  const teams = useMemo(
+    () => (teamsRaw === undefined ? [] : Array.isArray(teamsRaw) ? teamsRaw : teamsRaw.page),
+    [teamsRaw]
+  );
 
   const currentUserEmailQueryRef = api.getCurrentUserEmail ?? api.listOrganizations;
   const currentUserEmailRaw = useQuery(

@@ -18,7 +18,7 @@ export interface Invitation {
 
 export interface UseInvitationsPaginatedOptions {
   organizationId: string | undefined;
-  listInvitationsPaginatedQuery: FunctionReference<
+  listInvitationsQuery: FunctionReference<
     "query",
     "public",
     { organizationId: string; paginationOpts: { numItems: number; cursor: string | null } },
@@ -54,7 +54,7 @@ export interface UseInvitationsPaginatedOptions {
 export function useInvitationsPaginated(options: UseInvitationsPaginatedOptions) {
   const {
     organizationId,
-    listInvitationsPaginatedQuery,
+    listInvitationsQuery,
     initialNumItems = 20,
     inviteMemberMutation,
     resendInvitationMutation,
@@ -62,7 +62,7 @@ export function useInvitationsPaginated(options: UseInvitationsPaginatedOptions)
   } = options;
 
   const { results, status, loadMore, isLoading } = usePaginatedQuery(
-    listInvitationsPaginatedQuery,
+    listInvitationsQuery,
     organizationId ? { organizationId } : "skip",
     { initialNumItems }
   );
