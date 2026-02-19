@@ -4,7 +4,7 @@ import { type ReactNode } from "react";
 import { Users, Plus } from "lucide-react";
 import { useTenants } from "../providers/tenants-context.js";
 import { TeamsGrid } from "./teams-grid.js";
-import { CreateTeamDialog } from "./create-team-dialog.js";
+import { CreateTeamDialog } from "./team-create-dialog.js";
 import { Button } from "../ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction } from "../ui/card.js";
 import { Skeleton } from "../ui/skeleton.js";

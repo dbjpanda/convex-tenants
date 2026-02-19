@@ -3,7 +3,7 @@
 import { type ReactNode, useMemo } from "react";
 import { Users, Plus } from "lucide-react";
 import { useTenants } from "../providers/tenants-context.js";
-import { InviteMemberDialog } from "./invite-member-dialog.js";
+import { InviteMemberDialog } from "./members-invite-dialog.js";
 import { MembersTable } from "./members-table.js";
 import { Button } from "../ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction } from "../ui/card.js";
