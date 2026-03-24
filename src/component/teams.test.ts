@@ -62,9 +62,10 @@ describe("teams", () => {
       organizationId: orgId,
     });
 
-    expect(teams).toHaveLength(2);
-    expect(teams.map((t: any) => t.name)).toContain("Engineering");
-    expect(teams.map((t: any) => t.name)).toContain("Sales");
+    const teamList = teams as { name: string }[];
+    expect(teamList).toHaveLength(2);
+    expect(teamList.map((t) => t.name)).toContain("Engineering");
+    expect(teamList.map((t) => t.name)).toContain("Sales");
   });
 
   it("should add member to team", async () => {

@@ -113,26 +113,33 @@ export function useMembers(options: UseMembersOptions) {
     [organizationId, updateMemberRoleMut]
   );
 
+  const {
+    results,
+    status,
+    loadMore,
+    isLoading: isPaginatedLoading,
+  } = usePaginatedQuery(
+    listMembersQuery as PaginatedQueryReference,
+    pagination !== undefined && organizationId ? { organizationId } : "skip",
+    { initialNumItems: pagination?.initialNumItems ?? 20 }
+  );
+
+  const members = useQuery(
+    listMembersQuery,
+    pagination === undefined && organizationId ? { organizationId } : "skip"
+  );
+
   if (pagination !== undefined) {
-    const { results, status, loadMore, isLoading } = usePaginatedQuery(
-      listMembersQuery as PaginatedQueryReference,
-      organizationId ? { organizationId } : "skip",
-      { initialNumItems: pagination.initialNumItems ?? 20 }
-    );
     return {
       members: results ?? [],
       status,
       loadMore,
-      isLoading,
+      isLoading: isPaginatedLoading,
       removeMember,
       updateMemberRole,
     };
   }
 
-  const members = useQuery(
-    listMembersQuery,
-    organizationId ? { organizationId } : "skip"
-  );
   return {
     members: (Array.isArray(members) ? members : []) as Member[],
     isLoading: members === undefined,

@@ -12,7 +12,6 @@ import {
   Crown,
   Loader2,
   CheckCircle,
-  X,
 } from "lucide-react";
 import { useTenants } from "../providers/tenants-context.js";
 

@@ -71,7 +71,6 @@ export const {
   // Organizations
   listOrganizations, getOrganization, getOrganizationBySlug,
   createOrganization, updateOrganization, transferOwnership, deleteOrganization,
-  listOrganizationsJoinableByDomain, joinByDomain,
   // Members
   listMembers, countMembers, getMember, getCurrentMember,
   addMember, bulkAddMembers, removeMember, bulkRemoveMembers, updateMemberRole,
@@ -103,7 +102,7 @@ export const {
   onInvitationCreated: async (ctx, invitation) => {
     // Send invitation email
     await ctx.scheduler.runAfter(0, internal.emails.sendInvitation, {
-      email: invitation.email,
+      email: invitation.inviteeIdentifier,
       organizationName: invitation.organizationName,
     });
   },

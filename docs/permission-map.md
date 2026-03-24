@@ -55,4 +55,4 @@ makeTenantsAPI(components.tenants, {
 
 The `TENANTS_PERMISSIONS` and `TENANTS_ROLES` exports provide a set of permissions and roles that cover all default operations. You can import and extend them in your `authz.ts`, or define your own from scratch.
 
-**Default member role:** The `member` role has `teams:list` (can list teams) but not `teams:listMembers` (cannot list who is in each team). Owner and admin have both.
+**Default member role:** The `member` role has `organizations:read` and `invitations:list` only. It does not have any `teams` or `members` permissions — members cannot list teams, list team members, or list org members. Owner and admin have all team and member permissions.

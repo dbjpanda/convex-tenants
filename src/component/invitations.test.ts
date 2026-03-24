@@ -65,9 +65,10 @@ describe("invitations", () => {
       organizationId: orgId,
     });
 
-    expect(invitations).toHaveLength(2);
-    expect(invitations.map((i: any) => i.inviteeIdentifier)).toContain("user1@example.com");
-    expect(invitations.map((i: any) => i.inviteeIdentifier)).toContain("user2@example.com");
+    const invitationList = invitations as { inviteeIdentifier: string }[];
+    expect(invitationList).toHaveLength(2);
+    expect(invitationList.map((i) => i.inviteeIdentifier)).toContain("user1@example.com");
+    expect(invitationList.map((i) => i.inviteeIdentifier)).toContain("user2@example.com");
   });
 
   it("should prevent duplicate pending invitations", async () => {

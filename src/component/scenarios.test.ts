@@ -133,14 +133,14 @@ describe("Scenario: Multi-Organization Isolation", () => {
     // List teams for ACME
     const acmeTeams = await t.query(api.teams.listTeams, {
       organizationId: acmeId,
-    });
+    }) as { name: string }[];
     expect(acmeTeams).toHaveLength(1);
     expect(acmeTeams[0].name).toBe("ACME Engineering");
 
     // List teams for BetaCo
     const betaTeams = await t.query(api.teams.listTeams, {
       organizationId: betaId,
-    });
+    }) as { name: string }[];
     expect(betaTeams).toHaveLength(1);
     expect(betaTeams[0].name).toBe("Beta Product");
   });

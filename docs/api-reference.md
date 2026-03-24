@@ -52,9 +52,9 @@ See [Quick Start](quick-start.md) for a full example. The table below lists each
 | `onTeamDeleted` | `deleteTeam` | `teamId`, `name`, `organizationId`, `deletedBy` |
 | `onTeamMemberAdded` | `addTeamMember` | `teamId`, `userId`, `addedBy` |
 | `onTeamMemberRemoved` | `removeTeamMember` | `teamId`, `userId`, `removedBy` |
-| `onInvitationCreated` | `inviteMember` | `invitationId`, `email`, `organizationId`, `organizationName`, `role`, `inviterName?`, `expiresAt` |
+| `onInvitationCreated` | `inviteMember` | `invitationId`, `inviteeIdentifier`, `identifierType?`, `organizationId`, `organizationName`, `role`, `inviterName?`, `expiresAt` |
 | `onInvitationResent` | `resendInvitation` | same shape as created |
-| `onInvitationAccepted` | `acceptInvitation` | `invitationId`, `organizationId`, `organizationName`, `userId`, `role`, `email` |
+| `onInvitationAccepted` | `acceptInvitation` | `invitationId`, `organizationId`, `organizationName`, `userId`, `role`, `inviteeIdentifier`, `identifierType?` |
 
 All hooks receive `ctx` as the first argument.
 
@@ -64,15 +64,13 @@ All hooks receive `ctx` as the first argument.
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `listOrganizations` | query | List orgs the current user belongs to. Optional args: `status` (`"active" \| "suspended" \| "archived"`), `sortBy` (`"name" \| "createdAt" \| "slug"`), `sortOrder` (`"asc" \| "desc"`). Returns `{ _id, name, slug, logo, metadata, settings?, allowedDomains?, ownerId, role, status? }[]`. |
-| `getOrganization` | query | Get org by ID. Returns `{ _id, name, slug, logo, metadata, settings?, allowedDomains?, ownerId, status? } \| null`. Requires membership. |
+| `listOrganizations` | query | List orgs the current user belongs to. Optional args: `status` (`"active" \| "suspended" \| "archived"`), `sortBy` (`"name" \| "createdAt" \| "slug"`), `sortOrder` (`"asc" \| "desc"`). Returns `{ _id, name, slug, logo, metadata, settings?, ownerId, role, status? }[]`. |
+| `getOrganization` | query | Get org by ID. Returns `{ _id, name, slug, logo, metadata, settings?, ownerId, status? } \| null`. Requires membership. |
 | `getOrganizationBySlug` | query | Get org by slug. Same return shape. Requires membership. |
-| `createOrganization` | mutation | Create org. Args: `name`, optional `slug`, `logo`, `metadata`, `settings` (`{ allowPublicSignup?, requireInvitationToJoin? }`), `allowedDomains` (string[]). Returns org ID. |
-| `updateOrganization` | mutation | Update org. Args: `organizationId`, optional `name`, `slug`, `logo`, `metadata`, `settings`, `allowedDomains` (array or `null` to clear), `status` (`"active" \| "suspended" \| "archived"`). Setting `status: "active"` reactivates. |
-| `transferOwnership` | mutation | Transfer owner to another member. Args: `organizationId`, `newOwnerUserId`. Only current owner. |
+| `createOrganization` | mutation | Create org. Args: `name`, optional `slug`, `logo`, `metadata`, `settings` (`{ allowPublicSignup?, requireInvitationToJoin? }`). Returns org ID. |
+| `updateOrganization` | mutation | Update org. Args: `organizationId`, optional `name`, `slug`, `logo`, `metadata`, `settings`, `status` (`"active" \| "suspended" \| "archived"`). Setting `status: "active"` reactivates. |
+| `transferOwnership` | mutation | Transfer owner to another member. Args: `organizationId`, `newOwnerUserId`, optional `previousOwnerRole` (default `"admin"`). Only current owner. |
 | `deleteOrganization` | mutation | Delete org and all related data. Requires permission. |
-| `listOrganizationsJoinableByDomain` | query | List orgs the current user can join by email domain. Args: `email`. Returns `{ _id, name, slug }[]`. No membership required for the list. |
-| `joinByDomain` | mutation | Join an org when the user's email domain is in the org's `allowedDomains`. Args: `organizationId`, `userEmail`, optional `role`. Caller is the joining user. |
 | `generateLogoUploadUrl` | mutation | **Only present when `generateUploadUrl` option is set.** Returns an upload URL for logo files. Args: none. After uploading, pass the returned storage ID to `updateOrganization` as `logo`. |
 
 **Organization status:** When an organization is `suspended` or `archived`, all mutations that modify that org are rejected. Only `updateOrganization` with `status: "active"` is allowed to reactivate. Queries still work.
@@ -90,6 +88,7 @@ All hooks receive `ctx` as the first argument.
 | `getMember` | query | Get member by org + userId. Returns include `status?`, `suspendedAt?`, `joinedAt?`. |
 | `getCurrentMember` | query | Current user’s membership in org. |
 | `getCurrentUserEmail` | query | Current user's email from `auth` + `getUser`. Args: none. Returns `string \| null`. Use for "join by domain" UI so the app does not need a separate auth query. Only returns a value when `getUser` is provided. |
+| `checkMemberPermission` | query | Check if a user meets a minimum role level. Args: `organizationId`, `userId`, `minRole` (`"member" \| "admin" \| "owner"`). Returns `{ hasPermission, currentRole }`. |
 | `addMember` | mutation | Add user with role. |
 | `bulkAddMembers` | mutation | Add multiple members. Args: `organizationId`, `members` (`{ memberUserId, role }[]`). Returns `{ success: string[], errors: { userId, code, message }[] }`. |
 | `removeMember` | mutation | Remove member (not structural owner). |
@@ -126,12 +125,12 @@ All hooks receive `ctx` as the first argument.
 
 | Function | Type | Description |
 |----------|------|-------------|
-| `listInvitations` | query | List invitations for org. Optional args: `sortBy` (`"email" \| "expiresAt" \| "createdAt"`), `sortOrder` (`"asc" \| "desc"`), `paginationOpts` (`{ numItems, cursor }`). Without `paginationOpts` returns `Invitation[]`; with `paginationOpts` returns `{ page, isDone, continueCursor }`. Returns include `message?`, `inviterName?` (stored at invite time from `getUser`). |
+| `listInvitations` | query | List invitations for org. Optional args: `sortBy` (`"inviteeIdentifier" \| "expiresAt" \| "createdAt"`), `sortOrder` (`"asc" \| "desc"`), `paginationOpts` (`{ numItems, cursor }`). Without `paginationOpts` returns `Invitation[]`; with `paginationOpts` returns `{ page, isDone, continueCursor }`. Returns include `message?`, `inviterName?` (stored at invite time from `getUser`). |
 | `countInvitations` | query | Count invitations for org. Args: `organizationId`. Returns `number`. Requires membership. |
 | `getInvitation` | query | Get invitation by ID. Returns include `message?`, `inviterName?`. |
-| `getPendingInvitations` | query | Pending invitations for an email. |
-| `inviteMember` | mutation | Args: `organizationId`, `email`, `role`, optional `teamId`, `message`. Returns `{ invitationId, email, expiresAt }`. |
-| `bulkInviteMembers` | mutation | Send multiple invitations. Args: `organizationId`, `invitations` (`{ email, role, message?, teamId? }[]`). Returns `{ success: { invitationId, email, expiresAt }[], errors: { email, code, message }[] }`. |
+| `getPendingInvitations` | query | Pending invitations for an identifier. |
+| `inviteMember` | mutation | Args: `organizationId`, `inviteeIdentifier`, `role`, optional `identifierType`, `teamId`, `message`. Returns `{ invitationId, inviteeIdentifier, expiresAt }`. |
+| `bulkInviteMembers` | mutation | Send multiple invitations. Args: `organizationId`, `invitations` (`{ inviteeIdentifier, identifierType?, role, message?, teamId? }[]`). Returns `{ success: { invitationId, inviteeIdentifier, expiresAt }[], errors: { inviteeIdentifier, code, message }[] }`. |
 | `acceptInvitation` | mutation | Accept by ID. |
 | `resendInvitation` | mutation | Resend (resets expiration). |
 | `cancelInvitation` | mutation | Cancel invitation. |

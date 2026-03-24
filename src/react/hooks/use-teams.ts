@@ -193,17 +193,28 @@ export function useTeams(options: UseTeamsOptions) {
     [removeTeamMemberMut]
   );
 
+  const {
+    results,
+    status,
+    loadMore,
+    isLoading: isPaginatedLoading,
+  } = usePaginatedQuery(
+    listTeamsQuery as PaginatedQueryReference,
+    pagination !== undefined && organizationId ? { organizationId } : "skip",
+    { initialNumItems: pagination?.initialNumItems ?? 20 }
+  );
+
+  const teams = useQuery(
+    listTeamsQuery,
+    pagination === undefined && organizationId ? { organizationId } : "skip"
+  );
+
   if (pagination !== undefined) {
-    const { results, status, loadMore, isLoading } = usePaginatedQuery(
-      listTeamsQuery as PaginatedQueryReference,
-      organizationId ? { organizationId } : "skip",
-      { initialNumItems: pagination.initialNumItems ?? 20 }
-    );
     return {
       teams: results ?? [],
       status,
       loadMore,
-      isLoading,
+      isLoading: isPaginatedLoading,
       createTeam,
       updateTeam,
       deleteTeam,
@@ -212,10 +223,6 @@ export function useTeams(options: UseTeamsOptions) {
     };
   }
 
-  const teams = useQuery(
-    listTeamsQuery,
-    organizationId ? { organizationId } : "skip"
-  );
   return {
     teams: (Array.isArray(teams) ? teams : []) as Team[],
     isLoading: teams === undefined,

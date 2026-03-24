@@ -130,22 +130,6 @@ Card grid for teams with optional create/delete.
 />
 ```
 
-## JoinByDomainSection
-
-Lists organizations the user can join by email domain (where the org's `allowedDomains` includes the user's domain) and provides a Join button. Requires `api.listOrganizationsJoinableByDomain` and `api.joinByDomain`. When your API includes `getCurrentUserEmail`, the section uses the current user's email from context and needs no props.
-
-```tsx
-// With getCurrentUserEmail in api — no props needed
-<TenantsProvider api={api.tenants}>
-  <JoinByDomainSection />
-</TenantsProvider>
-
-// Or pass email explicitly
-<JoinByDomainSection currentUserEmail={myEmail} />
-```
-
-The section renders nothing when the user has no email, when there are no joinable orgs, or when the API does not expose the join-by-domain queries.
-
 ## AcceptInvitation
 
 Page component for accepting an invitation. Use with `useAcceptInvitation`:

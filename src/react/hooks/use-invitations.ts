@@ -170,27 +170,34 @@ export function useOrganizationInvitations(options: UseOrganizationInvitationsOp
     [cancelInvitationMut]
   );
 
+  const {
+    results,
+    status,
+    loadMore,
+    isLoading: isPaginatedLoading,
+  } = usePaginatedQuery(
+    listInvitationsQuery as PaginatedQueryReference,
+    pagination !== undefined && organizationId ? { organizationId } : "skip",
+    { initialNumItems: pagination?.initialNumItems ?? 20 }
+  );
+
+  const invitations = useQuery(
+    listInvitationsQuery,
+    pagination === undefined && organizationId ? { organizationId } : "skip"
+  );
+
   if (pagination !== undefined) {
-    const { results, status, loadMore, isLoading } = usePaginatedQuery(
-      listInvitationsQuery as PaginatedQueryReference,
-      organizationId ? { organizationId } : "skip",
-      { initialNumItems: pagination.initialNumItems ?? 20 }
-    );
     return {
       invitations: results ?? [],
       status,
       loadMore,
-      isLoading,
+      isLoading: isPaginatedLoading,
       inviteMember,
       resendInvitation,
       cancelInvitation,
     };
   }
 
-  const invitations = useQuery(
-    listInvitationsQuery,
-    organizationId ? { organizationId } : "skip"
-  );
   return {
     invitations: (Array.isArray(invitations) ? invitations : []) as Invitation[],
     isLoading: invitations === undefined,
