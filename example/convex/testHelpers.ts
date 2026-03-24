@@ -209,6 +209,28 @@ export const directCreateOrganization = mutation({
   },
 });
 
+/**
+ * Test helper: check if a ReBAC relation exists in the authz component.
+ * Used by rebac-relations.test.ts to verify addRelation/removeRelation calls.
+ */
+export const hasAuthzRelation = query({
+  args: {
+    subjectType: v.string(),
+    subjectId: v.string(),
+    relation: v.string(),
+    objectType: v.string(),
+    objectId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await authz.hasRelation(
+      ctx,
+      { type: args.subjectType, id: args.subjectId },
+      args.relation,
+      { type: args.objectType, id: args.objectId },
+    );
+  },
+});
+
 export const directListOrganizations = query({
   args: {},
   handler: async (ctx) => {

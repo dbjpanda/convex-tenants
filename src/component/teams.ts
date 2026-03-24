@@ -100,7 +100,7 @@ export const listTeams = query({
   },
 });
 
-export type TreeNode = {
+type TreeNode = {
   team: {
     _id: string;
     _creationTime: number;

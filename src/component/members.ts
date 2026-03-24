@@ -206,12 +206,6 @@ export const checkMemberPermission = query({
 // Mutations
 // ============================================================================
 
-function domainFromEmail(email: string): string {
-  const at = email.trim().toLowerCase().indexOf("@");
-  if (at === -1) return "";
-  return email.trim().toLowerCase().slice(at + 1);
-}
-
 export const addMember = mutation({
   args: {
     userId: v.string(),

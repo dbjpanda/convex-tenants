@@ -931,10 +931,9 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) {
-          await requireActiveMembership(ctx, userId, team.organizationId);
-          await requireActiveOrganization(ctx, team.organizationId);
-        }
+        if (!team) throw new Error("Team not found");
+        await requireActiveMembership(ctx, userId, team.organizationId);
+        await requireActiveOrganization(ctx, team.organizationId);
         if (options.onBeforeUpdateTeam) {
           await options.onBeforeUpdateTeam(ctx, {
             teamId: args.teamId,
@@ -959,10 +958,9 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const teamForOrg = await tenants.getTeam(ctx, args.teamId);
-        if (teamForOrg) {
-          await requireActiveMembership(ctx, userId, teamForOrg.organizationId);
-          await requireActiveOrganization(ctx, teamForOrg.organizationId);
-        }
+        if (!teamForOrg) throw new Error("Team not found");
+        await requireActiveMembership(ctx, userId, teamForOrg.organizationId);
+        await requireActiveOrganization(ctx, teamForOrg.organizationId);
         if (options.onBeforeDeleteTeam) {
           await options.onBeforeDeleteTeam(ctx, { teamId: args.teamId });
         }
@@ -987,10 +985,9 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) {
-          await requireActiveMembership(ctx, userId, team.organizationId);
-          await requireActiveOrganization(ctx, team.organizationId);
-        }
+        if (!team) throw new Error("Team not found");
+        await requireActiveMembership(ctx, userId, team.organizationId);
+        await requireActiveOrganization(ctx, team.organizationId);
         await tenants.addTeamMember(ctx, userId, args.teamId, args.memberUserId, { role: args.role });
         if (options.onTeamMemberAdded) {
           await options.onTeamMemberAdded(ctx, { teamId: args.teamId, userId: args.memberUserId, addedBy: userId });
@@ -1003,10 +1000,9 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) {
-          await requireActiveMembership(ctx, userId, team.organizationId);
-          await requireActiveOrganization(ctx, team.organizationId);
-        }
+        if (!team) throw new Error("Team not found");
+        await requireActiveMembership(ctx, userId, team.organizationId);
+        await requireActiveOrganization(ctx, team.organizationId);
         await tenants.updateTeamMemberRole(ctx, userId, args.teamId, args.memberUserId, args.role);
       },
     }),
@@ -1016,10 +1012,9 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
-        if (team) {
-          await requireActiveMembership(ctx, userId, team.organizationId);
-          await requireActiveOrganization(ctx, team.organizationId);
-        }
+        if (!team) throw new Error("Team not found");
+        await requireActiveMembership(ctx, userId, team.organizationId);
+        await requireActiveOrganization(ctx, team.organizationId);
         await tenants.removeTeamMember(ctx, userId, args.teamId, args.memberUserId);
         if (options.onTeamMemberRemoved) {
           await options.onTeamMemberRemoved(ctx, { teamId: args.teamId, userId: args.memberUserId, removedBy: userId });

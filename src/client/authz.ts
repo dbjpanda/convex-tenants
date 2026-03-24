@@ -67,6 +67,26 @@ export interface AuthzClient {
 
   /** Check if a ReBAC relationship exists. */
   hasRelation(ctx: any, subject: RelationEntity, relation: string, object: RelationEntity): Promise<boolean>;
+
+  // -- v2 bulk methods --
+
+  /** Check if user has any of the given permissions. */
+  canAny?(ctx: any, userId: string, permissions: string[], scope?: { type: string; id: string }): Promise<boolean>;
+
+  /** Assign multiple roles to a user in one call (max 20). */
+  assignRoles?(ctx: any, userId: string, roles: Array<{ role: string; scope?: { type: string; id: string }; expiresAt?: number }>, actorId?: string): Promise<{ assigned: number; assignmentIds: string[] }>;
+
+  /** Revoke multiple roles from a user in one call (max 20). */
+  revokeRoles?(ctx: any, userId: string, roles: Array<{ role: string; scope?: { type: string; id: string } }>, actorId?: string): Promise<{ revoked: number }>;
+
+  /** Revoke all roles for a user, optionally scoped. */
+  revokeAllRoles?(ctx: any, userId: string, scope?: { type: string; id: string }, actorId?: string): Promise<number>;
+
+  /** Remove all roles, overrides, attributes, and optionally relationships for a user. */
+  offboardUser?(ctx: any, userId: string, options?: { scope?: { type: string; id: string }; actorId?: string; removeAttributes?: boolean; removeOverrides?: boolean; removeRelationships?: boolean }): Promise<any>;
+
+  /** Full user deprovision — wipe all authz data for a user. */
+  deprovisionUser?(ctx: any, userId: string, options?: { actorId?: string; enableAudit?: boolean }): Promise<any>;
 }
 
 // ============================================================================

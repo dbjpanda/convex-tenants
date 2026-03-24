@@ -346,9 +346,21 @@ export class Tenants {
     const rolesByUser: Record<string, string> = {};
     const teamsResult = await this.listTeams(ctx, organizationId);
     const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
+    // Collect team memberships BEFORE the mutation deletes the DB rows,
+    // otherwise isTeamMember returns false and ReBAC relations are never cleaned.
+    const teamMembershipsByUser: Record<string, string[]> = {};
     for (const memberUserId of memberUserIds) {
       const member = await this.getMember(ctx, organizationId, memberUserId);
       if (member) rolesByUser[memberUserId] = member.role;
+      const memberTeamIds: string[] = [];
+      for (const team of teams) {
+        if (await this.isTeamMember(ctx, team._id, memberUserId)) {
+          memberTeamIds.push(team._id);
+        }
+      }
+      if (memberTeamIds.length > 0) {
+        teamMembershipsByUser[memberUserId] = memberTeamIds;
+      }
     }
     const result = await ctx.runMutation(this.component.members.bulkRemoveMembers, {
       userId,
@@ -360,16 +372,14 @@ export class Tenants {
       if (role) {
         await this.authz.revokeRole(ctx, memberUserId, role, orgScope(organizationId));
       }
-      for (const team of teams) {
-        const isMember = await this.isTeamMember(ctx, team._id, memberUserId);
-        if (isMember) {
-          await this.authz.removeRelation(
-            ctx,
-            { type: "user", id: memberUserId },
-            "member",
-            { type: "team", id: team._id },
-          );
-        }
+      const teamIds = teamMembershipsByUser[memberUserId] ?? [];
+      for (const teamId of teamIds) {
+        await this.authz.removeRelation(
+          ctx,
+          { type: "user", id: memberUserId },
+          "member",
+          { type: "team", id: teamId },
+        );
       }
     }
     return result;

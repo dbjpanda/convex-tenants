@@ -21,6 +21,7 @@ export type {
   OrgRole,
   InvitationRole,
   Organization,
+  OrganizationSettings,
   OrganizationWithRole,
   Member,
   MemberStatus,

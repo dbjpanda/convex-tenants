@@ -6,7 +6,7 @@ All functions below are returned by `makeTenantsAPI()`. Each becomes a Convex qu
 
 ```typescript
 makeTenantsAPI(components.tenants, {
-  authz: Authz,                           // Required (v2: IndexedAuthz removed, use Authz)
+  authz: Authz,                           // Required — pass your Authz instance from authz.ts
   auth: (ctx) => Promise<string | null>, // Required
   creatorRole: string,                   // Optional, default "owner"
   permissionMap: Partial<TenantsPermissionMap>,
