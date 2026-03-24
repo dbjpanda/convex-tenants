@@ -189,6 +189,140 @@ export const getCallbackLogs = query({
 });
 
 // ================================
+// API with validateInvitationCreate (rejects non-email identifiers)
+// ================================
+
+const apiWithValidateCreate = makeTenantsAPI(components.tenants, {
+  authz,
+  auth: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+  getUser: async (_ctx, userId) => ({ name: `User ${userId}`, email: `${userId}@test.com` }),
+  validateInvitationCreate: async (_ctx, data) => {
+    if (!data.inviteeIdentifier.includes("@")) {
+      return { allowed: false, reason: "Only email identifiers are allowed" };
+    }
+    return { allowed: true };
+  },
+});
+
+export const validateCreateInviteMember = apiWithValidateCreate.inviteMember;
+export const validateCreateBulkInviteMembers = apiWithValidateCreate.bulkInviteMembers;
+export const validateCreateOrg = apiWithValidateCreate.createOrganization;
+
+// ================================
+// API with validateInvitationAccept (rejects mismatched domains)
+// ================================
+
+const apiWithValidateAccept = makeTenantsAPI(components.tenants, {
+  authz,
+  auth: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+  getUser: async (_ctx, userId) => ({ name: `User ${userId}`, email: `${userId}@test.com` }),
+  validateInvitationAccept: async (_ctx, { invitation, acceptingUserIdentifier }) => {
+    const invitedDomain = invitation.inviteeIdentifier.split("@")[1]?.toLowerCase();
+    const userDomain = acceptingUserIdentifier.split("@")[1]?.toLowerCase();
+    if (invitedDomain !== userDomain) {
+      return { allowed: false, reason: "Email domain does not match invitation" };
+    }
+    return { allowed: true };
+  },
+});
+
+export const validateAcceptInviteMember = apiWithValidateAccept.inviteMember;
+export const validateAcceptCreateOrg = apiWithValidateAccept.createOrganization;
+export const validateAcceptAddMember = apiWithValidateAccept.addMember;
+export const validateAcceptAcceptInvitation = apiWithValidateAccept.acceptInvitation;
+export const validateAcceptGetInvitation = apiWithValidateAccept.getInvitation;
+
+// ================================
+// API with permissionMap overrides
+// ================================
+
+const apiWithPermissionMapOverrides = makeTenantsAPI(components.tenants, {
+  authz,
+  auth: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+  getUser: async (_ctx, userId) => ({ name: `User ${userId}`, email: `${userId}@test.com` }),
+  permissionMap: {
+    deleteOrganization: false,  // Skip authz check for delete
+    createTeam: "organizations:read",  // Use a different permission
+  },
+});
+
+export const permMapCreateOrg = apiWithPermissionMapOverrides.createOrganization;
+export const permMapDeleteOrg = apiWithPermissionMapOverrides.deleteOrganization;
+export const permMapAddMember = apiWithPermissionMapOverrides.addMember;
+export const permMapCreateTeam = apiWithPermissionMapOverrides.createTeam;
+export const permMapListMembers = apiWithPermissionMapOverrides.listMembers;
+
+// ================================
+// API with ALL onBefore hooks (log to callbackLog)
+// ================================
+
+const apiWithAllOnBefore = makeTenantsAPI(components.tenants, {
+  authz,
+  auth: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.subject ?? null;
+  },
+  getUser: async (_ctx, userId) => ({ name: `User ${userId}`, email: `${userId}@test.com` }),
+  onBeforeCreateOrganization: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeCreateOrganization", data });
+  },
+  onBeforeUpdateOrganization: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeUpdateOrganization", data });
+  },
+  onBeforeDeleteOrganization: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeDeleteOrganization", data });
+  },
+  onBeforeAddMember: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeAddMember", data });
+  },
+  onBeforeRemoveMember: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeRemoveMember", data });
+  },
+  onBeforeUpdateMemberRole: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeUpdateMemberRole", data });
+  },
+  onBeforeLeaveOrganization: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeLeaveOrganization", data });
+  },
+  onBeforeCreateTeam: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeCreateTeam", data });
+  },
+  onBeforeUpdateTeam: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeUpdateTeam", data });
+  },
+  onBeforeDeleteTeam: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeDeleteTeam", data });
+  },
+  onBeforeInviteMember: async (ctx, data) => {
+    await ctx.db.insert("callbackLog", { type: "onBeforeInviteMember", data });
+  },
+});
+
+export const onBeforeCreateOrg = apiWithAllOnBefore.createOrganization;
+export const onBeforeUpdateOrg = apiWithAllOnBefore.updateOrganization;
+export const onBeforeDeleteOrg = apiWithAllOnBefore.deleteOrganization;
+export const onBeforeAddMember = apiWithAllOnBefore.addMember;
+export const onBeforeRemoveMember = apiWithAllOnBefore.removeMember;
+export const onBeforeUpdateMemberRole = apiWithAllOnBefore.updateMemberRole;
+export const onBeforeLeaveOrg = apiWithAllOnBefore.leaveOrganization;
+export const onBeforeCreateTeam = apiWithAllOnBefore.createTeam;
+export const onBeforeUpdateTeam = apiWithAllOnBefore.updateTeam;
+export const onBeforeDeleteTeam = apiWithAllOnBefore.deleteTeam;
+export const onBeforeInviteMember = apiWithAllOnBefore.inviteMember;
+export const onBeforeListMembers = apiWithAllOnBefore.listMembers;
+export const onBeforeListTeams = apiWithAllOnBefore.listTeams;
+export const onBeforeGetCurrentMember = apiWithAllOnBefore.getCurrentMember;
+
+// ================================
 // Direct component API (for testing the lower-level component calls)
 // ================================
 
