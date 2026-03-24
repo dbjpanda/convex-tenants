@@ -39,7 +39,7 @@ import { normalizeEmail, orgScope } from "./helpers.js";
  *   billing_admin: { organizations: ["read"], billing: ["manage", "view"] },
  * });
  *
- * export const authz = new Authz(components.authz, { permissions, roles });
+ * export const authz = new Authz(components.authz, { permissions, roles, tenantId: "my-app" });
  * ```
  *
  * ```ts

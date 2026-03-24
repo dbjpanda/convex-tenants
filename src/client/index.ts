@@ -7,6 +7,7 @@
 // Authorization defaults: AuthzClient, permissions, roles, permission map
 export {
   type AuthzClient,
+  type RelationEntity,
   DEFAULT_TENANTS_PERMISSION_MAP,
   type TenantsPermissionMap,
   TENANTS_PERMISSIONS,

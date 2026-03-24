@@ -50,4 +50,6 @@ const roles = defineRoles(permissions, TENANTS_ROLES, {
 });
 
 // Step 3: Create the Authz client
-export const authz = new Authz(components.authz, { permissions, roles });
+// tenantId is required in authz v2 — use a constant for single-app setups,
+// or pass the current organization/customer ID for multi-tenant isolation.
+export const authz = new Authz(components.authz, { permissions, roles, tenantId: "my-app" });

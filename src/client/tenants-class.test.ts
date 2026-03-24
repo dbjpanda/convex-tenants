@@ -11,7 +11,6 @@ function createMockCtx() {
 
 function createMockAuthz() {
   return {
-    component: {} as any,
     can: vi.fn().mockResolvedValue(true),
     require: vi.fn().mockResolvedValue(undefined),
     assignRole: vi.fn().mockResolvedValue("role-id"),
@@ -21,6 +20,9 @@ function createMockAuthz() {
     grantPermission: vi.fn().mockResolvedValue("override-id"),
     denyPermission: vi.fn().mockResolvedValue("override-id"),
     getAuditLog: vi.fn().mockResolvedValue([]),
+    addRelation: vi.fn().mockResolvedValue("relation-id"),
+    removeRelation: vi.fn().mockResolvedValue(true),
+    hasRelation: vi.fn().mockResolvedValue(false),
   };
 }
 

@@ -7,24 +7,31 @@
  * `definePermissions` / `defineRoles` from `@djpanda/convex-authz`.
  */
 
-import type { ComponentApi as AuthzComponentApi } from "@djpanda/convex-authz";
 import { definePermissions, defineRoles } from "@djpanda/convex-authz";
 
 // ============================================================================
 // AuthzClient Interface
 // ============================================================================
 
+/** Subject or object in a ReBAC relationship. */
+export interface RelationEntity {
+  type: string;
+  id: string;
+}
+
 /**
  * Interface for the authz client accepted by the Tenants class.
  *
- * This matches the shape of both `Authz` and `IndexedAuthz` from
- * `@djpanda/convex-authz`. Create your instance following the authz
- * component docs and pass it directly — no wrapper needed.
+ * This matches the shape of `Authz` from `@djpanda/convex-authz` v2.
+ * Create your instance following the authz component docs and pass it
+ * directly — no wrapper needed.
+ *
+ * **v2 migration:** `IndexedAuthz` was removed — use `Authz` directly.
+ * The `Authz` constructor now requires a `tenantId` parameter.
+ * ReBAC methods (`addRelation`, `removeRelation`, `hasRelation`) are
+ * now on the `Authz` class directly instead of `component.rebac.*`.
  */
 export interface AuthzClient {
-  /** The underlying authz component API (used for ReBAC operations). */
-  component: AuthzComponentApi;
-
   /** Check if a user has a permission (returns boolean). */
   can(ctx: any, userId: string, permission: string, scope?: { type: string; id: string }): Promise<boolean>;
 
@@ -51,6 +58,15 @@ export interface AuthzClient {
 
   /** Get audit log entries. */
   getAuditLog(ctx: any, options?: { userId?: string; action?: string; limit?: number }): Promise<any>;
+
+  /** Add a ReBAC relationship tuple. */
+  addRelation(ctx: any, subject: RelationEntity, relation: string, object: RelationEntity, options?: { caveat?: string; caveatContext?: unknown; createdBy?: string }): Promise<string>;
+
+  /** Remove a ReBAC relationship tuple. */
+  removeRelation(ctx: any, subject: RelationEntity, relation: string, object: RelationEntity, actorId?: string): Promise<boolean>;
+
+  /** Check if a ReBAC relationship exists. */
+  hasRelation(ctx: any, subject: RelationEntity, relation: string, object: RelationEntity): Promise<boolean>;
 }
 
 // ============================================================================

@@ -203,13 +203,12 @@ export class Tenants {
       const tmsResult = await this.listTeamMembers(ctx, team._id);
       const tms = Array.isArray(tmsResult) ? tmsResult : tmsResult.page;
       for (const tm of tms) {
-        await ctx.runMutation(this.authz.component.rebac.removeRelation, {
-          subjectType: "user",
-          subjectId: tm.userId,
-          relation: "member",
-          objectType: "team",
-          objectId: team._id,
-        });
+        await this.authz.removeRelation(
+          ctx,
+          { type: "user", id: tm.userId },
+          "member",
+          { type: "team", id: team._id },
+        );
       }
     }
     await ctx.runMutation(this.component.organizations.deleteOrganization, { userId, organizationId });
@@ -297,13 +296,12 @@ export class Tenants {
       for (const team of teams) {
         const isMember = await this.isTeamMember(ctx, team._id, memberUserId);
         if (isMember) {
-          await ctx.runMutation(this.authz.component.rebac.removeRelation, {
-            subjectType: "user",
-            subjectId: memberUserId,
-            relation: "member",
-            objectType: "team",
-            objectId: team._id,
-          });
+          await this.authz.removeRelation(
+            ctx,
+            { type: "user", id: memberUserId },
+            "member",
+            { type: "team", id: team._id },
+          );
         }
       }
     }
@@ -365,13 +363,12 @@ export class Tenants {
       for (const team of teams) {
         const isMember = await this.isTeamMember(ctx, team._id, memberUserId);
         if (isMember) {
-          await ctx.runMutation(this.authz.component.rebac.removeRelation, {
-            subjectType: "user",
-            subjectId: memberUserId,
-            relation: "member",
-            objectType: "team",
-            objectId: team._id,
-          });
+          await this.authz.removeRelation(
+            ctx,
+            { type: "user", id: memberUserId },
+            "member",
+            { type: "team", id: team._id },
+          );
         }
       }
     }
@@ -449,13 +446,12 @@ export class Tenants {
     for (const team of teams) {
       const isMember = await this.isTeamMember(ctx, team._id, userId);
       if (isMember) {
-        await ctx.runMutation(this.authz.component.rebac.removeRelation, {
-          subjectType: "user",
-          subjectId: userId,
-          relation: "member",
-          objectType: "team",
-          objectId: team._id,
-        });
+        await this.authz.removeRelation(
+          ctx,
+          { type: "user", id: userId },
+          "member",
+          { type: "team", id: team._id },
+        );
       }
     }
     await ctx.runMutation(this.component.members.leaveOrganization, { userId, organizationId });
@@ -541,13 +537,12 @@ export class Tenants {
     const tmsResult = await this.listTeamMembers(ctx, teamId);
     const tms = Array.isArray(tmsResult) ? tmsResult : tmsResult.page;
     for (const tm of tms) {
-      await ctx.runMutation(this.authz.component.rebac.removeRelation, {
-        subjectType: "user",
-        subjectId: tm.userId,
-        relation: "member",
-        objectType: "team",
-        objectId: teamId,
-      });
+      await this.authz.removeRelation(
+        ctx,
+        { type: "user", id: tm.userId },
+        "member",
+        { type: "team", id: teamId },
+      );
     }
     await ctx.runMutation(this.component.teams.deleteTeam, { userId, teamId });
   }
@@ -585,13 +580,12 @@ export class Tenants {
       memberUserId,
       role: options?.role,
     });
-    await ctx.runMutation(this.authz.component.rebac.addRelation, {
-      subjectType: "user",
-      subjectId: memberUserId,
-      relation: "member",
-      objectType: "team",
-      objectId: teamId,
-    });
+    await this.authz.addRelation(
+      ctx,
+      { type: "user", id: memberUserId },
+      "member",
+      { type: "team", id: teamId },
+    );
   }
 
   async updateTeamMemberRole(
@@ -626,13 +620,12 @@ export class Tenants {
       teamId,
       memberUserId,
     });
-    await ctx.runMutation(this.authz.component.rebac.removeRelation, {
-      subjectType: "user",
-      subjectId: memberUserId,
-      relation: "member",
-      objectType: "team",
-      objectId: teamId,
-    });
+    await this.authz.removeRelation(
+      ctx,
+      { type: "user", id: memberUserId },
+      "member",
+      { type: "team", id: teamId },
+    );
   }
 
   async isTeamMember(ctx: QueryCtx, teamId: string, userId: string): Promise<boolean> {
@@ -837,13 +830,12 @@ export class Tenants {
         invitation.inviterId
       );
       if (invitation.teamId) {
-        await ctx.runMutation(this.authz.component.rebac.addRelation, {
-          subjectType: "user",
-          subjectId: acceptingUserId,
-          relation: "member",
-          objectType: "team",
-          objectId: invitation.teamId,
-        });
+        await this.authz.addRelation(
+          ctx,
+          { type: "user", id: acceptingUserId },
+          "member",
+          { type: "team", id: invitation.teamId },
+        );
       }
     }
   }

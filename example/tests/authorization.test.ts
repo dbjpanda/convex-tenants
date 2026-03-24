@@ -68,8 +68,8 @@ describe("makeTenantsAPI - authorization API", () => {
       });
 
       expect(perms).toBeDefined();
-      // Owner should have permissions
-      expect(perms.permissions.length).toBeGreaterThan(0);
+      // Owner should have permissions (v2 returns flat array of permission objects)
+      expect(Array.isArray(perms) ? perms.length : 0).toBeGreaterThan(0);
     });
 
     test("getUserPermissions throws when unauthenticated", async () => {
