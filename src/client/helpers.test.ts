@@ -36,7 +36,15 @@ describe("helpers", () => {
     });
 
     it("should handle empty string", () => {
-      expect(generateSlug("")).toBe("");
+      expect(generateSlug("")).toBe("org");
+    });
+
+    it("should fallback to 'org' for special character only names", () => {
+      expect(generateSlug("!!!@@@")).toBe("org");
+    });
+
+    it("should fallback to 'org' for whitespace only names", () => {
+      expect(generateSlug("   ")).toBe("org");
     });
   });
 

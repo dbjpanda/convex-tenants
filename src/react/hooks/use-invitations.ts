@@ -170,6 +170,8 @@ export function useOrganizationInvitations(options: UseOrganizationInvitationsOp
     [cancelInvitationMut]
   );
 
+  // Both hooks are called unconditionally (Rules of Hooks). The "skip" arg
+  // prevents Convex from creating an actual backend subscription for the unused path.
   const {
     results,
     status,
@@ -276,7 +278,7 @@ export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
   const acceptMutation = useMutation(acceptInvitationMutation);
 
   const acceptInvitation = useCallback(async () => {
-    if (acceptingRef.current || isAccepting) {
+    if (acceptingRef.current) {
       return;
     }
     try {
@@ -287,10 +289,11 @@ export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
       setAccepted(true);
     } catch (err: any) {
       setError(err.message || "Failed to accept invitation");
+    } finally {
       acceptingRef.current = false;
       setIsAccepting(false);
     }
-  }, [invitationId, isAccepting, acceptMutation]);
+  }, [invitationId, acceptMutation]);
 
   const resetError = useCallback(() => {
     setError(null);

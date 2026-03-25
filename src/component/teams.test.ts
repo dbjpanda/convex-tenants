@@ -293,6 +293,127 @@ describe("teams", () => {
     ).rejects.toThrow("User is already a member of this team");
   });
 
+  it("should count teams in organization", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Engineering",
+    });
+
+    await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Sales",
+    });
+
+    await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Marketing",
+    });
+
+    const count = await t.query(api.teams.countTeams, {
+      organizationId: orgId,
+    });
+
+    expect(count).toBe(3);
+  });
+
+  it("countTeams returns 0 for org with no teams", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    const count = await t.query(api.teams.countTeams, {
+      organizationId: orgId,
+    });
+
+    expect(count).toBe(0);
+  });
+
+  it("should update team member role", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+      role: "member",
+    });
+
+    const teamId = await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Engineering",
+    });
+
+    await t.mutation(api.teams.addTeamMember, {
+      userId: "user_123",
+      teamId,
+      memberUserId: "user_456",
+      role: "contributor",
+    });
+
+    await t.mutation(api.teams.updateTeamMemberRole, {
+      userId: "user_123",
+      teamId,
+      memberUserId: "user_456",
+      role: "lead",
+    });
+
+    const teamMembers = await t.query(api.teams.listTeamMembers, {
+      teamId,
+    });
+
+    const member = (teamMembers as any[]).find(
+      (m: any) => m.userId === "user_456"
+    );
+    expect(member?.role).toBe("lead");
+  });
+
+  it("updateTeamMemberRole throws for non-team-member", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    const teamId = await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Engineering",
+    });
+
+    await expect(
+      t.mutation(api.teams.updateTeamMemberRole, {
+        userId: "user_123",
+        teamId,
+        memberUserId: "nonexistent",
+        role: "lead",
+      })
+    ).rejects.toThrow("User is not a member of this team");
+  });
+
   it("removeTeamMember throws for non-team-member", async () => {
     const t = createTestInstance();
 
@@ -315,5 +436,96 @@ describe("teams", () => {
         memberUserId: "nonexistent",
       })
     ).rejects.toThrow("User is not a member of this team");
+  });
+
+  it("should list teams as tree with flat teams", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Engineering",
+    });
+
+    await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Sales",
+    });
+
+    const tree = await t.query(api.teams.listTeamsAsTree, {
+      organizationId: orgId,
+    });
+
+    expect(tree).toHaveLength(2);
+    expect(tree[0].team).toBeDefined();
+    expect(tree[0].children).toBeDefined();
+    expect(tree[0].children).toHaveLength(0);
+    const names = tree.map((n: any) => n.team.name);
+    expect(names).toContain("Engineering");
+    expect(names).toContain("Sales");
+  });
+
+  it("should list teams as tree with nested children", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    const parentId = await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Engineering",
+    });
+
+    await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Frontend",
+      parentTeamId: parentId as any,
+    });
+
+    await t.mutation(api.teams.createTeam, {
+      userId: "user_123",
+      organizationId: orgId,
+      name: "Backend",
+      parentTeamId: parentId as any,
+    });
+
+    const tree = await t.query(api.teams.listTeamsAsTree, {
+      organizationId: orgId,
+    });
+
+    expect(tree).toHaveLength(1);
+    expect(tree[0].team.name).toBe("Engineering");
+    expect(tree[0].children).toHaveLength(2);
+    const childNames = tree[0].children.map((c: any) => c.team.name);
+    expect(childNames).toContain("Frontend");
+    expect(childNames).toContain("Backend");
+  });
+
+  it("listTeamsAsTree returns empty array for org with no teams", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    const tree = await t.query(api.teams.listTeamsAsTree, {
+      organizationId: orgId,
+    });
+
+    expect(tree).toHaveLength(0);
   });
 });

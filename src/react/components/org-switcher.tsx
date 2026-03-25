@@ -136,6 +136,7 @@ export function OrganizationSwitcher({
       : undefined);
 
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showNewOrgDialog, setShowNewOrgDialog] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
@@ -179,6 +180,10 @@ export function OrganizationSwitcher({
     setOpen(false);
   };
 
+  const filteredOrganizations = organizations.filter((org) =>
+    org.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (isLoading) {
     return (
       <div
@@ -196,7 +201,12 @@ export function OrganizationSwitcher({
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={(isOpen) => {
+          setOpen(isOpen);
+          if (!isOpen) {
+            setSearchQuery("");
+          }
+        }}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -231,6 +241,8 @@ export function OrganizationSwitcher({
               type="text"
               placeholder="Search organization..."
               className="h-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
@@ -238,12 +250,12 @@ export function OrganizationSwitcher({
             <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
               Organizations
             </div>
-            {organizations.length === 0 ? (
+            {filteredOrganizations.length === 0 ? (
               <div className="px-2 py-4 text-center text-sm text-muted-foreground">
                 No organization found.
               </div>
             ) : (
-              organizations.map((org) => (
+              filteredOrganizations.map((org) => (
                 <button
                   key={org._id}
                   onClick={() => handleSwitchOrganization(org._id)}

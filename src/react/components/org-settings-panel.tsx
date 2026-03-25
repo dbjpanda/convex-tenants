@@ -27,6 +27,7 @@ export function OrgSettingsPanel() {
     updateOrganization,
     deleteOrganization,
     leaveOrganization,
+    onToast,
     api,
   } = useTenants();
 
@@ -46,6 +47,7 @@ export function OrgSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteConfirmValue, setDeleteConfirmValue] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [transferTargetUserId, setTransferTargetUserId] = useState("");
   const [confirmTransfer, setConfirmTransfer] = useState(false);
@@ -57,6 +59,7 @@ export function OrgSettingsPanel() {
     setSlug(currentOrganization?.slug ?? "");
     setStatus(currentOrganization?.status ?? "active");
     setConfirmDelete(false);
+    setDeleteConfirmValue("");
     setConfirmLeave(false);
   }, [currentOrganization?._id, currentOrganization?.name, currentOrganization?.slug, currentOrganization?.status]);
 
@@ -83,8 +86,13 @@ export function OrgSettingsPanel() {
     try {
       const uploadUrl = await generateLogoUploadUrlMut();
       const res = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      if (!res.ok) {
+        throw new Error("Logo upload failed");
+      }
       const { storageId } = (await res.json()) as { storageId: string };
       await updateOrganization({ logo: storageId });
+    } catch (error) {
+      onToast?.("Failed to upload logo", "error");
     } finally {
       setLogoUploading(false);
       e.target.value = "";
@@ -219,8 +227,11 @@ export function OrgSettingsPanel() {
           {confirmDelete ? (
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-red-600 dark:text-red-400">Type &quot;{currentOrganization.name}&quot; to confirm:</span>
-              <input className="flex h-9 w-48 rounded-md border border-red-300 bg-background px-3 text-sm dark:border-red-800" placeholder={currentOrganization.name} onChange={(e) => { if (e.target.value === currentOrganization.name) deleteOrganization(); }} />
-              <button type="button" onClick={() => setConfirmDelete(false)} className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent">Cancel</button>
+              <input className="flex h-9 w-48 rounded-md border border-red-300 bg-background px-3 text-sm dark:border-red-800" placeholder={currentOrganization.name} value={deleteConfirmValue} onChange={(e) => setDeleteConfirmValue(e.target.value)} />
+              <button type="button" onClick={() => deleteOrganization()} disabled={deleteConfirmValue !== currentOrganization.name} className="inline-flex h-9 items-center gap-2 rounded-md bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+                <Trash2 className="size-4" /> Delete Organization
+              </button>
+              <button type="button" onClick={() => { setConfirmDelete(false); setDeleteConfirmValue(""); }} className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent">Cancel</button>
             </div>
           ) : (
             <button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex h-10 items-center gap-2 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700">

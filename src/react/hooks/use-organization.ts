@@ -101,7 +101,7 @@ export function useOrganization(options: UseOrganizationOptions) {
     currentOrganization,
     
     // Loading state
-    isLoading: organizations === undefined,
+    isLoading: organizationsRaw === undefined,
     
     // Organization actions
     switchOrganization,

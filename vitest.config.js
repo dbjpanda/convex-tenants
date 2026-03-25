@@ -5,12 +5,18 @@ export default defineConfig({
   resolve: {
     alias: {
       "@djpanda/convex-authz/test": path.resolve(
-        __dirname,
+        import.meta.dirname,
         "node_modules/@djpanda/convex-authz/src/test.ts",
       ),
       // Self-reference for example folder tests
-      "@djpanda/convex-tenants/test": path.resolve(__dirname, "src/test.ts"),
-      "@djpanda/convex-tenants": path.resolve(__dirname, "src/client/index.ts"),
+      "@djpanda/convex-tenants/test": path.resolve(
+        import.meta.dirname,
+        "src/test.ts",
+      ),
+      "@djpanda/convex-tenants": path.resolve(
+        import.meta.dirname,
+        "src/client/index.ts",
+      ),
     },
   },
   test: {

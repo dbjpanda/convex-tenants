@@ -113,6 +113,8 @@ export function useMembers(options: UseMembersOptions) {
     [organizationId, updateMemberRoleMut]
   );
 
+  // Both hooks are called unconditionally (Rules of Hooks). The "skip" arg
+  // prevents Convex from creating an actual backend subscription for the unused path.
   const {
     results,
     status,

@@ -60,7 +60,11 @@
       "types": "./dist/react/index.d.ts",
       "default": "./dist/react/index.js"
     },
-    "./test": "./src/test.ts",
+    "./test": {
+      "types": "./dist/test.d.ts",
+      "import": "./dist/test.js",
+      "default": "./dist/test.js"
+    },
     "./_generated/component.js": {
       "types": "./dist/component/_generated/component.d.ts"
     },

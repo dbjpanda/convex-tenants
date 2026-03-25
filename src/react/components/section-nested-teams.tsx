@@ -9,6 +9,19 @@ import type { Team } from "../providers/tenants-context.js";
 
 type TeamTreeEntry = { team: Team; children: TeamTreeEntry[] };
 
+function TreeList({ entries, depth = 0 }: { entries: TeamTreeEntry[]; depth?: number }) {
+  return (
+    <ul className={depth > 0 ? "ml-4 border-l-2 border-muted pl-3" : ""}>
+      {entries.map(({ team, children }) => (
+        <li key={team._id} className="py-1">
+          <span className="font-medium">{team.name}</span>
+          {children.length > 0 && <TreeList entries={children} depth={depth + 1} />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * Nested teams: tree view via listTeamsAsTree and create team with optional parent.
  * Renders only when api exposes listTeamsAsTree.
@@ -45,19 +58,6 @@ export function NestedTeamsSection() {
       setCreating(false);
     }
   };
-
-  function TreeList({ entries, depth = 0 }: { entries: TeamTreeEntry[]; depth?: number }) {
-    return (
-      <ul className={depth > 0 ? "ml-4 border-l-2 border-muted pl-3" : ""}>
-        {entries.map(({ team, children }) => (
-          <li key={team._id} className="py-1">
-            <span className="font-medium">{team.name}</span>
-            {children.length > 0 && <TreeList entries={children} depth={depth + 1} />}
-          </li>
-        ))}
-      </ul>
-    );
-  }
 
   return (
     <section className="mt-6 rounded-xl border bg-background p-6 shadow-sm">

@@ -127,6 +127,9 @@ export class Tenants {
       await this.authz.require(ctx, userId, createPermission);
     }
     const slug = options?.slug ?? generateSlug(name);
+    if (!slug) {
+      throw new Error("Organization name must contain at least one alphanumeric character to generate a valid slug");
+    }
     const creatorRole = this.options.creatorRole ?? "owner";
     const orgId = await ctx.runMutation(this.component.organizations.createOrganization, {
       userId,
@@ -181,9 +184,10 @@ export class Tenants {
       newOwnerUserId,
       previousOwnerRole: previousRole,
     });
-    await this.authz.revokeRole(ctx, userId, "owner", orgScope(organizationId));
+    const creatorRole = this.options.creatorRole ?? "owner";
+    await this.authz.revokeRole(ctx, userId, creatorRole, orgScope(organizationId));
     await this.authz.assignRole(ctx, userId, previousRole, orgScope(organizationId), undefined, userId);
-    await this.authz.assignRole(ctx, newOwnerUserId, "owner", orgScope(organizationId), undefined, userId);
+    await this.authz.assignRole(ctx, newOwnerUserId, creatorRole, orgScope(organizationId), undefined, userId);
   }
 
   async deleteOrganization(
@@ -256,12 +260,12 @@ export class Tenants {
     ctx: QueryCtx,
     organizationId: string,
     userId: string,
-    minRole: "member" | "admin" | "owner"
+    minRole: string
   ): Promise<{ hasPermission: boolean; currentRole: "owner" | "admin" | "member" | null }> {
     return await ctx.runQuery(this.component.members.checkMemberPermission, {
       organizationId,
       userId,
-      minRole,
+      minRole: minRole as "member" | "admin" | "owner",
     });
   }
 
@@ -718,6 +722,8 @@ export class Tenants {
     );
   }
 
+  // TODO: Pass scope filter to authz.getAuditLog to avoid fetching all entries.
+  // Currently filtering client-side which doesn't scale with large audit logs.
   async getAuditLog(
     ctx: QueryCtx,
     userId: string,
@@ -726,16 +732,22 @@ export class Tenants {
   ) {
     await this.authzRequireOperation(ctx, userId, "getAuditLog", orgScope(organizationId));
     const scope = orgScope(organizationId);
-    const result = await this.authz.getAuditLog(ctx, options);
+    const callerLimit = options?.limit ?? 50;
+    const fetchLimit = callerLimit * 3;
+    const result = await this.authz.getAuditLog(ctx, { ...options, limit: fetchLimit });
     const matchesScope = (entry: { scope?: { type?: string; id?: string } }) =>
       entry.scope?.type === scope.type && entry.scope?.id === scope.id;
     if (Array.isArray(result)) {
-      return result.filter((entry: { scope?: { type?: string; id?: string } }) => matchesScope(entry));
+      return result
+        .filter((entry: { scope?: { type?: string; id?: string } }) => matchesScope(entry))
+        .slice(0, callerLimit);
     }
     if (result && Array.isArray((result as { entries?: unknown[] }).entries)) {
       return {
         ...result,
-        entries: (result as { entries: { scope?: { type?: string; id?: string } }[] }).entries.filter(matchesScope),
+        entries: (result as { entries: { scope?: { type?: string; id?: string } }[] }).entries
+          .filter(matchesScope)
+          .slice(0, callerLimit),
       };
     }
     return result;

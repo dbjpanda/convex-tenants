@@ -192,6 +192,8 @@ export const createOrganization = mutation({
       organizationId,
       userId: args.userId,
       role: args.creatorRole ?? "owner",
+      status: "active",
+      joinedAt: Date.now(),
     });
     return organizationId as string;
   },
@@ -211,6 +213,22 @@ export const updateOrganization = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
+    const org = await ctx.db.get(orgId);
+    if (!org) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
+    }
+
+    // Verify the caller is a member of this organization
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", orgId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!member) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    }
+
     const updates: Record<string, unknown> = {};
     if (args.name !== undefined) updates.name = args.name;
     if (args.logo !== undefined) updates.logo = args.logo;
@@ -218,7 +236,7 @@ export const updateOrganization = mutation({
     if (args.settings !== undefined) updates.settings = args.settings;
     if (args.status !== undefined) updates.status = args.status;
     if (args.slug !== undefined) {
-      updates.slug = await ensureUniqueSlug(ctx, args.slug);
+      updates.slug = await ensureUniqueSlug(ctx, args.slug, orgId);
     }
     await ctx.db.patch(orgId, updates);
     return null;
@@ -234,6 +252,10 @@ export const transferOwnership = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Check self-transfer first, before any DB reads
+    if (args.newOwnerUserId === args.userId) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: "Cannot transfer ownership to yourself" });
+    }
     const orgId = args.organizationId as Id<"organizations">;
     const org = await ctx.db.get(orgId);
     if (!org) throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
@@ -248,9 +270,6 @@ export const transferOwnership = mutation({
       .unique();
     if (!newOwnerMember) {
       throw new ConvexError({ code: "NOT_FOUND", message: "New owner must already be a member of the organization" });
-    }
-    if (args.newOwnerUserId === args.userId) {
-      throw new ConvexError({ code: "INVALID_ARGUMENT", message: "New owner must be a different user" });
     }
     const previousRole = args.previousOwnerRole ?? "admin";
     await ctx.db.patch(orgId, { ownerId: args.newOwnerUserId });
@@ -271,6 +290,13 @@ export const deleteOrganization = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
+    const org = await ctx.db.get(orgId);
+    if (!org) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
+    }
+    if (org.ownerId !== args.userId) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only the owner can delete the organization" });
+    }
     const teams = await ctx.db
       .query("teams")
       .withIndex("by_organization", (q) => q.eq("organizationId", orgId))

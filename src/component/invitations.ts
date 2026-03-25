@@ -268,11 +268,11 @@ export const inviteMember = mutation({
     }
     const existing = await ctx.db
       .query("invitations")
-      .withIndex("by_invitee_identifier_and_status", (q) =>
-        q.eq("inviteeIdentifier", normalizedIdentifier).eq("status", "pending")
+      .withIndex("by_org_invitee_and_status", (q) =>
+        q.eq("organizationId", orgId).eq("inviteeIdentifier", normalizedIdentifier).eq("status", "pending")
       )
       .first();
-    if (existing && existing.organizationId === orgId) {
+    if (existing) {
       throw new ConvexError({
         code: "ALREADY_EXISTS",
         message: "A pending invitation already exists for this identifier",
@@ -333,6 +333,8 @@ export const acceptInvitation = mutation({
       organizationId: invitation.organizationId,
       userId: args.acceptingUserId,
       role: invitation.role,
+      status: "active",
+      joinedAt: Date.now(),
     });
     if (invitation.teamId) {
       const team = await ctx.db.get(invitation.teamId);
@@ -380,6 +382,8 @@ export const resendInvitation = mutation({
         message: "Invitation has expired. Please create a new one.",
       });
     }
+    const newExpiresAt = Date.now() + 48 * 60 * 60 * 1000;
+    await ctx.db.patch(invitationId, { expiresAt: newExpiresAt });
     return { invitationId: invitation._id as string, inviteeIdentifier: invitation.inviteeIdentifier };
   },
 });
@@ -448,11 +452,11 @@ export const bulkInviteMembers = mutation({
         }
         const existing = await ctx.db
           .query("invitations")
-          .withIndex("by_invitee_identifier_and_status", (q) =>
-            q.eq("inviteeIdentifier", normalizedIdentifier).eq("status", "pending")
+          .withIndex("by_org_invitee_and_status", (q) =>
+            q.eq("organizationId", orgId).eq("inviteeIdentifier", normalizedIdentifier).eq("status", "pending")
           )
           .first();
-        if (existing && existing.organizationId === orgId) {
+        if (existing) {
           errors.push({
             inviteeIdentifier: normalizedIdentifier,
             code: "ALREADY_EXISTS",

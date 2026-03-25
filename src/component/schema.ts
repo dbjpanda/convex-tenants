@@ -39,7 +39,8 @@ export default defineSchema({
   })
     .index("by_organization", ["organizationId"])
     .index("by_user", ["userId"])
-    .index("by_organization_and_user", ["organizationId", "userId"]),
+    .index("by_organization_and_user", ["organizationId", "userId"])
+    .index("by_organization_and_status", ["organizationId", "status"]),
 
   // Teams table
   teams: defineTable({
@@ -52,6 +53,7 @@ export default defineSchema({
   })
     .index("by_organization", ["organizationId"])
     .index("by_organization_and_slug", ["organizationId", "slug"])
+    .index("by_organization_and_parent", ["organizationId", "parentTeamId"])
     .index("by_parent", ["parentTeamId"]),
 
   // Team members table
@@ -85,5 +87,6 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_invitee_identifier", ["inviteeIdentifier"])
     .index("by_status", ["status"])
-    .index("by_invitee_identifier_and_status", ["inviteeIdentifier", "status"]),
+    .index("by_invitee_identifier_and_status", ["inviteeIdentifier", "status"])
+    .index("by_org_invitee_and_status", ["organizationId", "inviteeIdentifier", "status"]),
 });

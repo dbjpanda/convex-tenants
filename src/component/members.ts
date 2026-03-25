@@ -37,21 +37,29 @@ export const listOrganizationMembers = query({
   ),
   handler: async (ctx, args) => {
     if (args.paginationOpts) {
-      const result = await ctx.db
-        .query("members")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", args.organizationId as Id<"organizations">)
-        )
-        .order("desc")
-        .paginate(args.paginationOpts);
+      const orgId = args.organizationId as Id<"organizations">;
       const statusFilter = args.status ?? "active";
-      const filteredPage =
+
+      const result =
         statusFilter === "all"
-          ? result.page
-          : result.page.filter((m) => (m.status ?? "active") === statusFilter);
+          ? await ctx.db
+              .query("members")
+              .withIndex("by_organization", (q) =>
+                q.eq("organizationId", orgId)
+              )
+              .order("desc")
+              .paginate(args.paginationOpts)
+          : await ctx.db
+              .query("members")
+              .withIndex("by_organization_and_status", (q) =>
+                q.eq("organizationId", orgId).eq("status", statusFilter)
+              )
+              .order("desc")
+              .paginate(args.paginationOpts);
+
       return {
         ...result,
-        page: filteredPage.map((member) => ({
+        page: result.page.map((member) => ({
           _id: member._id as string,
           _creationTime: member._creationTime,
           organizationId: member.organizationId as string,
@@ -63,18 +71,23 @@ export const listOrganizationMembers = query({
         })),
       };
     }
-    const members = await ctx.db
-      .query("members")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId as Id<"organizations">)
-      )
-      .collect();
-
+    const orgId = args.organizationId as Id<"organizations">;
     const statusFilter = args.status ?? "active";
+
     let filtered =
       statusFilter === "all"
-        ? members
-        : members.filter((m) => (m.status ?? "active") === statusFilter);
+        ? await ctx.db
+            .query("members")
+            .withIndex("by_organization", (q) =>
+              q.eq("organizationId", orgId)
+            )
+            .collect()
+        : await ctx.db
+            .query("members")
+            .withIndex("by_organization_and_status", (q) =>
+              q.eq("organizationId", orgId).eq("status", statusFilter)
+            )
+            .collect();
 
     const sortBy = args.sortBy ?? "createdAt";
     const order = args.sortOrder ?? "desc";
@@ -108,15 +121,26 @@ export const countOrganizationMembers = query({
   },
   returns: v.number(),
   handler: async (ctx, args) => {
+    const orgId = args.organizationId as Id<"organizations">;
+    const statusFilter = args.status ?? "active";
+
+    if (statusFilter === "all") {
+      const members = await ctx.db
+        .query("members")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", orgId)
+        )
+        .collect();
+      return members.length;
+    }
+
     const members = await ctx.db
       .query("members")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      .withIndex("by_organization_and_status", (q) =>
+        q.eq("organizationId", orgId).eq("status", statusFilter)
       )
       .collect();
-    const statusFilter = args.status ?? "active";
-    if (statusFilter === "all") return members.length;
-    return members.filter((m) => (m.status ?? "active") === statusFilter).length;
+    return members.length;
   },
 });
 
@@ -181,6 +205,7 @@ export const checkMemberPermission = query({
       v.null(),
       v.union(v.literal("owner"), v.literal("admin"), v.literal("member"))
     ),
+    isSuspended: v.optional(v.boolean()),
   }),
   handler: async (ctx, args) => {
     const member = await ctx.db
@@ -193,6 +218,10 @@ export const checkMemberPermission = query({
       .unique();
 
     if (!member) return { hasPermission: false, currentRole: null };
+
+    if (member.status === "suspended") {
+      return { hasPermission: false, currentRole: member.role as "owner" | "admin" | "member", isSuspended: true };
+    }
 
     const role = member.role as "owner" | "admin" | "member";
     const hasPermission =
@@ -340,7 +369,7 @@ export const unsuspendMember = mutation({
       )
       .unique();
     if (!member) throw new ConvexError({ code: "NOT_FOUND", message: "Member not found" });
-    await ctx.db.patch(member._id, { status: "active" });
+    await ctx.db.patch(member._id, { status: "active", suspendedAt: undefined });
     return null;
   },
 });

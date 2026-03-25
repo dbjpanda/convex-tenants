@@ -328,6 +328,338 @@ describe("members", () => {
     ).rejects.toThrow("You are not a member of this organization");
   });
 
+  it("should suspend a member", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+      role: "member",
+    });
+
+    await t.mutation(api.members.suspendMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+    });
+
+    const member = await t.query(api.members.getMember, {
+      organizationId: orgId,
+      userId: "user_456",
+    });
+
+    expect(member?.status).toBe("suspended");
+    expect(member?.suspendedAt).toBeDefined();
+  });
+
+  it("suspendMember throws for nonexistent member", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await expect(
+      t.mutation(api.members.suspendMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        memberUserId: "nonexistent_user",
+      })
+    ).rejects.toThrow("Member not found");
+  });
+
+  it("suspendMember throws when suspending the owner", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await expect(
+      t.mutation(api.members.suspendMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        memberUserId: "user_123",
+      })
+    ).rejects.toThrow("Cannot suspend the organization owner");
+  });
+
+  it("should unsuspend a suspended member", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+      role: "member",
+    });
+
+    await t.mutation(api.members.suspendMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+    });
+
+    await t.mutation(api.members.unsuspendMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+    });
+
+    const member = await t.query(api.members.getMember, {
+      organizationId: orgId,
+      userId: "user_456",
+    });
+
+    expect(member?.status).toBe("active");
+  });
+
+  it("unsuspendMember throws for nonexistent member", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await expect(
+      t.mutation(api.members.unsuspendMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        memberUserId: "nonexistent_user",
+      })
+    ).rejects.toThrow("Member not found");
+  });
+
+  it("should bulk add members", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    const result = await t.mutation(api.members.bulkAddMembers, {
+      userId: "user_123",
+      organizationId: orgId,
+      members: [
+        { memberUserId: "user_a", role: "member" },
+        { memberUserId: "user_b", role: "admin" },
+      ],
+    });
+
+    expect(result.success).toHaveLength(2);
+    expect(result.errors).toHaveLength(0);
+    expect(result.success).toContain("user_a");
+    expect(result.success).toContain("user_b");
+
+    const memberA = await t.query(api.members.getMember, {
+      organizationId: orgId,
+      userId: "user_a",
+    });
+    expect(memberA?.role).toBe("member");
+
+    const memberB = await t.query(api.members.getMember, {
+      organizationId: orgId,
+      userId: "user_b",
+    });
+    expect(memberB?.role).toBe("admin");
+  });
+
+  it("bulkAddMembers reports errors for duplicate members", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_existing",
+      role: "member",
+    });
+
+    const result = await t.mutation(api.members.bulkAddMembers, {
+      userId: "user_123",
+      organizationId: orgId,
+      members: [
+        { memberUserId: "user_existing", role: "admin" },
+        { memberUserId: "user_new", role: "member" },
+      ],
+    });
+
+    expect(result.success).toHaveLength(1);
+    expect(result.success).toContain("user_new");
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].userId).toBe("user_existing");
+    expect(result.errors[0].code).toBe("ALREADY_EXISTS");
+  });
+
+  it("should bulk remove members", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_a",
+      role: "member",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_b",
+      role: "member",
+    });
+
+    const result = await t.mutation(api.members.bulkRemoveMembers, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserIds: ["user_a", "user_b"],
+    });
+
+    expect(result.success).toHaveLength(2);
+    expect(result.errors).toHaveLength(0);
+
+    const memberA = await t.query(api.members.getMember, {
+      organizationId: orgId,
+      userId: "user_a",
+    });
+    expect(memberA).toBeNull();
+  });
+
+  it("bulkRemoveMembers reports errors for owner and nonexistent members", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_a",
+      role: "member",
+    });
+
+    const result = await t.mutation(api.members.bulkRemoveMembers, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserIds: ["user_123", "nonexistent", "user_a"],
+    });
+
+    expect(result.success).toHaveLength(1);
+    expect(result.success).toContain("user_a");
+    expect(result.errors).toHaveLength(2);
+
+    const ownerError = result.errors.find((e: any) => e.userId === "user_123");
+    expect(ownerError?.code).toBe("FORBIDDEN");
+
+    const notFoundError = result.errors.find((e: any) => e.userId === "nonexistent");
+    expect(notFoundError?.code).toBe("NOT_FOUND");
+  });
+
+  it("should count organization members", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+      role: "member",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_789",
+      role: "admin",
+    });
+
+    const count = await t.query(api.members.countOrganizationMembers, {
+      organizationId: orgId,
+    });
+
+    expect(count).toBe(3); // owner + 2 members
+  });
+
+  it("countOrganizationMembers filters by status", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+      role: "member",
+    });
+
+    await t.mutation(api.members.suspendMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+    });
+
+    const activeCount = await t.query(api.members.countOrganizationMembers, {
+      organizationId: orgId,
+      status: "active",
+    });
+    expect(activeCount).toBe(1); // only owner
+
+    const suspendedCount = await t.query(api.members.countOrganizationMembers, {
+      organizationId: orgId,
+      status: "suspended",
+    });
+    expect(suspendedCount).toBe(1);
+
+    const allCount = await t.query(api.members.countOrganizationMembers, {
+      organizationId: orgId,
+      status: "all",
+    });
+    expect(allCount).toBe(2);
+  });
+
   it("leaveOrganization cleans up team memberships", async () => {
     const t = createTestInstance();
 

@@ -29,6 +29,8 @@ export function configureOrganizationStore(options: { storageKey?: string }): vo
   if (options.storageKey !== undefined) {
     storageKey = options.storageKey;
   }
+  // Re-initialize with the new key on next access
+  initialized = false;
 }
 
 function getStorageKey(): string {
@@ -65,7 +67,16 @@ function initFromStorage() {
   }
 }
 
-initFromStorage();
+// Lazy initialization flag — initFromStorage() runs on first access, not at import time.
+// This allows configureOrganizationStore() to set a custom key before any read occurs.
+let initialized = false;
+
+function ensureInitialized() {
+  if (!initialized) {
+    initFromStorage();
+    initialized = true;
+  }
+}
 
 function emitChange() {
   for (const listener of listeners) {
@@ -87,6 +98,7 @@ function setState(newState: StoreState) {
 }
 
 function subscribe(listener: Listener) {
+  ensureInitialized();
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -94,6 +106,7 @@ function subscribe(listener: Listener) {
 }
 
 function getSnapshot(): StoreState {
+  ensureInitialized();
   return state;
 }
 

@@ -179,6 +179,137 @@ describe("organizations", () => {
     expect(org?.slug).toBe("new-slug");
   });
 
+  it("should transfer ownership to another member", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+      role: "member",
+    });
+
+    await t.mutation(api.organizations.transferOwnership, {
+      userId: "user_123",
+      organizationId: orgId,
+      newOwnerUserId: "user_456",
+    });
+
+    const org = await t.query(api.organizations.getOrganization, {
+      organizationId: orgId,
+    });
+    expect(org?.ownerId).toBe("user_456");
+
+    const newOwner = await t.query(api.members.getMember, {
+      organizationId: orgId,
+      userId: "user_456",
+    });
+    expect(newOwner?.role).toBe("owner");
+
+    const previousOwner = await t.query(api.members.getMember, {
+      organizationId: orgId,
+      userId: "user_123",
+    });
+    expect(previousOwner?.role).toBe("admin");
+  });
+
+  it("should transfer ownership with custom previousOwnerRole", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+      role: "member",
+    });
+
+    await t.mutation(api.organizations.transferOwnership, {
+      userId: "user_123",
+      organizationId: orgId,
+      newOwnerUserId: "user_456",
+      previousOwnerRole: "member",
+    });
+
+    const previousOwner = await t.query(api.members.getMember, {
+      organizationId: orgId,
+      userId: "user_123",
+    });
+    expect(previousOwner?.role).toBe("member");
+  });
+
+  it("transferOwnership throws when non-owner attempts transfer", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.members.addMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      memberUserId: "user_456",
+      role: "admin",
+    });
+
+    await expect(
+      t.mutation(api.organizations.transferOwnership, {
+        userId: "user_456",
+        organizationId: orgId,
+        newOwnerUserId: "user_123",
+      })
+    ).rejects.toThrow("Only the current owner can transfer ownership");
+  });
+
+  it("transferOwnership throws when transferring to self", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await expect(
+      t.mutation(api.organizations.transferOwnership, {
+        userId: "user_123",
+        organizationId: orgId,
+        newOwnerUserId: "user_123",
+      })
+    ).rejects.toThrow("Cannot transfer ownership to yourself");
+  });
+
+  it("transferOwnership throws when new owner is not a member", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await expect(
+      t.mutation(api.organizations.transferOwnership, {
+        userId: "user_123",
+        organizationId: orgId,
+        newOwnerUserId: "non_member",
+      })
+    ).rejects.toThrow("New owner must already be a member of the organization");
+  });
+
   it("should delete organization and all related data", async () => {
     const t = createTestInstance();
 

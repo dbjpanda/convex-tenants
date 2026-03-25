@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { Shield, UserX, UserCheck, Loader2 } from "lucide-react";
@@ -33,6 +33,10 @@ export function MemberModerationSection() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkRemoving, setBulkRemoving] = useState(false);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [currentOrganization?._id]);
 
   if (!currentOrganization || !a.suspendMember || !a.unsuspendMember || !membersWithStatus?.length) return null;
 

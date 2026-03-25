@@ -123,6 +123,12 @@ export interface MembersTableProps {
   onToast?: (message: string, type: "success" | "error") => void;
 
   /**
+   * Available roles for the role selector dropdown.
+   * Defaults to ["member", "admin", "owner"].
+   */
+  roles?: string[];
+
+  /**
    * Custom class name
    */
   className?: string;
@@ -202,6 +208,7 @@ export function MembersTable({
   onCopyInvitationLink,
   onCancelInvitation,
   onToast,
+  roles,
   className,
   moreIcon,
   userMinusIcon,
@@ -428,8 +435,11 @@ export function MembersTable({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {/* Role options — customize via the roles prop or override this component */}
-              <SelectItem value={item.role}>{item.role}</SelectItem>
+              {(roles ?? ["member", "admin", "owner"]).map((role) => (
+                <SelectItem key={role} value={role}>
+                  {role}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         ) : (

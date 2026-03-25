@@ -422,7 +422,10 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
-        if (args.status !== "active") {
+        // Allow explicit status transitions (e.g., suspended → archived, suspended → active)
+        // but block other modifications on non-active orgs
+        if (args.status === undefined) {
+          // No status change requested — require org to be active for other field updates
           await requireActiveOrganization(ctx, args.organizationId);
         }
         if (options.onBeforeUpdateOrganization) {
@@ -585,7 +588,7 @@ export function makeTenantsAPI(
       args: {
         organizationId: v.string(),
         userId: v.string(),
-        minRole: v.union(v.literal("member"), v.literal("admin"), v.literal("owner")),
+        minRole: v.string(),
       },
       handler: async (ctx, args) => {
         const callerId = await requireAuth(ctx);
@@ -1052,7 +1055,28 @@ export function makeTenantsAPI(
     getInvitation: queryGeneric({
       args: { invitationId: v.string() },
       handler: async (ctx, args) => {
-        return await tenants.getInvitation(ctx, args.invitationId);
+        // Note: This endpoint is intentionally accessible without authentication
+        // to support invite-link flows where recipients view invitation details
+        // before logging in. Sensitive fields (inviterId) are included for
+        // authenticated callers only.
+        const invitation = await tenants.getInvitation(ctx, args.invitationId);
+        if (!invitation) return null;
+
+        // Try to authenticate — if authenticated, return full details
+        let userId: string | null = null;
+        try {
+          userId = await requireAuth(ctx);
+        } catch {
+          // unauthenticated — expected for invite-link flows
+        }
+
+        if (userId) {
+          return invitation;
+        }
+
+        // For unauthenticated access, return limited invitation details
+        const { inviterId, ...safeInvitation } = invitation;
+        return safeInvitation;
       },
     }),
 
@@ -1275,10 +1299,11 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const invitation = await tenants.getInvitation(ctx, args.invitationId);
-        if (invitation) {
-          await requireActiveMembership(ctx, userId, invitation.organizationId);
-          await requireActiveOrganization(ctx, invitation.organizationId);
+        if (!invitation) {
+          throw new Error("Invitation not found");
         }
+        await requireActiveMembership(ctx, userId, invitation.organizationId);
+        await requireActiveOrganization(ctx, invitation.organizationId);
         const result = await tenants.resendInvitation(ctx, userId, args.invitationId);
         if (options.onInvitationResent) {
           const invForCallback = await tenants.getInvitation(ctx, args.invitationId);
@@ -1306,10 +1331,11 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const inv = await tenants.getInvitation(ctx, args.invitationId);
-        if (inv) {
-          await requireActiveMembership(ctx, userId, inv.organizationId);
-          await requireActiveOrganization(ctx, inv.organizationId);
+        if (!inv) {
+          throw new Error("Invitation not found");
         }
+        await requireActiveMembership(ctx, userId, inv.organizationId);
+        await requireActiveOrganization(ctx, inv.organizationId);
         await tenants.cancelInvitation(ctx, userId, args.invitationId);
       },
     }),

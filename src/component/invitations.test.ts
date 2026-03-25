@@ -443,4 +443,116 @@ describe("invitations", () => {
       })
     ).rejects.toThrow("Invitation has already been cancelled");
   });
+
+  it("should count invitations for organization", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.invitations.inviteMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      inviteeIdentifier: "user1@example.com",
+      identifierType: "email",
+      role: "member",
+    });
+
+    await t.mutation(api.invitations.inviteMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      inviteeIdentifier: "user2@example.com",
+      identifierType: "email",
+      role: "admin",
+    });
+
+    const count = await t.query(api.invitations.countInvitations, {
+      organizationId: orgId,
+    });
+
+    expect(count).toBe(2);
+  });
+
+  it("countInvitations returns 0 for org with no invitations", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    const count = await t.query(api.invitations.countInvitations, {
+      organizationId: orgId,
+    });
+
+    expect(count).toBe(0);
+  });
+
+  it("should bulk invite members", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    const result = await t.mutation(api.invitations.bulkInviteMembers, {
+      userId: "user_123",
+      organizationId: orgId,
+      invitations: [
+        { inviteeIdentifier: "alice@example.com", identifierType: "email", role: "member" },
+        { inviteeIdentifier: "bob@example.com", identifierType: "email", role: "admin" },
+        { inviteeIdentifier: "carol@example.com", identifierType: "email", role: "member" },
+      ],
+    });
+
+    expect(result.success).toHaveLength(3);
+    expect(result.errors).toHaveLength(0);
+    expect(result.success.map((s: any) => s.inviteeIdentifier)).toContain("alice@example.com");
+    expect(result.success.map((s: any) => s.inviteeIdentifier)).toContain("bob@example.com");
+    expect(result.success.map((s: any) => s.inviteeIdentifier)).toContain("carol@example.com");
+
+    const count = await t.query(api.invitations.countInvitations, {
+      organizationId: orgId,
+    });
+    expect(count).toBe(3);
+  });
+
+  it("bulkInviteMembers reports errors for duplicate invitations", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    await t.mutation(api.invitations.inviteMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      inviteeIdentifier: "existing@example.com",
+      identifierType: "email",
+      role: "member",
+    });
+
+    const result = await t.mutation(api.invitations.bulkInviteMembers, {
+      userId: "user_123",
+      organizationId: orgId,
+      invitations: [
+        { inviteeIdentifier: "existing@example.com", identifierType: "email", role: "admin" },
+        { inviteeIdentifier: "new@example.com", identifierType: "email", role: "member" },
+      ],
+    });
+
+    expect(result.success).toHaveLength(1);
+    expect(result.success[0].inviteeIdentifier).toBe("new@example.com");
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].inviteeIdentifier).toBe("existing@example.com");
+    expect(result.errors[0].code).toBe("ALREADY_EXISTS");
+  });
 });

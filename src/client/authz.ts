@@ -138,7 +138,7 @@ export const DEFAULT_TENANTS_PERMISSION_MAP = {
   cancelInvitation: "invitations:cancel",
   grantPermission: "permissions:grant",
   denyPermission: "permissions:deny",
-  getAuditLog: "permissions:grant",
+  getAuditLog: "permissions:viewLog",
 } as const;
 
 /**
@@ -203,6 +203,7 @@ export const TENANTS_PERMISSIONS = definePermissions({
   permissions: {
     grant: true,
     deny: true,
+    viewLog: true,
   },
 });
 
@@ -242,7 +243,7 @@ export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
       "listMembers",
     ],
     invitations: ["create", "cancel", "resend", "list"],
-    permissions: ["grant", "deny"],
+    permissions: ["grant", "deny", "viewLog"],
   },
   admin: {
     organizations: ["read", "update"],
@@ -258,7 +259,7 @@ export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
       "listMembers",
     ],
     invitations: ["create", "cancel", "resend", "list"],
-    permissions: ["grant", "deny"],
+    permissions: ["grant", "deny", "viewLog"],
   },
   member: {
     organizations: ["read"],

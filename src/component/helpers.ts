@@ -9,7 +9,8 @@ type TeamDoc = Doc<"teams"> & { parentTeamId?: Id<"teams"> };
  */
 export async function ensureUniqueSlug(
   ctx: MutationCtx,
-  baseSlug: string
+  baseSlug: string,
+  excludeId?: Id<"organizations">
 ): Promise<string> {
   let slug = baseSlug;
   let counter = 1;
@@ -20,7 +21,7 @@ export async function ensureUniqueSlug(
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .unique();
 
-    if (!existing) {
+    if (!existing || existing._id === excludeId) {
       return slug;
     }
 
@@ -36,7 +37,8 @@ export async function ensureUniqueSlug(
 export async function ensureUniqueTeamSlug(
   ctx: MutationCtx,
   organizationId: Id<"organizations">,
-  baseSlug: string
+  baseSlug: string,
+  excludeId?: Id<"teams">
 ): Promise<string> {
   let slug = baseSlug;
   let counter = 1;
@@ -49,7 +51,7 @@ export async function ensureUniqueTeamSlug(
       )
       .first();
 
-    if (!existing) {
+    if (!existing || existing._id === excludeId) {
       return slug;
     }
 

@@ -11,10 +11,11 @@ export function normalizeEmail(email: string): string {
 }
 
 export function generateSlug(name: string): string {
-  return name
+  const slug = name
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
+  return slug || "org"; // fallback to "org" if all characters were stripped
 }

@@ -238,7 +238,7 @@ export function TenantsProvider({
   children,
   onToast,
 }: TenantsProviderProps) {
-  const { activeOrganizationId, setActiveOrganizationId, clearActiveOrganization } = useOrganizationStore();
+  const { activeOrganizationId, setActiveOrganizationId } = useOrganizationStore();
 
   // ============================================================================
   // Queries
@@ -390,15 +390,15 @@ export function TenantsProvider({
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         await deleteOrganizationMutation({ organizationId: currentOrganization._id });
-        clearActiveOrganization();
-        setActiveOrganizationId(organizations.find((o) => o._id !== currentOrganization._id)?._id ?? null);
+        const nextOrg = organizations.find((o) => o._id !== currentOrganization._id);
+        setActiveOrganizationId(nextOrg?._id ?? null);
         onToast?.("Organization deleted", "success");
       } catch (error: any) {
         onToast?.(error.message || "Failed to delete organization", "error");
         throw error;
       }
     },
-    [currentOrganization, deleteOrganizationMutation, organizations, setActiveOrganizationId, clearActiveOrganization, onToast]
+    [currentOrganization, deleteOrganizationMutation, organizations, setActiveOrganizationId, onToast]
   );
 
   const leaveOrganization = useCallback(
@@ -406,15 +406,15 @@ export function TenantsProvider({
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         await leaveOrganizationMutation({ organizationId: currentOrganization._id });
-        clearActiveOrganization();
-        setActiveOrganizationId(organizations.find((o) => o._id !== currentOrganization._id)?._id ?? null);
+        const nextOrg = organizations.find((o) => o._id !== currentOrganization._id);
+        setActiveOrganizationId(nextOrg?._id ?? null);
         onToast?.("Left organization successfully", "success");
       } catch (error: any) {
         onToast?.(error.message || "Failed to leave organization", "error");
         throw error;
       }
     },
-    [currentOrganization, leaveOrganizationMutation, organizations, setActiveOrganizationId, clearActiveOrganization, onToast]
+    [currentOrganization, leaveOrganizationMutation, organizations, setActiveOrganizationId, onToast]
   );
 
   const removeMember = useCallback(

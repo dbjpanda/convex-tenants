@@ -38,13 +38,26 @@ export const listTeams = query({
   ),
   handler: async (ctx, args) => {
     if (args.paginationOpts) {
-      const result = await ctx.db
-        .query("teams")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", args.organizationId as Id<"organizations">)
-        )
-        .order("desc")
-        .paginate(args.paginationOpts);
+      const orgId = args.organizationId as Id<"organizations">;
+      let result;
+      if (args.parentTeamId !== undefined) {
+        const pid = args.parentTeamId === null ? undefined : (args.parentTeamId as Id<"teams">);
+        result = await ctx.db
+          .query("teams")
+          .withIndex("by_organization_and_parent", (q) =>
+            q.eq("organizationId", orgId).eq("parentTeamId", pid)
+          )
+          .order("desc")
+          .paginate(args.paginationOpts);
+      } else {
+        result = await ctx.db
+          .query("teams")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", orgId)
+          )
+          .order("desc")
+          .paginate(args.paginationOpts);
+      }
       return {
         ...result,
         page: result.page.map((team) => {
@@ -316,6 +329,15 @@ export const createTeam = mutation({
   returns: v.string(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", orgId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    }
     if (args.parentTeamId) {
       const parent = await ctx.db.get(args.parentTeamId);
       if (!parent) throw new ConvexError({ code: "NOT_FOUND", message: "Parent team not found" });
@@ -357,6 +379,15 @@ export const updateTeam = mutation({
     const teamId = args.teamId as Id<"teams">;
     const team = await ctx.db.get(teamId);
     if (!team) throw new ConvexError({ code: "NOT_FOUND", message: "Team not found" });
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", team.organizationId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    }
     const updates: Record<string, unknown> = {};
     if (args.name !== undefined) updates.name = args.name;
     if (args.description !== undefined) updates.description = args.description;
@@ -389,7 +420,7 @@ export const updateTeam = mutation({
       updates.parentTeamId = newParentId ?? undefined;
     }
     if (args.slug !== undefined) {
-      updates.slug = await ensureUniqueTeamSlug(ctx, team.organizationId, args.slug);
+      updates.slug = await ensureUniqueTeamSlug(ctx, team.organizationId, args.slug, teamId);
     }
     await ctx.db.patch(teamId, updates);
     return null;
@@ -403,6 +434,15 @@ export const deleteTeam = mutation({
     const teamId = args.teamId as Id<"teams">;
     const team = await ctx.db.get(teamId);
     if (!team) throw new ConvexError({ code: "NOT_FOUND", message: "Team not found" });
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", team.organizationId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    }
     const teamWithParent = team as { parentTeamId?: Id<"teams"> };
     const childTeams = await ctx.db
       .query("teams")
@@ -433,16 +473,25 @@ export const addTeamMember = mutation({
     const teamId = args.teamId as Id<"teams">;
     const team = await ctx.db.get(teamId);
     if (!team) throw new ConvexError({ code: "NOT_FOUND", message: "Team not found" });
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", team.organizationId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    }
     const orgMember = await ctx.db
       .query("members")
       .withIndex("by_organization_and_user", (q) =>
         q.eq("organizationId", team.organizationId).eq("userId", args.memberUserId)
       )
       .unique();
-    if (!orgMember) {
+    if (!orgMember || orgMember.status === "suspended") {
       throw new ConvexError({
         code: "FORBIDDEN",
-        message: "User must be a member of the organization first",
+        message: "User is not an active member of this organization",
       });
     }
     const existing = await ctx.db
@@ -473,6 +522,17 @@ export const updateTeamMemberRole = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const teamId = args.teamId as Id<"teams">;
+    const team = await ctx.db.get(teamId);
+    if (!team) throw new ConvexError({ code: "NOT_FOUND", message: "Team not found" });
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", team.organizationId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    }
     const tm = await ctx.db
       .query("teamMembers")
       .withIndex("by_team_and_user", (q) =>
@@ -490,6 +550,17 @@ export const removeTeamMember = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const teamId = args.teamId as Id<"teams">;
+    const team = await ctx.db.get(teamId);
+    if (!team) throw new ConvexError({ code: "NOT_FOUND", message: "Team not found" });
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", team.organizationId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    }
     const teamMember = await ctx.db
       .query("teamMembers")
       .withIndex("by_team_and_user", (q) =>
