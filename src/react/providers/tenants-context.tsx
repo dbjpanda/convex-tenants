@@ -126,8 +126,8 @@ export interface TenantsContextValue {
     parentTeamId?: string;
   }) => Promise<string | null>;
   deleteTeam: (teamId: string) => Promise<void>;
-  addTeamMember: (userId: string, teamId: string) => Promise<void>;
-  removeTeamMember: (userId: string, teamId: string) => Promise<void>;
+  addTeamMember: (memberUserId: string, teamId: string) => Promise<void>;
+  removeTeamMember: (memberUserId: string, teamId: string) => Promise<void>;
 
   // Toast callback
   onToast?: (message: string, type: "success" | "error") => void;

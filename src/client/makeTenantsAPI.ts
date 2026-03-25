@@ -1185,7 +1185,9 @@ export function makeTenantsAPI(
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         
-        // Validate each invitation if callback provided
+        // Validate each invitation if callback provided — skip invalid entries
+        const validInvitations = [];
+        const validationErrors: Array<{ inviteeIdentifier: string; reason: string }> = [];
         if (options.validateInvitationCreate) {
           for (const inv of args.invitations) {
             const validation = await options.validateInvitationCreate(ctx, {
@@ -1196,10 +1198,17 @@ export function makeTenantsAPI(
               role: inv.role,
               teamId: inv.teamId,
             });
-            if (!validation.allowed) {
-              throw new Error(`${inv.inviteeIdentifier}: ${validation.reason || "Invitation not allowed"}`);
+            if (validation.allowed) {
+              validInvitations.push(inv);
+            } else {
+              validationErrors.push({
+                inviteeIdentifier: inv.inviteeIdentifier,
+                reason: validation.reason || "Invitation not allowed",
+              });
             }
           }
+        } else {
+          validInvitations.push(...args.invitations);
         }
         
         let inviterName: string | undefined;
@@ -1207,13 +1216,21 @@ export function makeTenantsAPI(
           const user = await options.getUser(ctx, userId);
           inviterName = user?.name;
         }
-        const result = await tenants.bulkInviteMembers(ctx, userId, args.organizationId, args.invitations, {
+        if (validInvitations.length === 0) {
+          return { success: [], errors: validationErrors.map((e) => ({ inviteeIdentifier: e.inviteeIdentifier, code: "VALIDATION", message: e.reason })) };
+        }
+        const result = await tenants.bulkInviteMembers(ctx, userId, args.organizationId, validInvitations, {
           inviterName,
         });
+        // Merge validation errors into the errors array
+        const allErrors = [
+          ...result.errors,
+          ...validationErrors.map((e) => ({ inviteeIdentifier: e.inviteeIdentifier, code: "VALIDATION", message: e.reason })),
+        ];
         if (options.onInvitationCreated) {
           const org = await tenants.getOrganization(ctx, args.organizationId);
           for (const s of result.success) {
-            const origInvitation = args.invitations.find((i) => i.inviteeIdentifier.toLowerCase() === s.inviteeIdentifier.toLowerCase());
+            const origInvitation = validInvitations.find((i) => i.inviteeIdentifier.toLowerCase() === s.inviteeIdentifier.toLowerCase());
             await options.onInvitationCreated(ctx, {
               invitationId: s.invitationId, inviteeIdentifier: s.inviteeIdentifier,
               identifierType: origInvitation?.identifierType,
@@ -1223,7 +1240,7 @@ export function makeTenantsAPI(
             });
           }
         }
-        return result;
+        return { success: result.success, errors: allErrors };
       },
     }),
 

@@ -41,7 +41,7 @@ describe("validateInvitationCreate", () => {
     ).rejects.toThrow("Only email identifiers are allowed");
   });
 
-  test("rejects bulk invitations when any identifier has no @", async () => {
+  test("bulk invitations return partial success with validation errors", async () => {
     const t = initConvexTest();
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
 
@@ -49,15 +49,18 @@ describe("validateInvitationCreate", () => {
       name: "Validate Bulk Org",
     });
 
-    await expect(
-      asAlice.mutation(api.testHelpers.validateCreateBulkInviteMembers, {
-        organizationId: orgId,
-        invitations: [
-          { inviteeIdentifier: "good@example.com", role: "member" },
-          { inviteeIdentifier: "bad_username", role: "member" },
-        ],
-      })
-    ).rejects.toThrow("Only email identifiers are allowed");
+    const result = await asAlice.mutation(api.testHelpers.validateCreateBulkInviteMembers, {
+      organizationId: orgId,
+      invitations: [
+        { inviteeIdentifier: "good@example.com", role: "member" },
+        { inviteeIdentifier: "bad_username", role: "member" },
+      ],
+    });
+    expect(result.success).toHaveLength(1);
+    expect(result.success[0].inviteeIdentifier).toBe("good@example.com");
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].inviteeIdentifier).toBe("bad_username");
+    expect(result.errors[0].message).toContain("Only email identifiers are allowed");
   });
 });
 

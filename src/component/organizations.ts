@@ -294,9 +294,6 @@ export const deleteOrganization = mutation({
     if (!org) {
       throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
     }
-    if (org.ownerId !== args.userId) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Only the owner can delete the organization" });
-    }
     const teams = await ctx.db
       .query("teams")
       .withIndex("by_organization", (q) => q.eq("organizationId", orgId))

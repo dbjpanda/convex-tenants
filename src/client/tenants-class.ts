@@ -261,7 +261,7 @@ export class Tenants {
     organizationId: string,
     userId: string,
     minRole: string
-  ): Promise<{ hasPermission: boolean; currentRole: "owner" | "admin" | "member" | null }> {
+  ): Promise<{ hasPermission: boolean; currentRole: string | null; isSuspended?: boolean }> {
     return await ctx.runQuery(this.component.members.checkMemberPermission, {
       organizationId,
       userId,

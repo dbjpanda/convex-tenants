@@ -88,7 +88,7 @@ describe("makeTenantsAPI - transferOwnership", () => {
         organizationId: orgId,
         newOwnerUserId: "alice",
       })
-    ).rejects.toThrow("New owner must be a different user");
+    ).rejects.toThrow("Cannot transfer ownership to yourself");
   });
 
   test("transferOwnership with previousOwnerRole assigns custom role to previous owner", async () => {

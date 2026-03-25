@@ -456,6 +456,16 @@ export const deleteTeam = mutation({
       .withIndex("by_team", (q) => q.eq("teamId", teamId))
       .collect();
     for (const tm of teamMembers) await ctx.db.delete(tm._id);
+    // Cancel pending invitations that reference this team
+    const pendingInvitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_organization", (q) => q.eq("organizationId", team.organizationId))
+      .collect();
+    for (const inv of pendingInvitations) {
+      if (inv.teamId === teamId && inv.status === "pending") {
+        await ctx.db.patch(inv._id, { status: "cancelled" });
+      }
+    }
     await ctx.db.delete(teamId);
     return null;
   },

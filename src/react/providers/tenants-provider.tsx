@@ -124,13 +124,13 @@ export interface TenantsAPI {
   addTeamMember: FunctionReference<
     "mutation",
     "public",
-    { teamId: string; userId: string },
+    { teamId: string; memberUserId: string },
     null
   >;
   removeTeamMember: FunctionReference<
     "mutation",
     "public",
-    { teamId: string; userId: string },
+    { teamId: string; memberUserId: string },
     null
   >;
 
@@ -528,9 +528,9 @@ export function TenantsProvider({
   );
 
   const addTeamMember = useCallback(
-    async (userId: string, teamId: string) => {
+    async (memberUserId: string, teamId: string) => {
       try {
-        await addTeamMemberMutation({ teamId, userId });
+        await addTeamMemberMutation({ teamId, memberUserId });
         onToast?.("Member added to team", "success");
       } catch (error: any) {
         onToast?.(error.message || "Failed to add member to team", "error");
@@ -541,9 +541,9 @@ export function TenantsProvider({
   );
 
   const removeTeamMember = useCallback(
-    async (userId: string, teamId: string) => {
+    async (memberUserId: string, teamId: string) => {
       try {
-        await removeTeamMemberMutation({ teamId, userId });
+        await removeTeamMemberMutation({ teamId, memberUserId });
         onToast?.("Member removed from team", "success");
       } catch (error: any) {
         onToast?.(error.message || "Failed to remove member from team", "error");

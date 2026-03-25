@@ -37,6 +37,9 @@ export const listOrganizationMembers = query({
   ),
   handler: async (ctx, args) => {
     if (args.paginationOpts) {
+      // Note: paginated results are ordered by _creationTime (desc).
+      // sortBy/sortOrder are only applied in the non-paginated path because
+      // Convex pagination requires a stable index-based ordering.
       const orgId = args.organizationId as Id<"organizations">;
       const statusFilter = args.status ?? "active";
 
@@ -187,24 +190,25 @@ export const getMember = query({
   },
 });
 
-const ROLE_HIERARCHY = {
+const ROLE_HIERARCHY: Record<string, number> = {
   owner: 3,
   admin: 2,
   member: 1,
-} as const;
+};
+
+function getRoleLevel(role: string): number {
+  return ROLE_HIERARCHY[role] ?? 0;
+}
 
 export const checkMemberPermission = query({
   args: {
     organizationId: v.string(),
     userId: v.string(),
-    minRole: v.union(v.literal("member"), v.literal("admin"), v.literal("owner")),
+    minRole: v.string(),
   },
   returns: v.object({
     hasPermission: v.boolean(),
-    currentRole: v.union(
-      v.null(),
-      v.union(v.literal("owner"), v.literal("admin"), v.literal("member"))
-    ),
+    currentRole: v.union(v.null(), v.string()),
     isSuspended: v.optional(v.boolean()),
   }),
   handler: async (ctx, args) => {
@@ -220,14 +224,13 @@ export const checkMemberPermission = query({
     if (!member) return { hasPermission: false, currentRole: null };
 
     if (member.status === "suspended") {
-      return { hasPermission: false, currentRole: member.role as "owner" | "admin" | "member", isSuspended: true };
+      return { hasPermission: false, currentRole: member.role, isSuspended: true };
     }
 
-    const role = member.role as "owner" | "admin" | "member";
     const hasPermission =
-      ROLE_HIERARCHY[role] >= ROLE_HIERARCHY[args.minRole];
+      getRoleLevel(member.role) >= getRoleLevel(args.minRole);
 
-    return { hasPermission, currentRole: role };
+    return { hasPermission, currentRole: member.role };
   },
 });
 

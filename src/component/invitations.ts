@@ -114,16 +114,21 @@ export const listInvitations = query({
 });
 
 export const countInvitations = query({
-  args: { organizationId: v.string() },
+  args: {
+    organizationId: v.string(),
+    status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled"), v.literal("expired"), v.literal("all"))),
+  },
   returns: v.number(),
   handler: async (ctx, args) => {
+    const statusFilter = args.status ?? "pending";
     const invitations = await ctx.db
       .query("invitations")
       .withIndex("by_organization", (q) =>
         q.eq("organizationId", args.organizationId as Id<"organizations">)
       )
       .collect();
-    return invitations.length;
+    if (statusFilter === "all") return invitations.length;
+    return invitations.filter((inv) => inv.status === statusFilter).length;
   },
 });
 
