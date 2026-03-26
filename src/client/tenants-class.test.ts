@@ -195,6 +195,37 @@ describe("Tenants", () => {
 
       expect(result).toEqual({ hasPermission: true, currentRole: "superadmin" });
     });
+
+    it("treats all roles as level 0 with empty hierarchy", async () => {
+      const member = {
+        _id: "m1", _creationTime: 0, organizationId: "org_1",
+        userId: "user_1", role: "owner", status: "active",
+      };
+      (ctx.runQuery as ReturnType<typeof vi.fn>).mockResolvedValue(member);
+
+      const tenants = new Tenants(component, {
+        authz,
+        roleHierarchy: {},
+      });
+      const result = await tenants.checkMemberPermission(ctx as any, "org_1", "user_1", "admin");
+
+      // Both owner and admin are level 0 with empty hierarchy → 0 >= 0 → true
+      expect(result).toEqual({ hasPermission: true, currentRole: "owner" });
+    });
+
+    it("equal roles have permission (same level)", async () => {
+      const member = {
+        _id: "m1", _creationTime: 0, organizationId: "org_1",
+        userId: "user_1", role: "admin", status: "active",
+      };
+      (ctx.runQuery as ReturnType<typeof vi.fn>).mockResolvedValue(member);
+
+      const tenants = new Tenants(component, { authz });
+      const result = await tenants.checkMemberPermission(ctx as any, "org_1", "user_1", "admin");
+
+      // admin (2) >= admin (2) → true
+      expect(result).toEqual({ hasPermission: true, currentRole: "admin" });
+    });
   });
 
   describe("isTeamMember", () => {
@@ -369,6 +400,25 @@ describe("Tenants", () => {
       // Should stop after first true — only 1 call
       expect(authz.can).toHaveBeenCalledTimes(1);
     });
+
+    it("returns false for empty permissions array", async () => {
+      const tenants = new Tenants(component, { authz });
+      const result = await tenants.canAny(ctx as any, "user_1", [], "org_1");
+      expect(result).toBe(false);
+      expect(authz.can).not.toHaveBeenCalled();
+    });
+
+    it("returns false for empty array when canAny available", async () => {
+      const authzWithCanAny = {
+        ...createMockAuthz(),
+        canAny: vi.fn().mockResolvedValue(false),
+      };
+      const tenants = new Tenants(component, { authz: authzWithCanAny });
+      const result = await tenants.canAny(ctx as any, "user_1", [], "org_1");
+      // canAny delegates to authz even for empty array
+      expect(authzWithCanAny.canAny).toHaveBeenCalled();
+      expect(result).toBe(false);
+    });
   });
 
   describe("hasRole", () => {
@@ -439,6 +489,57 @@ describe("Tenants", () => {
       const result = await tenants.hasRole(ctx as any, "user_1", "admin", "org_1");
 
       expect(result).toBe(true);
+    });
+
+    it("returns false when getUserRoles returns empty array", async () => {
+      const authzNoHasRole = { ...createMockAuthz() };
+      delete (authzNoHasRole as any).hasRole;
+      authzNoHasRole.getUserRoles.mockResolvedValue([]);
+
+      const tenants = new Tenants(component, { authz: authzNoHasRole });
+      const result = await tenants.hasRole(ctx as any, "user_1", "admin", "org_1");
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("recomputeUser", () => {
+    it("calls authz.recomputeUser when available", async () => {
+      const authzWithRecompute = {
+        ...createMockAuthz(),
+        recomputeUser: vi.fn().mockResolvedValue(undefined),
+      };
+      authzWithRecompute.require.mockResolvedValue(undefined);
+
+      const tenants = new Tenants(component, { authz: authzWithRecompute });
+      await tenants.recomputeUser(ctx as any, "alice", "org_1", "bob");
+
+      expect(authzWithRecompute.require).toHaveBeenCalledWith(
+        expect.anything(), "alice", "permissions:grant",
+        { type: "organization", id: "org_1" },
+      );
+      expect(authzWithRecompute.recomputeUser).toHaveBeenCalledWith(
+        expect.anything(), "bob",
+      );
+    });
+
+    it("does nothing when authz.recomputeUser not available", async () => {
+      authz.require.mockResolvedValue(undefined);
+
+      const tenants = new Tenants(component, { authz });
+      // Should not throw
+      await tenants.recomputeUser(ctx as any, "alice", "org_1", "bob");
+
+      expect(authz.require).toHaveBeenCalled();
+    });
+
+    it("throws when user lacks grantPermission permission", async () => {
+      authz.require.mockRejectedValue(new Error("Permission denied"));
+
+      const tenants = new Tenants(component, { authz });
+      await expect(
+        tenants.recomputeUser(ctx as any, "alice", "org_1", "bob")
+      ).rejects.toThrow("Permission denied");
     });
   });
 });

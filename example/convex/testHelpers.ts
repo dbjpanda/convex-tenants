@@ -174,11 +174,14 @@ export const strictCancelInvitation = strictApi.cancelInvitation;
 
 // Authorization
 export const strictCheckPermission = strictApi.checkPermission;
+export const strictCheckAnyPermission = strictApi.checkAnyPermission;
 export const strictGetUserPermissions = strictApi.getUserPermissions;
 export const strictGetUserRoles = strictApi.getUserRoles;
+export const strictHasRole = strictApi.hasRole;
 export const strictGrantPermission = strictApi.grantPermission;
 export const strictDenyPermission = strictApi.denyPermission;
 export const strictGetAuditLog = strictApi.getAuditLog;
+export const strictRecomputeUser = strictApi.recomputeUser;
 
 // Query to read callback invocations (for testing onInvitationCreated/onInvitationResent)
 export const getCallbackLogs = query({
