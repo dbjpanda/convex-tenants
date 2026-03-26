@@ -770,8 +770,8 @@ export class Tenants {
     });
   }
 
-  async countInvitations(ctx: QueryCtx, organizationId: string): Promise<number> {
-    return await ctx.runQuery(this.component.invitations.countInvitations, { organizationId });
+  async countInvitations(ctx: QueryCtx, organizationId: string, options?: { status?: "pending" | "accepted" | "cancelled" | "expired" | "all" }): Promise<number> {
+    return await ctx.runQuery(this.component.invitations.countInvitations, { organizationId, ...(options?.status ? { status: options.status } : {}) } as { organizationId: string });
   }
 
   async getInvitation(ctx: QueryCtx, invitationId: string): Promise<Invitation | null> {

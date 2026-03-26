@@ -61,3 +61,7 @@ Each organization has a structural `ownerId` field set to the user who created i
 - Use `transferOwnership` to assign a new owner before the current owner leaves
 
 This ensures every organization always has at least one member. All permission-based authorization (who can update, who can delete, etc.) is handled entirely by `@djpanda/convex-authz`.
+
+## Role Hierarchy and checkMemberPermission
+
+The `checkMemberPermission` query compares roles using a built-in hierarchy: `owner` (3) > `admin` (2) > `member` (1). Custom roles (e.g. `"viewer"`, `"billing_admin"`) are treated as having hierarchy level 0, so they will not satisfy a `minRole` check against any built-in role. For custom roles, use `@djpanda/convex-authz` permission checks (`checkPermission`) instead of role-level checks.

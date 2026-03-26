@@ -8,5 +8,6 @@ Detailed docs for `@djpanda/convex-tenants`:
 | [API Reference](api-reference.md) | All `makeTenantsAPI` options and function reference |
 | [Permission Map](permission-map.md) | Which permission guards each mutation and how to override |
 | [Flexible Roles](flexible-roles.md) | Customizing roles and structural owner behavior |
+| [Invitation System](invitation-system.md) | Flexible identifier validation and examples |
 | [React Components](react-components.md) | TenantsProvider, OrganizationSwitcher, MembersSection, etc. |
 | [Organization Store](organization-store.md) | Active-org state, cookie persistence, configurable storage key |

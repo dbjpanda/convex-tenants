@@ -1044,11 +1044,14 @@ export function makeTenantsAPI(
     }),
 
     countInvitations: queryGeneric({
-      args: { organizationId: v.string() },
+      args: {
+        organizationId: v.string(),
+        status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled"), v.literal("expired"), v.literal("all"))),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        return await tenants.countInvitations(ctx, args.organizationId);
+        return await tenants.countInvitations(ctx, args.organizationId, { status: args.status });
       },
     }),
 

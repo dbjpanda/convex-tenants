@@ -29,7 +29,7 @@ Every guarded mutation checks a permission string via `@djpanda/convex-authz` be
 | `cancelInvitation` | `invitations:cancel` |
 | `grantPermission` | `permissions:grant` |
 | `denyPermission` | `permissions:deny` |
-| `getAuditLog` | `permissions:grant` (query; requires grant to read audit log) |
+| `getAuditLog` | `permissions:viewLog` |
 
 ## Overriding the map
 

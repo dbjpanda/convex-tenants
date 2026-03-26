@@ -88,7 +88,7 @@ All hooks receive `ctx` as the first argument.
 | `getMember` | query | Get member by org + userId. Returns include `status?`, `suspendedAt?`, `joinedAt?`. |
 | `getCurrentMember` | query | Current user’s membership in org. |
 | `getCurrentUserEmail` | query | Current user's email from `auth` + `getUser`. Args: none. Returns `string \| null`. Use for "join by domain" UI so the app does not need a separate auth query. Only returns a value when `getUser` is provided. |
-| `checkMemberPermission` | query | Check if a user meets a minimum role level. Args: `organizationId`, `userId`, `minRole` (`"member" \| "admin" \| "owner"`). Returns `{ hasPermission, currentRole }`. |
+| `checkMemberPermission` | query | Check if a user meets a minimum role level. Args: `organizationId`, `userId`, `minRole` (string — works with built-in `"member"`, `"admin"`, `"owner"` and custom roles). Returns `{ hasPermission, currentRole, isSuspended? }`. Unknown roles are treated as having no hierarchy level. |
 | `addMember` | mutation | Add user with role. |
 | `bulkAddMembers` | mutation | Add multiple members. Args: `organizationId`, `members` (`{ memberUserId, role }[]`). Returns `{ success: string[], errors: { userId, code, message }[] }`. |
 | `removeMember` | mutation | Remove member (not structural owner). |
@@ -112,7 +112,7 @@ All hooks receive `ctx` as the first argument.
 | `isTeamMember` | query | Whether current user is in team. |
 | `createTeam` | mutation | Args: `organizationId`, `name`, optional `description`, `slug`, `metadata`, `parentTeamId`. Slug derived from name if omitted. |
 | `updateTeam` | mutation | Args: `teamId`, optional `name`, `description`, `slug`, `metadata`, `parentTeamId` (string or `null`). Cycle validation applied when setting parent. |
-| `deleteTeam` | mutation | Delete team. Child teams are reparented to the deleted team's parent. |
+| `deleteTeam` | mutation | Delete team. Child teams are reparented to the deleted team's parent. Pending invitations referencing the team are cancelled. |
 | `addTeamMember` | mutation | Add org member to team. Args: `teamId`, `memberUserId`, optional `role`. |
 | `updateTeamMemberRole` | mutation | Change a team member's role. Args: `teamId`, `memberUserId`, `role`. |
 | `removeTeamMember` | mutation | Remove from team. |
@@ -126,11 +126,11 @@ All hooks receive `ctx` as the first argument.
 | Function | Type | Description |
 |----------|------|-------------|
 | `listInvitations` | query | List invitations for org. Optional args: `sortBy` (`"inviteeIdentifier" \| "expiresAt" \| "createdAt"`), `sortOrder` (`"asc" \| "desc"`), `paginationOpts` (`{ numItems, cursor }`). Without `paginationOpts` returns `Invitation[]`; with `paginationOpts` returns `{ page, isDone, continueCursor }`. Returns include `message?`, `inviterName?` (stored at invite time from `getUser`). |
-| `countInvitations` | query | Count invitations for org. Args: `organizationId`. Returns `number`. Requires membership. |
+| `countInvitations` | query | Count invitations for org. Args: `organizationId`, optional `status` (`"pending" \| "accepted" \| "cancelled" \| "expired" \| "all"`, defaults to `"pending"`). Returns `number`. Requires membership. |
 | `getInvitation` | query | Get invitation by ID. Returns include `message?`, `inviterName?`. |
 | `getPendingInvitations` | query | Pending invitations for an identifier. |
 | `inviteMember` | mutation | Args: `organizationId`, `inviteeIdentifier`, `role`, optional `identifierType`, `teamId`, `message`. Returns `{ invitationId, inviteeIdentifier, expiresAt }`. |
-| `bulkInviteMembers` | mutation | Send multiple invitations. Args: `organizationId`, `invitations` (`{ inviteeIdentifier, identifierType?, role, message?, teamId? }[]`). Returns `{ success: { invitationId, inviteeIdentifier, expiresAt }[], errors: { inviteeIdentifier, code, message }[] }`. |
+| `bulkInviteMembers` | mutation | Send multiple invitations. Args: `organizationId`, `invitations` (`{ inviteeIdentifier, identifierType?, role, message?, teamId? }[]`). Returns `{ success: { invitationId, inviteeIdentifier, expiresAt }[], errors: { inviteeIdentifier, code, message }[] }`. When `validateInvitationCreate` is set, invalid entries are skipped (not fail-fast) and their errors are merged into the `errors` array. |
 | `acceptInvitation` | mutation | Accept by ID. |
 | `resendInvitation` | mutation | Resend (resets expiration). |
 | `cancelInvitation` | mutation | Cancel invitation. |
