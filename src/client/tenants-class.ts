@@ -31,6 +31,12 @@ export type { QueryCtx, MutationCtx };
  * - Syncs team membership relations (via ReBAC)
  */
 export class Tenants {
+  private static readonly DEFAULT_ROLE_HIERARCHY: Record<string, number> = {
+    owner: 3,
+    admin: 2,
+    member: 1,
+  };
+
   private authz: AuthzClient;
   private permissionMap: TenantsPermissionMap;
 
@@ -41,6 +47,7 @@ export class Tenants {
       creatorRole?: string;
       defaultInvitationExpiration?: number;
       permissionMap?: Partial<TenantsPermissionMap>;
+      roleHierarchy?: Record<string, number>;
     }
   ) {
     this.authz = options.authz;
@@ -89,6 +96,54 @@ export class Tenants {
       return scope;
     }
     throw new Error("Unsupported permission scope type");
+  }
+
+  /**
+   * Clean up all authz state (roles + permission overrides) for a user in an org scope.
+   * Prefers offboardUser (roles + overrides) > revokeAllRoles > individual revokeRole.
+   * Team relations are NOT cleaned here — use cleanupTeamRelations separately.
+   */
+  private async cleanupMemberAuthz(
+    ctx: MutationCtx,
+    memberUserId: string,
+    organizationId: string,
+    role: string,
+    actorId?: string
+  ): Promise<void> {
+    if (this.authz.offboardUser) {
+      await this.authz.offboardUser(ctx, memberUserId, {
+        scope: orgScope(organizationId),
+        actorId,
+        removeRelationships: false,
+      });
+    } else if (this.authz.revokeAllRoles) {
+      await this.authz.revokeAllRoles(ctx, memberUserId, orgScope(organizationId), actorId);
+    } else {
+      await this.authz.revokeRole(ctx, memberUserId, role, orgScope(organizationId), actorId);
+    }
+  }
+
+  /**
+   * Remove all team ReBAC relations for a user within an organization.
+   * Must be called BEFORE DB deletion (so team membership is still queryable).
+   */
+  private async cleanupTeamRelations(
+    ctx: MutationCtx,
+    organizationId: string,
+    userId: string
+  ): Promise<void> {
+    const teamsResult = await this.listTeams(ctx, organizationId);
+    const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
+    for (const team of teams) {
+      if (await this.isTeamMember(ctx, team._id, userId)) {
+        await this.authz.removeRelation(
+          ctx,
+          { type: "user", id: userId },
+          "member",
+          { type: "team", id: team._id },
+        );
+      }
+    }
   }
 
   async listOrganizations(
@@ -200,9 +255,7 @@ export class Tenants {
     const members = Array.isArray(membersResult) ? membersResult : membersResult.page;
     const teamsResult = await this.listTeams(ctx, organizationId);
     const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
-    for (const member of members) {
-      await this.authz.revokeRole(ctx, member.userId, member.role, orgScope(organizationId));
-    }
+    // Clean up all team relations
     for (const team of teams) {
       const tmsResult = await this.listTeamMembers(ctx, team._id);
       const tms = Array.isArray(tmsResult) ? tmsResult : tmsResult.page;
@@ -215,6 +268,11 @@ export class Tenants {
         );
       }
     }
+    // Clean up all member authz state (roles + overrides)
+    for (const member of members) {
+      await this.cleanupMemberAuthz(ctx, member.userId, organizationId, member.role, userId);
+    }
+    // DB delete
     await ctx.runMutation(this.component.organizations.deleteOrganization, { userId, organizationId });
   }
 
@@ -262,11 +320,15 @@ export class Tenants {
     userId: string,
     minRole: string
   ): Promise<{ hasPermission: boolean; currentRole: string | null; isSuspended?: boolean }> {
-    return await ctx.runQuery(this.component.members.checkMemberPermission, {
-      organizationId,
-      userId,
-      minRole: minRole as "member" | "admin" | "owner",
-    });
+    const member = await this.getMember(ctx, organizationId, userId);
+    if (!member) return { hasPermission: false, currentRole: null };
+    if (member.status === "suspended") {
+      return { hasPermission: false, currentRole: member.role, isSuspended: true };
+    }
+    const hierarchy = this.options.roleHierarchy ?? Tenants.DEFAULT_ROLE_HIERARCHY;
+    const getLevel = (role: string) => hierarchy[role] ?? 0;
+    const hasPermission = getLevel(member.role) >= getLevel(minRole);
+    return { hasPermission, currentRole: member.role };
   }
 
   async addMember(
@@ -294,28 +356,17 @@ export class Tenants {
   ): Promise<void> {
     await this.authzRequireOperation(ctx, userId, "removeMember", orgScope(organizationId));
     const member = await this.getMember(ctx, organizationId, memberUserId);
-    if (member) {
-      const teamsResult = await this.listTeams(ctx, organizationId);
-      const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
-      for (const team of teams) {
-        const isMember = await this.isTeamMember(ctx, team._id, memberUserId);
-        if (isMember) {
-          await this.authz.removeRelation(
-            ctx,
-            { type: "user", id: memberUserId },
-            "member",
-            { type: "team", id: team._id },
-          );
-        }
-      }
-    }
+    // Clean up team relations BEFORE DB delete (so isTeamMember still works)
+    await this.cleanupTeamRelations(ctx, organizationId, memberUserId);
+    // DB delete
     await ctx.runMutation(this.component.members.removeMember, {
       userId,
       organizationId,
       memberUserId,
     });
+    // Clean up authz roles + overrides
     if (member) {
-      await this.authz.revokeRole(ctx, memberUserId, member.role, orgScope(organizationId));
+      await this.cleanupMemberAuthz(ctx, memberUserId, organizationId, member.role, userId);
     }
   }
 
@@ -374,7 +425,7 @@ export class Tenants {
     for (const memberUserId of result.success) {
       const role = rolesByUser[memberUserId];
       if (role) {
-        await this.authz.revokeRole(ctx, memberUserId, role, orgScope(organizationId));
+        await this.cleanupMemberAuthz(ctx, memberUserId, organizationId, role, userId);
       }
       const teamIds = teamMembershipsByUser[memberUserId] ?? [];
       for (const teamId of teamIds) {
@@ -455,21 +506,12 @@ export class Tenants {
         throw new Error("Cannot leave: you are the last owner. Transfer ownership first.");
       }
     }
-    const teamsResult = await this.listTeams(ctx, organizationId);
-    const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
-    for (const team of teams) {
-      const isMember = await this.isTeamMember(ctx, team._id, userId);
-      if (isMember) {
-        await this.authz.removeRelation(
-          ctx,
-          { type: "user", id: userId },
-          "member",
-          { type: "team", id: team._id },
-        );
-      }
-    }
+    // Clean up team relations BEFORE DB delete
+    await this.cleanupTeamRelations(ctx, organizationId, userId);
+    // DB delete
     await ctx.runMutation(this.component.members.leaveOrganization, { userId, organizationId });
-    await this.authz.revokeRole(ctx, userId, member.role, orgScope(organizationId));
+    // Clean up authz roles + overrides
+    await this.cleanupMemberAuthz(ctx, userId, organizationId, member.role, userId);
   }
 
   async listTeams(
@@ -643,7 +685,12 @@ export class Tenants {
   }
 
   async isTeamMember(ctx: QueryCtx, teamId: string, userId: string): Promise<boolean> {
-    return await ctx.runQuery(this.component.teams.isTeamMember, { teamId, userId });
+    return await this.authz.hasRelation(
+      ctx,
+      { type: "user", id: userId },
+      "member",
+      { type: "team", id: teamId },
+    );
   }
 
   async can(
@@ -653,6 +700,24 @@ export class Tenants {
     organizationId: string
   ): Promise<boolean> {
     return await this.authz.can(ctx, userId, permission, orgScope(organizationId));
+  }
+
+  async canAny(
+    ctx: QueryCtx,
+    userId: string,
+    permissions: string[],
+    organizationId: string
+  ): Promise<boolean> {
+    if (this.authz.canAny) {
+      return await this.authz.canAny(ctx, userId, permissions, orgScope(organizationId));
+    }
+    // Fallback: check each permission individually
+    for (const perm of permissions) {
+      if (await this.authz.can(ctx, userId, perm, orgScope(organizationId))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async require(
@@ -678,6 +743,20 @@ export class Tenants {
       userId,
       organizationId ? orgScope(organizationId) : undefined
     );
+  }
+
+  async hasRole(
+    ctx: QueryCtx,
+    userId: string,
+    role: string,
+    organizationId: string
+  ): Promise<boolean> {
+    if (this.authz.hasRole) {
+      return await this.authz.hasRole(ctx, userId, role, orgScope(organizationId));
+    }
+    // Fallback: get all roles and check
+    const roles = await this.authz.getUserRoles(ctx, userId, orgScope(organizationId));
+    return Array.isArray(roles) && roles.some((r: any) => (typeof r === "string" ? r : r.role) === role);
   }
 
   async grantPermission(
@@ -722,8 +801,6 @@ export class Tenants {
     );
   }
 
-  // TODO: Pass scope filter to authz.getAuditLog to avoid fetching all entries.
-  // Currently filtering client-side which doesn't scale with large audit logs.
   async getAuditLog(
     ctx: QueryCtx,
     userId: string,
@@ -733,24 +810,29 @@ export class Tenants {
     await this.authzRequireOperation(ctx, userId, "getAuditLog", orgScope(organizationId));
     const scope = orgScope(organizationId);
     const callerLimit = options?.limit ?? 50;
-    const fetchLimit = callerLimit * 3;
-    const result = await this.authz.getAuditLog(ctx, { ...options, limit: fetchLimit });
-    const matchesScope = (entry: { scope?: { type?: string; id?: string } }) =>
-      entry.scope?.type === scope.type && entry.scope?.id === scope.id;
+    const result = await this.authz.getAuditLog(ctx, { ...options, limit: callerLimit, scope });
+    // If authz honored the scope filter, return directly.
+    // If it returned unscoped results (older authz), filter client-side.
     if (Array.isArray(result)) {
-      return result
-        .filter((entry: { scope?: { type?: string; id?: string } }) => matchesScope(entry))
-        .slice(0, callerLimit);
-    }
-    if (result && Array.isArray((result as { entries?: unknown[] }).entries)) {
-      return {
-        ...result,
-        entries: (result as { entries: { scope?: { type?: string; id?: string } }[] }).entries
-          .filter(matchesScope)
-          .slice(0, callerLimit),
-      };
+      const matchesScope = (entry: { scope?: { type?: string; id?: string } }) =>
+        entry.scope?.type === scope.type && entry.scope?.id === scope.id;
+      const allMatch = result.length === 0 || result.every(matchesScope);
+      return allMatch ? result.slice(0, callerLimit) : result.filter(matchesScope).slice(0, callerLimit);
     }
     return result;
+  }
+
+  async recomputeUser(
+    ctx: MutationCtx,
+    userId: string,
+    organizationId: string,
+    targetUserId: string
+  ): Promise<void> {
+    // Require permissions:grant (admin-level operation)
+    await this.authzRequireOperation(ctx, userId, "grantPermission", orgScope(organizationId));
+    if (this.authz.recomputeUser) {
+      await this.authz.recomputeUser(ctx, targetUserId);
+    }
   }
 
   async listInvitations(

@@ -50,6 +50,9 @@ export interface AuthzClient {
   /** Get effective permissions for a user. */
   getUserPermissions(ctx: any, userId: string, scope?: { type: string; id: string }): Promise<any>;
 
+  /** Check if a user has a specific role (O(1) lookup). */
+  hasRole?(ctx: any, userId: string, role: string, scope?: { type: string; id: string }): Promise<boolean>;
+
   /** Grant a direct permission override. */
   grantPermission(ctx: any, userId: string, permission: string, scope?: { type: string; id: string }, reason?: string, expiresAt?: number, actorId?: string): Promise<string>;
 
@@ -57,7 +60,7 @@ export interface AuthzClient {
   denyPermission(ctx: any, userId: string, permission: string, scope?: { type: string; id: string }, reason?: string, expiresAt?: number, actorId?: string): Promise<string>;
 
   /** Get audit log entries. */
-  getAuditLog(ctx: any, options?: { userId?: string; action?: string; limit?: number }): Promise<any>;
+  getAuditLog(ctx: any, options?: { userId?: string; action?: string; limit?: number; scope?: { type: string; id: string } }): Promise<any>;
 
   /** Add a ReBAC relationship tuple. */
   addRelation(ctx: any, subject: RelationEntity, relation: string, object: RelationEntity, options?: { caveat?: string; caveatContext?: unknown; createdBy?: string }): Promise<string>;
@@ -87,6 +90,9 @@ export interface AuthzClient {
 
   /** Full user deprovision — wipe all authz data for a user. */
   deprovisionUser?(ctx: any, userId: string, options?: { actorId?: string; enableAudit?: boolean }): Promise<any>;
+
+  /** Rebuild effective permissions/roles for a user (after schema/role changes). */
+  recomputeUser?(ctx: any, userId: string): Promise<void>;
 }
 
 // ============================================================================

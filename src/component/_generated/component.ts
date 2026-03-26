@@ -75,7 +75,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       countInvitations: FunctionReference<
         "query",
         "internal",
-        { organizationId: string },
+        {
+          organizationId: string;
+          status?: "pending" | "accepted" | "cancelled" | "expired" | "all";
+        },
         number,
         Name
       >;
@@ -242,14 +245,11 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       checkMemberPermission: FunctionReference<
         "query",
         "internal",
+        { minRole: string; organizationId: string; userId: string },
         {
-          minRole: "member" | "admin" | "owner";
-          organizationId: string;
-          userId: string;
-        },
-        {
-          currentRole: null | "owner" | "admin" | "member";
+          currentRole: null | string;
           hasPermission: boolean;
+          isSuspended?: boolean;
         },
         Name
       >;

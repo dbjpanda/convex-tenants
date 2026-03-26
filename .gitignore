@@ -16,3 +16,4 @@ node_modules
 
 # Claude Code
 .claude/worktrees/
+docs/superpowers

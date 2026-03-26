@@ -1369,6 +1369,19 @@ export function makeTenantsAPI(
       },
     }),
 
+    checkAnyPermission: queryGeneric({
+      args: {
+        organizationId: v.string(),
+        permissions: v.array(v.string()),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
+        const allowed = await tenants.canAny(ctx, userId, args.permissions, args.organizationId);
+        return { allowed, reason: allowed ? "Allowed" : "Permission denied" };
+      },
+    }),
+
     getUserPermissions: queryGeneric({
       args: { organizationId: v.string() },
       handler: async (ctx, args) => {
@@ -1382,6 +1395,18 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         return await tenants.getUserRoles(ctx, userId, args.organizationId);
+      },
+    }),
+
+    hasRole: queryGeneric({
+      args: {
+        organizationId: v.string(),
+        role: v.string(),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
+        return await tenants.hasRole(ctx, userId, args.role, args.organizationId);
       },
     }),
 
@@ -1422,6 +1447,19 @@ export function makeTenantsAPI(
           ctx, userId, args.organizationId, args.targetUserId, args.permission,
           { scope: args.scope, reason: args.reason, expiresAt: args.expiresAt }
         );
+      },
+    }),
+
+    recomputeUser: mutationGeneric({
+      args: {
+        organizationId: v.string(),
+        targetUserId: v.string(),
+      },
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await requireActiveMembership(ctx, userId, args.organizationId);
+        await requireActiveOrganization(ctx, args.organizationId);
+        await tenants.recomputeUser(ctx, userId, args.organizationId, args.targetUserId);
       },
     }),
 
