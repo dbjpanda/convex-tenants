@@ -114,6 +114,7 @@ export class Tenants {
       await this.authz.offboardUser(ctx, memberUserId, {
         scope: orgScope(organizationId),
         actorId,
+        removeOverrides: true,
         removeRelationships: false,
       });
     } else if (this.authz.revokeAllRoles) {

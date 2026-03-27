@@ -237,6 +237,9 @@ export function makeTenantsAPI(
     /** Max teams per organization (enforced in createTeam). Omit for no limit. */
     maxTeams?: number;
 
+    /** Custom role hierarchy for checkMemberPermission. Default: { owner: 3, admin: 2, member: 1 }. Unknown roles default to level 0. */
+    roleHierarchy?: Record<string, number>;
+
     /**
      * If provided, enables generateLogoUploadUrl mutation.
      * Wire to your Convex file storage, e.g. async (ctx) => await ctx.storage.generateUploadUrl().
@@ -250,6 +253,7 @@ export function makeTenantsAPI(
     creatorRole: options.creatorRole,
     defaultInvitationExpiration: options.defaultInvitationExpiration,
     permissionMap: options.permissionMap,
+    roleHierarchy: options.roleHierarchy,
   });
 
   async function requireAuth(ctx: { auth: Auth }): Promise<string> {
@@ -984,13 +988,8 @@ export function makeTenantsAPI(
         if (options.onBeforeDeleteTeam) {
           await options.onBeforeDeleteTeam(ctx, { teamId: args.teamId });
         }
-        let teamName = "Unknown";
-        let teamOrgId = "";
-        if (options.onTeamDeleted) {
-          const team = await tenants.getTeam(ctx, args.teamId);
-          teamName = team?.name ?? "Unknown";
-          teamOrgId = team?.organizationId ?? "";
-        }
+        const teamName = teamForOrg.name;
+        const teamOrgId = teamForOrg.organizationId;
         await tenants.deleteTeam(ctx, userId, args.teamId);
         if (options.onTeamDeleted) {
           await options.onTeamDeleted(ctx, {
@@ -1381,6 +1380,7 @@ export function makeTenantsAPI(
       args: { organizationId: v.string(), permission: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
         const allowed = await tenants.can(ctx, userId, args.permission, args.organizationId);
         return { allowed, reason: allowed ? "Allowed" : "Permission denied" };
       },
@@ -1403,6 +1403,7 @@ export function makeTenantsAPI(
       args: { organizationId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
         return await tenants.getUserPermissions(ctx, userId, args.organizationId);
       },
     }),
@@ -1411,6 +1412,9 @@ export function makeTenantsAPI(
       args: { organizationId: v.optional(v.string()) },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        if (args.organizationId) {
+          await requireMembership(ctx, userId, args.organizationId);
+        }
         return await tenants.getUserRoles(ctx, userId, args.organizationId);
       },
     }),

@@ -300,7 +300,7 @@ describe("Tenants", () => {
 
       expect(authzWithBoth.offboardUser).toHaveBeenCalledWith(
         expect.anything(), "bob",
-        { scope: { type: "organization", id: "org_1" }, actorId: "alice", removeRelationships: false },
+        { scope: { type: "organization", id: "org_1" }, actorId: "alice", removeOverrides: true, removeRelationships: false },
       );
       expect(authzWithBoth.revokeAllRoles).not.toHaveBeenCalled();
       expect(authzWithBoth.revokeRole).not.toHaveBeenCalled();

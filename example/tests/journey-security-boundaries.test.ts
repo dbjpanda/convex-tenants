@@ -156,12 +156,13 @@ describe("Journey 2: Non-member cannot access organization", () => {
       })
     ).rejects.toThrow("Not a member of this organization");
 
-    // Step 6: Charlie tries to check permissions -> denied (not a member)
-    const permCheck = await asCharlie.query(api.testHelpers.strictCheckPermission, {
-      organizationId: orgId,
-      permission: "organizations:read",
-    });
-    expect(permCheck.allowed).toBe(false);
+    // Step 6: Charlie tries to check permissions -> rejected (not a member)
+    await expect(
+      asCharlie.query(api.testHelpers.strictCheckPermission, {
+        organizationId: orgId,
+        permission: "organizations:read",
+      })
+    ).rejects.toThrow("Not a member of this organization");
 
     // Verify: complete isolation — Charlie's org list does not contain Secret Corp
     const charlieOrgs = await asCharlie.query(api.testHelpers.strictListOrganizations, {});

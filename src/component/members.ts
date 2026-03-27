@@ -200,6 +200,11 @@ function getRoleLevel(role: string): number {
   return ROLE_HIERARCHY[role] ?? 0;
 }
 
+/**
+ * @deprecated Prefer the client-layer `Tenants.checkMemberPermission` (via `makeTenantsAPI`)
+ * which supports a configurable `roleHierarchy`. This component-level query uses a hardcoded
+ * hierarchy `{ owner: 3, admin: 2, member: 1 }` and is kept for backward compatibility.
+ */
 export const checkMemberPermission = query({
   args: {
     organizationId: v.string(),
