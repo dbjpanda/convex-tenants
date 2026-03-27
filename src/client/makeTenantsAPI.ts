@@ -501,7 +501,12 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        await tenants.requireOperation(ctx, userId, "listMembers", orgScope(args.organizationId));
+        try {
+          await tenants.requireOperation(ctx, userId, "listMembers", orgScope(args.organizationId));
+        } catch {
+          // Return empty for queries — permission denied should not crash the UI subscription
+          return args.paginationOpts ? { page: [], isDone: true, continueCursor: "" } : [];
+        }
 
         const result = await tenants.listMembers(ctx, args.organizationId, {
           status: args.status,
@@ -779,7 +784,11 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        await tenants.requireOperation(ctx, userId, "listTeams", orgScope(args.organizationId));
+        try {
+          await tenants.requireOperation(ctx, userId, "listTeams", orgScope(args.organizationId));
+        } catch {
+          return args.paginationOpts ? { page: [], isDone: true, continueCursor: "" } : [];
+        }
         return await tenants.listTeams(ctx, args.organizationId, {
           parentTeamId: args.parentTeamId,
           sortBy: args.sortBy,
@@ -794,7 +803,11 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
-        await tenants.requireOperation(ctx, userId, "listTeams", orgScope(args.organizationId));
+        try {
+          await tenants.requireOperation(ctx, userId, "listTeams", orgScope(args.organizationId));
+        } catch {
+          return [];
+        }
         return await tenants.listTeamsAsTree(ctx, args.organizationId);
       },
     }),
@@ -836,7 +849,11 @@ export function makeTenantsAPI(
             : [];
         }
         await requireMembership(ctx, userId, team.organizationId);
-        await tenants.requireOperation(ctx, userId, "listTeamMembers", orgScope(team.organizationId));
+        try {
+          await tenants.requireOperation(ctx, userId, "listTeamMembers", orgScope(team.organizationId));
+        } catch {
+          return args.paginationOpts ? { page: [], isDone: true, continueCursor: "" } : [];
+        }
 
         const result = await tenants.listTeamMembers(ctx, args.teamId, {
           sortBy: args.sortBy,

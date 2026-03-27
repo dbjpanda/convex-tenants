@@ -290,15 +290,13 @@ describe("makeTenantsAPI - teams", () => {
         name: "Engineering",
       });
 
-      // Bob (member role) has teams: [] → cannot list teams
-      await expect(
-        asBob.query(api.testHelpers.strictListTeams, { organizationId: orgId })
-      ).rejects.toThrow(/Permission denied.*teams:list/);
+      // Bob (member role) has teams: [] → gets empty list (queries return empty on permission denied)
+      const teams = await asBob.query(api.testHelpers.strictListTeams, { organizationId: orgId });
+      expect(teams).toEqual([]);
 
-      // Bob (member role) does not have teams:listMembers → permission denied
-      await expect(
-        asBob.query(api.testHelpers.strictListTeamMembers, { teamId })
-      ).rejects.toThrow(/Permission denied.*teams:listMembers/);
+      // Bob (member role) does not have teams:listMembers → gets empty list
+      const teamMembers = await asBob.query(api.testHelpers.strictListTeamMembers, { teamId });
+      expect(teamMembers).toEqual([]);
     });
   });
 });
