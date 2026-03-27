@@ -27,20 +27,7 @@ jobs:
 
       - name: Install and build
         run: |
-          # Replace local file: refs to @djpanda/convex-authz with the published npm version.
-          # The file:../authz path only resolves inside the monorepo workspace.
-          node -e "
-            const fs = require('fs');
-            function fixAuthzRef(file, key) {
-              const p = JSON.parse(fs.readFileSync(file, 'utf8'));
-              if (p[key]?.['@djpanda/convex-authz']?.startsWith('file:')) {
-                p[key]['@djpanda/convex-authz'] = '^2.1.1';
-                fs.writeFileSync(file, JSON.stringify(p, null, 2) + '\n');
-              }
-            }
-            fixAuthzRef('package.json', 'devDependencies');
-            fixAuthzRef('example/package.json', 'dependencies');
-          "
+          node scripts/fix-ci-deps.mjs
           npm i
           cd example && npm i && cd ..
           npm run build
