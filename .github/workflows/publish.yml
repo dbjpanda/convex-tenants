@@ -28,7 +28,7 @@ jobs:
       - name: Install and build
         run: |
           node scripts/fix-ci-deps.mjs
-          npm i
+          npm i --legacy-peer-deps
           npm run build
 
       - name: Publish to npm
