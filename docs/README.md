@@ -11,3 +11,6 @@ Detailed docs for `@djpanda/convex-tenants`:
 | [Invitation System](invitation-system.md) | Flexible identifier validation and examples |
 | [React Components](react-components.md) | TenantsProvider, OrganizationSwitcher, MembersSection, etc. |
 | [Organization Store](organization-store.md) | Active-org state, cookie persistence, configurable storage key |
+| [Error Handling](error-handling.md) | All error codes/messages, how to catch errors in React |
+| [Hooks Guide](hooks-guide.md) | Hook execution order, transaction boundaries, common patterns |
+| [Testing Guide](testing-guide.md) | Set up convex-test, write tests for tenants + authz, example patterns |

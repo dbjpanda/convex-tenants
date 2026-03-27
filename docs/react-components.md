@@ -162,6 +162,145 @@ function AcceptInvitationPage({ invitationId }) {
 }
 ```
 
+---
+
+## Component prop reference
+
+### OrganizationSwitcher
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `organizations` | `Organization[]` | from context | List of organizations. Optional when inside `TenantsProvider`. |
+| `currentOrganization` | `Organization \| null` | from context | Currently active organization. Optional when inside `TenantsProvider`. |
+| `isLoading` | `boolean` | from context | Loading state. |
+| `onSwitchOrganization` | `(organizationId: string) => void` | from context | Callback when switching organization. |
+| `onCreateOrganization` | `(data: { name: string; slug: string }) => Promise<void>` | from context | Callback when creating a new organization. |
+| `className` | `string` | — | Custom class name for the root trigger button. |
+| `buildingIcon` | `ReactNode` | `<Building2 />` | Custom building/organization icon. |
+| `checkIcon` | `ReactNode` | `<Check />` | Custom check mark icon. |
+| `chevronsIcon` | `ReactNode` | `<ChevronsUpDown />` | Custom chevrons icon. |
+| `plusIcon` | `ReactNode` | `<Plus />` | Custom plus icon. |
+
+### AcceptInvitation
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `invitation` | `Invitation \| null` | **required** | The invitation data. When `null`, shows "not found" state. |
+| `organizationName` | `string` | — | Organization name to display. |
+| `isLoading` | `boolean` | `false` | Whether the invitation data is loading. |
+| `isAuthenticated` | `boolean` | `false` | Whether the user is signed in. When `false`, shows "sign in" prompt. |
+| `isAccepting` | `boolean` | `false` | Whether the accept action is in progress. |
+| `accepted` | `boolean` | `false` | Whether the invitation was accepted. Shows success state. |
+| `error` | `string \| null` | — | Error message to display. Shows error state with retry button. |
+| `onAccept` | `() => Promise<void>` | **required** | Callback when the user clicks Accept. |
+| `onDecline` | `() => void` | **required** | Callback when the user clicks Decline. |
+| `onNavigateToLogin` | `() => void` | **required** | Callback to navigate to login page (shown when unauthenticated). |
+| `onNavigateHome` | `() => void` | **required** | Callback to navigate home (shown on not-found and error states). |
+| `className` | `string` | — | Custom class name for the outer wrapper. |
+| `loadingIcon` | `ReactNode` | `<Loader2 />` | Custom loading spinner icon. |
+| `checkIcon` | `ReactNode` | `<CheckCircle />` | Custom success check icon. |
+| `errorIcon` | `ReactNode` | `<XCircle />` | Custom error icon. |
+| `buildingIcon` | `ReactNode` | `<Building2 />` | Custom building icon for org details. |
+
+### MembersTable
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `members` | `Member[]` | **required** | List of organization members. |
+| `invitations` | `Invitation[]` | **required** | List of organization invitations. |
+| `teams` | `Team[]` | — | List of teams (enables "Add to Team" dropdown). |
+| `isLoading` | `boolean` | `false` | Shows skeleton loading state. |
+| `isOwner` | `boolean` | `false` | Enables role selector dropdown for members. |
+| `isOwnerOrAdmin` | `boolean` | `false` | Shows actions column (remove, resend, cancel). |
+| `baseUrl` | `string` | `window.location.origin` | Base URL for invitation link generation. |
+| `invitationPath` | `string` | `"/accept-invitation/:id"` | URL path pattern for invitation links. `:id` is replaced with the invitation ID. |
+| `onRemoveMember` | `(memberUserId: string) => Promise<void>` | — | Callback to remove a member. |
+| `onUpdateMemberRole` | `(memberUserId: string, role: string) => Promise<void>` | — | Callback to update a member's role. |
+| `onAddToTeam` | `(userId: string, teamId: string) => Promise<void>` | — | Callback to add a member to a team. |
+| `onResendInvitation` | `(invitationId: string) => Promise<void>` | — | Callback to resend a pending invitation. |
+| `onCopyInvitationLink` | `(invitationId: string) => void` | built-in copy | Custom handler for copying invitation links. Overrides the default clipboard copy. |
+| `onCancelInvitation` | `(invitationId: string) => Promise<void>` | — | Callback to cancel an invitation. |
+| `onToast` | `(message: string, type: "success" \| "error") => void` | — | Toast notification callback. |
+| `roles` | `string[]` | `["member", "admin", "owner"]` | Available roles for the role selector dropdown. |
+| `className` | `string` | — | Custom class name. |
+| `moreIcon` | `ReactNode` | `<MoreHorizontal />` | Custom "more" menu icon. |
+| `userMinusIcon` | `ReactNode` | `<UserMinus />` | Custom remove-member icon. |
+| `copyIcon` | `ReactNode` | `<Copy />` | Custom copy icon. |
+| `checkIcon` | `ReactNode` | `<Check />` | Custom check icon (shown after copy). |
+| `refreshIcon` | `ReactNode` | `<RefreshCw />` | Custom resend icon. |
+| `cancelIcon` | `ReactNode` | `<XCircle />` | Custom cancel icon. |
+
+### TeamsGrid
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `teams` | `Team[]` | **required** | List of teams to display. |
+| `isLoading` | `boolean` | `false` | Shows skeleton loading state. |
+| `isOwnerOrAdmin` | `boolean` | `false` | Enables delete button and empty-state action. |
+| `onTeamClick` | `(team: Team) => void` | — | Callback when clicking a team card. Adds pointer cursor. |
+| `onDeleteTeam` | `(teamId: string) => Promise<void>` | — | Callback to delete a team. |
+| `emptyAction` | `ReactNode` | — | Custom element to show in empty state (e.g., a Create Team button). |
+| `onToast` | `(message: string, type: "success" \| "error") => void` | — | Toast notification callback. |
+| `className` | `string` | — | Custom class name for the grid container. |
+| `usersIcon` | `ReactNode` | `<Users />` | Custom team/users icon. |
+| `trashIcon` | `ReactNode` | `<Trash2 />` | Custom delete icon. |
+
+### MembersSection
+
+Full section component (header + table + invite dialog). Must be used inside `TenantsProvider`.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `className` | `string` | — | Custom class name for the card. |
+| `title` | `string` | `"Members & Invitations"` | Section heading text. |
+| `showInviteButton` | `boolean` | `true` for owner/admin | Whether to show the "Invite Member" button. |
+| `showTeamSelection` | `boolean` | `true` | Whether to show team selection in the invite dialog. |
+| `showInvitationLink` | `boolean` | `true` | Whether to show the invitation link after creating an invitation. |
+| `invitationPath` | `string` | `"/accept-invitation/:id"` | Custom invitation URL path pattern. `:id` is replaced with the invitation ID. |
+| `expirationText` | `string` | `"48 hours"` | Text displayed for invitation expiration (informational only). |
+| `usersIcon` | `ReactNode` | `<Users />` | Custom header icon. |
+| `plusIcon` | `ReactNode` | `<Plus />` | Custom invite button icon. |
+| `moreIcon` | `ReactNode` | — | Passed to inner `MembersTable`. |
+| `userMinusIcon` | `ReactNode` | — | Passed to inner `MembersTable`. |
+| `copyIcon` | `ReactNode` | — | Passed to inner `MembersTable` and `InviteMemberDialog`. |
+| `checkIcon` | `ReactNode` | — | Passed to inner `MembersTable` and `InviteMemberDialog`. |
+| `refreshIcon` | `ReactNode` | — | Passed to inner `MembersTable`. |
+| `cancelIcon` | `ReactNode` | — | Passed to inner `MembersTable`. |
+| `mailIcon` | `ReactNode` | — | Passed to inner `InviteMemberDialog`. |
+| `linkIcon` | `ReactNode` | — | Passed to inner `InviteMemberDialog`. |
+
+### TeamsSection
+
+Full section component (header + grid + create dialog). Must be used inside `TenantsProvider`.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `className` | `string` | — | Custom class name for the card. |
+| `title` | `string` | `"Teams"` | Section heading text. |
+| `showCreateButton` | `boolean` | `true` for owner/admin | Whether to show the "Create Team" button. |
+| `onTeamClick` | `(team: Team) => void` | — | Callback when clicking a team card. |
+| `usersIcon` | `ReactNode` | `<Users />` | Custom header icon. |
+| `plusIcon` | `ReactNode` | `<Plus />` | Custom create button icon. |
+| `trashIcon` | `ReactNode` | — | Passed to inner `TeamsGrid`. |
+
+### BulkInviteSection
+
+Renders a bulk invite form. Only visible when `bulkInviteMembers` is available on the API. Must be used inside `TenantsProvider`. This component accepts **no props** — it reads everything from `TenantsProvider` context.
+
+### MemberModerationSection
+
+Renders suspend/unsuspend controls and bulk-remove checkboxes. Only visible when `suspendMember` and `unsuspendMember` are available on the API. Must be used inside `TenantsProvider`. This component accepts **no props** — it reads everything from `TenantsProvider` context.
+
+### NestedTeamsSection
+
+Renders a tree view of nested teams and a form to create teams with optional parent. Only visible when `listTeamsAsTree` is available on the API. Must be used inside `TenantsProvider`. This component accepts **no props** — it reads everything from `TenantsProvider` context.
+
+### OrgSettingsPanel
+
+Renders organization settings: logo upload, name/slug/status editing, transfer ownership, leave, and delete (danger zone). Features are shown conditionally based on available API functions (`generateLogoUploadUrl`, `transferOwnership`, `getCurrentMember`). Must be used inside `TenantsProvider`. This component accepts **no props** — it reads everything from `TenantsProvider` context.
+
+---
+
 ## Customizing icons
 
 Override default `lucide-react` icons via props:

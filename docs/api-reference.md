@@ -151,3 +151,182 @@ Powered by `@djpanda/convex-authz`:
 | `getAuditLog` | query | Audit log from authz, **scoped to the given organization**. Args: `organizationId`, optional `userId`, `action`, `limit`. Returns only entries whose scope matches the organization. |
 
 See [Permission Map](permission-map.md) for which permission guards each mutation.
+
+---
+
+## Pagination
+
+The following queries support optional cursor-based pagination: `listMembers`, `listTeams`, `listTeamMembers`, `listInvitations`.
+
+### paginationOpts argument
+
+```typescript
+paginationOpts?: { numItems: number; cursor: string | null }
+```
+
+- `numItems` — Maximum number of items to return per page.
+- `cursor` — Pass `null` for the first page. For subsequent pages, pass the `continueCursor` from the previous response.
+
+### Return type without paginationOpts
+
+When you omit `paginationOpts`, the query returns a plain array:
+
+```typescript
+// listMembers without pagination
+const members: Member[] = await ctx.runQuery(api.tenants.listMembers, {
+  organizationId: "org_123",
+});
+```
+
+### Return type with paginationOpts
+
+When you include `paginationOpts`, the query returns a paginated response object:
+
+```typescript
+{
+  page: Member[];         // Items for this page
+  isDone: boolean;        // true when there are no more pages
+  continueCursor: string; // Pass as cursor to fetch the next page
+}
+```
+
+### Server-side usage
+
+```typescript
+// First page
+const firstPage = await ctx.runQuery(api.tenants.listMembers, {
+  organizationId: "org_123",
+  paginationOpts: { numItems: 20, cursor: null },
+});
+// firstPage.page — Member[]
+// firstPage.isDone — false (more pages exist)
+// firstPage.continueCursor — "abc123..."
+
+// Next page
+const secondPage = await ctx.runQuery(api.tenants.listMembers, {
+  organizationId: "org_123",
+  paginationOpts: { numItems: 20, cursor: firstPage.continueCursor },
+});
+```
+
+### React hook usage with usePaginatedQuery
+
+Use the `useMembers`, `useTeams`, or `useOrganizationInvitations` hooks with the `pagination` option. These hooks wrap Convex's `usePaginatedQuery` and handle cursor management automatically:
+
+```tsx
+import { useMembers } from "@djpanda/convex-tenants/react";
+
+function MembersList({ organizationId }: { organizationId: string }) {
+  const { members, status, loadMore, isLoading } = useMembers({
+    api: api.tenants,
+    organizationId,
+    pagination: { initialNumItems: 20 },
+  });
+
+  return (
+    <div>
+      {members.map((m) => <div key={m._id}>{m.user?.name}</div>)}
+      {status === "CanLoadMore" && (
+        <button onClick={() => loadMore(20)}>Load more</button>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Bulk operations
+
+### bulkAddMembers
+
+Add multiple members to an organization in a single call. Partial success is supported — members that fail (e.g., already exist) are reported in the `errors` array while the rest succeed.
+
+**Args:** `organizationId`, `members: { memberUserId: string, role: string }[]`
+
+**Returns:**
+```typescript
+{
+  success: string[];  // Array of userIds that were successfully added
+  errors: Array<{
+    userId: string;   // The userId that failed
+    code: string;     // Error code (e.g., "ALREADY_MEMBER", "INVALID_ROLE")
+    message: string;  // Human-readable error message
+  }>;
+}
+```
+
+**Example response:**
+```json
+{
+  "success": ["user_1", "user_2"],
+  "errors": [
+    { "userId": "user_3", "code": "ALREADY_MEMBER", "message": "User is already a member of this organization" }
+  ]
+}
+```
+
+### bulkRemoveMembers
+
+Remove multiple members from an organization. The structural owner cannot be removed.
+
+**Args:** `organizationId`, `memberUserIds: string[]`
+
+**Returns:**
+```typescript
+{
+  success: string[];  // Array of userIds that were successfully removed
+  errors: Array<{
+    userId: string;
+    code: string;     // e.g., "NOT_MEMBER", "IS_OWNER"
+    message: string;
+  }>;
+}
+```
+
+**Example response:**
+```json
+{
+  "success": ["user_1"],
+  "errors": [
+    { "userId": "user_4", "code": "IS_OWNER", "message": "Cannot remove the structural owner" },
+    { "userId": "user_5", "code": "NOT_MEMBER", "message": "User is not a member of this organization" }
+  ]
+}
+```
+
+### bulkInviteMembers
+
+Send multiple invitations at once. When `validateInvitationCreate` is configured, invalid entries are skipped (not fail-fast) and their errors are merged into the `errors` array.
+
+**Args:** `organizationId`, `invitations: { inviteeIdentifier: string, identifierType?: string, role: string, message?: string, teamId?: string }[]`
+
+**Returns:**
+```typescript
+{
+  success: Array<{
+    invitationId: string;       // ID of the created invitation
+    inviteeIdentifier: string;  // The identifier (email, phone, etc.)
+    expiresAt: number;          // Expiration timestamp (ms)
+  }>;
+  errors: Array<{
+    inviteeIdentifier: string;
+    code: string;     // e.g., "ALREADY_INVITED", "ALREADY_MEMBER", "VALIDATION"
+    message: string;
+  }>;
+}
+```
+
+**Example response:**
+```json
+{
+  "success": [
+    { "invitationId": "inv_1", "inviteeIdentifier": "alice@example.com", "expiresAt": 1711900800000 },
+    { "invitationId": "inv_2", "inviteeIdentifier": "bob@example.com", "expiresAt": 1711900800000 }
+  ],
+  "errors": [
+    { "inviteeIdentifier": "charlie@example.com", "code": "ALREADY_MEMBER", "message": "User is already a member" },
+    { "inviteeIdentifier": "invalid", "code": "VALIDATION", "message": "Invalid email format" }
+  ]
+}
+```
