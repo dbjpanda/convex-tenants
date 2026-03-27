@@ -21,6 +21,7 @@ export default defineConfig({
   },
   test: {
     environment: "edge-runtime",
+    exclude: ["**/e2e/**", "**/node_modules/**"],
     typecheck: {
       tsconfig: "./tsconfig.test.json",
     },
