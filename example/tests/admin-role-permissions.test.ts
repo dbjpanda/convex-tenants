@@ -46,7 +46,7 @@ describe("admin role permissions", () => {
       asBob.mutation(api.testHelpers.strictDeleteOrganization, {
         organizationId: orgId,
       })
-    ).rejects.toThrow(/Permission denied.*organizations:delete/);
+    ).rejects.toThrow("Only the organization owner can delete the organization");
   });
 
   test("admin can add members (has members:add)", async () => {

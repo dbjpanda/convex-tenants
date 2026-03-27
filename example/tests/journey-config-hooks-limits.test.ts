@@ -25,51 +25,28 @@ async function getLogsOfType(
 // ===========================================================================
 
 describe("Journey 1: Permission map override — skip authz check", () => {
-  test("member can delete org when permissionMap sets deleteOrganization: false", async () => {
+  test("permissionMap deleteOrganization: false skips authz but owner-only invariant still applies", async () => {
     const t = initConvexTest();
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
     const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
 
-    // -----------------------------------------------------------------------
-    // Step 1: Alice creates org via permMapCreateOrg
-    // -----------------------------------------------------------------------
     const orgId = await asAlice.mutation(api.testHelpers.permMapCreateOrg, {
       name: "PermMap Skip Org",
     });
-    expect(orgId).toBeDefined();
 
-    // -----------------------------------------------------------------------
-    // Step 2: Alice adds bob as "member" via permMapAddMember
-    // -----------------------------------------------------------------------
     await asAlice.mutation(api.testHelpers.permMapAddMember, {
       organizationId: orgId,
       memberUserId: "bob",
       role: "member",
     });
 
-    // Verify bob is indeed a member (not admin/owner)
-    const members = await asAlice.query(api.testHelpers.permMapListMembers, {
-      organizationId: orgId,
-    });
-    const bobMember = members.find((m: any) => m.userId === "bob");
-    expect(bobMember).toBeDefined();
-    expect(bobMember?.role).toBe("member");
+    // Member cannot delete even with permissionMap: false — owner-only invariant
+    await expect(
+      asBob.mutation(api.testHelpers.permMapDeleteOrg, { organizationId: orgId })
+    ).rejects.toThrow("Only the organization owner can delete the organization");
 
-    // -----------------------------------------------------------------------
-    // Step 3: Normally, a member CANNOT delete an org (needs organizations:delete).
-    //         But permMap config has deleteOrganization: false (skip check).
-    // -----------------------------------------------------------------------
-
-    // -----------------------------------------------------------------------
-    // Step 4: Bob (member) deletes org via permMapDeleteOrg — should SUCCEED
-    // -----------------------------------------------------------------------
-    await asBob.mutation(api.testHelpers.permMapDeleteOrg, {
-      organizationId: orgId,
-    });
-
-    // -----------------------------------------------------------------------
-    // Step 5: Verify org is deleted (even though bob is just a member)
-    // -----------------------------------------------------------------------
+    // Owner CAN delete (authz check skipped, owner check passes)
+    await asAlice.mutation(api.testHelpers.permMapDeleteOrg, { organizationId: orgId });
     const aliceOrgs = await asAlice.query(api.testHelpers.strictListOrganizations, {});
     const deletedOrg = aliceOrgs.find((o: any) => o._id === orgId);
     expect(deletedOrg).toBeUndefined();

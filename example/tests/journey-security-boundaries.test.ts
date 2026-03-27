@@ -215,7 +215,7 @@ describe("Journey 3: Admin cannot perform owner-only operations", () => {
       asBob.mutation(api.testHelpers.strictDeleteOrganization, {
         organizationId: orgId,
       })
-    ).rejects.toThrow(/Permission denied.*organizations:delete/);
+    ).rejects.toThrow("Only the organization owner can delete the organization");
 
     // Step 5: Bob tries to update a member's role -> fails (members:updateRole is owner-only)
     await expect(

@@ -7,7 +7,7 @@ import { initConvexTest } from "../convex/setup.test";
 import { api } from "../convex/_generated/api";
 
 describe("permissionMap overrides", () => {
-  test("permissionMap false skips authz check — member can delete org", async () => {
+  test("permissionMap false skips authz check but owner-only invariant still applies", async () => {
     const t = initConvexTest();
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
     const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
@@ -20,12 +20,13 @@ describe("permissionMap overrides", () => {
       organizationId: orgId, memberUserId: "bob", role: "member",
     });
 
-    // Member normally can't delete — but permissionMap: false skips the check
-    await asBob.mutation(api.testHelpers.permMapDeleteOrg, {
-      organizationId: orgId,
-    });
+    // Member cannot delete even with permissionMap: false — owner-only invariant
+    await expect(
+      asBob.mutation(api.testHelpers.permMapDeleteOrg, { organizationId: orgId })
+    ).rejects.toThrow("Only the organization owner can delete the organization");
 
-    // Verify org is gone
+    // Owner CAN still delete (authz check skipped, but owner check passes)
+    await asAlice.mutation(api.testHelpers.permMapDeleteOrg, { organizationId: orgId });
     const org = await asAlice.query(api.testHelpers.strictGetOrganizationBySlug, {
       slug: "permmap-false-org",
     });

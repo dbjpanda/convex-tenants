@@ -473,8 +473,14 @@ export function makeTenantsAPI(
       args: { organizationId: v.string() },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
-        await requireActiveMembership(ctx, userId, args.organizationId);
+        const member = await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
+        // Owner-only invariant: deleteOrganization always requires owner role,
+        // even if permissionMap.deleteOrganization is set to false.
+        const creatorRole = options.creatorRole ?? "owner";
+        if (member.role !== creatorRole) {
+          throw new Error("Only the organization owner can delete the organization");
+        }
         if (options.onBeforeDeleteOrganization) {
           await options.onBeforeDeleteOrganization(ctx, { organizationId: args.organizationId });
         }
@@ -1051,6 +1057,11 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
+        // Check invitations:list permission — return empty if denied (query subscription safety)
+        const canList = await tenants.can(ctx, userId, "invitations:list", args.organizationId);
+        if (!canList) {
+          return args.paginationOpts ? { page: [], isDone: true, continueCursor: "" } : [];
+        }
         return await tenants.listInvitations(ctx, args.organizationId, {
           sortBy: args.sortBy,
           sortOrder: args.sortOrder,
@@ -1067,6 +1078,8 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
+        const canList = await tenants.can(ctx, userId, "invitations:list", args.organizationId);
+        if (!canList) return 0;
         return await tenants.countInvitations(ctx, args.organizationId, { status: args.status });
       },
     }),
@@ -1286,7 +1299,8 @@ export function makeTenantsAPI(
           );
         }
 
-        // Validate invitation acceptance
+        // Validate invitation acceptance — safe-by-default identity matching.
+        // If a custom validator is provided, use it. Otherwise enforce exact identifier match.
         if (options.validateInvitationAccept) {
           const validation = await options.validateInvitationAccept(ctx, {
             invitation: {
@@ -1301,6 +1315,15 @@ export function makeTenantsAPI(
           });
           if (!validation.allowed) {
             throw new Error(validation.reason || "You cannot accept this invitation");
+          }
+        } else {
+          // Default: exact case-insensitive identifier match
+          const normalize = (s: string) => s.trim().toLowerCase();
+          if (normalize(acceptingUserIdentifier) !== normalize(inv.inviteeIdentifier)) {
+            throw new Error(
+              "Invitation identifier does not match your account. " +
+              "This invitation was sent to a different email address."
+            );
           }
         }
 
