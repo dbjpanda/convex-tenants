@@ -212,7 +212,7 @@ test.describe("Multi-User Permissions", () => {
     await expect(memberPage.getByText("Organization Details")).toBeVisible({ timeout: 10000 });
     // Admin should not see Danger Zone / Delete
     await memberPage.getByRole("heading", { name: "Danger Zone" }).scrollIntoViewIfNeeded().catch(() => {});
-    const canSeeDelete = await memberPage.getByRole("button", { name: "Delete Organization" }).isVisible({ timeout: 2000 }).catch(() => false);
+    await memberPage.getByRole("button", { name: "Delete Organization" }).isVisible({ timeout: 2000 }).catch(() => false);
 
     // Alice transfers ownership to Bob
     await navigateTo(ownerPage, "Settings");

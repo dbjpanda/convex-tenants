@@ -4,7 +4,7 @@
  * Tests the member row actions menu, role combobox, suspend/unsuspend.
  */
 import { test, expect } from "@playwright/test";
-import { uniqueEmail, signUp, createOrganization, inviteMember, navigateTo } from "./helpers";
+import { uniqueEmail, signUp, createOrganization, inviteMember } from "./helpers";
 
 test.describe("Member Actions", () => {
   test("invitation shows in table with pending status and filter tabs work", async ({ page }) => {

@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /**
  * Replaces local file: references to @djpanda/convex-authz with the
  * published npm version. Used in CI where the monorepo workspace
