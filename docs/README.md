@@ -14,3 +14,4 @@ Detailed docs for `@djpanda/convex-tenants`:
 | [Error Handling](error-handling.md) | All error codes/messages, how to catch errors in React |
 | [Hooks Guide](hooks-guide.md) | Hook execution order, transaction boundaries, common patterns |
 | [Testing Guide](testing-guide.md) | Set up convex-test, write tests for tenants + authz, example patterns |
+| [Known Limitations](known-limitations.md) | Cross-component atomicity, large-tenant scaling, security layers |

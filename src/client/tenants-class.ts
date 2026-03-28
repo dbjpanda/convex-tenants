@@ -253,7 +253,7 @@ export class Tenants {
     organizationId: string
   ): Promise<void> {
     await this.authzRequireOperation(ctx, userId, "deleteOrganization", orgScope(organizationId));
-    const membersResult = await this.listMembers(ctx, organizationId);
+    const membersResult = await this.listMembers(ctx, organizationId, { status: "all" });
     const members = Array.isArray(membersResult) ? membersResult : membersResult.page;
     const teamsResult = await this.listTeams(ctx, organizationId);
     const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
@@ -922,7 +922,7 @@ export class Tenants {
       acceptingUserId,
       acceptingUserIdentifier: options?.acceptingUserIdentifier,
       skipIdentifierCheck: options?.skipIdentifierCheck,
-    } as { invitationId: string; acceptingUserId: string; acceptingUserIdentifier?: string });
+    } as { invitationId: string; acceptingUserId: string; acceptingUserIdentifier?: string; skipIdentifierCheck?: boolean });
     if (invitation) {
       await this.authz.assignRole(
         ctx,
