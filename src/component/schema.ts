@@ -88,5 +88,7 @@ export default defineSchema({
     .index("by_invitee_identifier", ["inviteeIdentifier"])
     .index("by_status", ["status"])
     .index("by_invitee_identifier_and_status", ["inviteeIdentifier", "status"])
-    .index("by_org_invitee_and_status", ["organizationId", "inviteeIdentifier", "status"]),
+    .index("by_org_invitee_and_status", ["organizationId", "inviteeIdentifier", "status"])
+    .index("by_organization_and_status", ["organizationId", "status"])
+    .index("by_org_and_team", ["organizationId", "teamId"]),
 });

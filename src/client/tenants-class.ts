@@ -126,6 +126,7 @@ export class Tenants {
 
   /**
    * Remove all team ReBAC relations for a user within an organization.
+   * Uses listUserTeamMemberships (by_user index) for O(userTeams) instead of O(allTeams).
    * Must be called BEFORE DB deletion (so team membership is still queryable).
    */
   private async cleanupTeamRelations(
@@ -133,17 +134,17 @@ export class Tenants {
     organizationId: string,
     userId: string
   ): Promise<void> {
-    const teamsResult = await this.listTeams(ctx, organizationId);
-    const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
-    for (const team of teams) {
-      if (await this.isTeamMember(ctx, team._id, userId)) {
-        await this.authz.removeRelation(
-          ctx,
-          { type: "user", id: userId },
-          "member",
-          { type: "team", id: team._id },
-        );
-      }
+    const memberships = await ctx.runQuery(
+      this.component.teams.listUserTeamMemberships,
+      { organizationId, userId }
+    );
+    for (const { teamId } of memberships) {
+      await this.authz.removeRelation(
+        ctx,
+        { type: "user", id: userId },
+        "member",
+        { type: "team", id: teamId },
+      );
     }
   }
 
@@ -400,22 +401,18 @@ export class Tenants {
   ): Promise<{ success: string[]; errors: Array<{ userId: string; code: string; message: string }> }> {
     await this.authzRequireOperation(ctx, userId, "bulkRemoveMembers", orgScope(organizationId));
     const rolesByUser: Record<string, string> = {};
-    const teamsResult = await this.listTeams(ctx, organizationId);
-    const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
-    // Collect team memberships BEFORE the mutation deletes the DB rows,
-    // otherwise isTeamMember returns false and ReBAC relations are never cleaned.
+    // Collect team memberships BEFORE the mutation deletes the DB rows.
+    // Uses listUserTeamMemberships (by_user index) — O(userTeams) per user, not O(allTeams).
     const teamMembershipsByUser: Record<string, string[]> = {};
     for (const memberUserId of memberUserIds) {
       const member = await this.getMember(ctx, organizationId, memberUserId);
       if (member) rolesByUser[memberUserId] = member.role;
-      const memberTeamIds: string[] = [];
-      for (const team of teams) {
-        if (await this.isTeamMember(ctx, team._id, memberUserId)) {
-          memberTeamIds.push(team._id);
-        }
-      }
-      if (memberTeamIds.length > 0) {
-        teamMembershipsByUser[memberUserId] = memberTeamIds;
+      const memberships = await ctx.runQuery(
+        this.component.teams.listUserTeamMemberships,
+        { organizationId, userId: memberUserId }
+      );
+      if (memberships.length > 0) {
+        teamMembershipsByUser[memberUserId] = memberships.map((m: { teamId: string }) => m.teamId);
       }
     }
     const result = await ctx.runMutation(this.component.members.bulkRemoveMembers, {

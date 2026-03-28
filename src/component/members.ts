@@ -293,18 +293,16 @@ export const removeMember = mutation({
         message: "Cannot remove the organization owner. Transfer ownership first.",
       });
     }
-    const teams = await ctx.db
-      .query("teams")
-      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+    // Use by_user index to find only teams this user belongs to (not all org teams)
+    const userTeamMemberships = await ctx.db
+      .query("teamMembers")
+      .withIndex("by_user", (q) => q.eq("userId", args.memberUserId))
       .collect();
-    for (const team of teams) {
-      const tm = await ctx.db
-        .query("teamMembers")
-        .withIndex("by_team_and_user", (q) =>
-          q.eq("teamId", team._id).eq("userId", args.memberUserId)
-        )
-        .unique();
-      if (tm) await ctx.db.delete(tm._id);
+    for (const tm of userTeamMemberships) {
+      const team = await ctx.db.get(tm.teamId);
+      if (team && team.organizationId === orgId) {
+        await ctx.db.delete(tm._id);
+      }
     }
     await ctx.db.delete(member._id);
     return null;
@@ -469,18 +467,16 @@ export const bulkRemoveMembers = mutation({
           });
           continue;
         }
-        const teams = await ctx.db
-          .query("teams")
-          .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+        // Use by_user index to find only teams this user belongs to (not all org teams)
+        const userTeamMemberships = await ctx.db
+          .query("teamMembers")
+          .withIndex("by_user", (q) => q.eq("userId", memberUserId))
           .collect();
-        for (const team of teams) {
-          const tm = await ctx.db
-            .query("teamMembers")
-            .withIndex("by_team_and_user", (q) =>
-              q.eq("teamId", team._id).eq("userId", memberUserId)
-            )
-            .unique();
-          if (tm) await ctx.db.delete(tm._id);
+        for (const tm of userTeamMemberships) {
+          const team = await ctx.db.get(tm.teamId);
+          if (team && team.organizationId === orgId) {
+            await ctx.db.delete(tm._id);
+          }
         }
         await ctx.db.delete(member._id);
         success.push(memberUserId);
@@ -515,16 +511,16 @@ export const leaveOrganization = mutation({
     if (!member) {
       throw new ConvexError({ code: "NOT_FOUND", message: "You are not a member of this organization" });
     }
-    const teams = await ctx.db
-      .query("teams")
-      .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+    // Use by_user index to find only teams this user belongs to (not all org teams)
+    const userTeamMemberships = await ctx.db
+      .query("teamMembers")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
-    for (const team of teams) {
-      const tm = await ctx.db
-        .query("teamMembers")
-        .withIndex("by_team_and_user", (q) => q.eq("teamId", team._id).eq("userId", args.userId))
-        .unique();
-      if (tm) await ctx.db.delete(tm._id);
+    for (const tm of userTeamMemberships) {
+      const team = await ctx.db.get(tm.teamId);
+      if (team && team.organizationId === orgId) {
+        await ctx.db.delete(tm._id);
+      }
     }
     await ctx.db.delete(member._id);
     return null;

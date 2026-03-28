@@ -120,15 +120,23 @@ export const countInvitations = query({
   },
   returns: v.number(),
   handler: async (ctx, args) => {
+    const orgId = args.organizationId as Id<"organizations">;
     const statusFilter = args.status ?? "pending";
+    if (statusFilter === "all") {
+      const invitations = await ctx.db
+        .query("invitations")
+        .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+        .collect();
+      return invitations.length;
+    }
+    // Use targeted index — only fetches invitations with matching status
     const invitations = await ctx.db
       .query("invitations")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId as Id<"organizations">)
+      .withIndex("by_organization_and_status", (q) =>
+        q.eq("organizationId", orgId).eq("status", statusFilter)
       )
       .collect();
-    if (statusFilter === "all") return invitations.length;
-    return invitations.filter((inv) => inv.status === statusFilter).length;
+    return invitations.length;
   },
 });
 

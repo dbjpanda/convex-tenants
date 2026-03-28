@@ -641,6 +641,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         }>,
         Name
       >;
+      listUserTeamMemberships: FunctionReference<
+        "query",
+        "internal",
+        { organizationId: string; userId: string },
+        Array<{ teamId: string }>,
+        Name
+      >;
       removeTeamMember: FunctionReference<
         "mutation",
         "internal",

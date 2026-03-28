@@ -312,6 +312,33 @@ export const isTeamMember = query({
   },
 });
 
+/**
+ * List all team memberships for a user within a specific organization.
+ * Uses the by_user index for efficient lookup instead of scanning all teams.
+ */
+export const listUserTeamMemberships = query({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.array(v.object({ teamId: v.string() })),
+  handler: async (ctx, args) => {
+    const orgId = args.organizationId as Id<"organizations">;
+    const teamMemberships = await ctx.db
+      .query("teamMembers")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    const result: { teamId: string }[] = [];
+    for (const tm of teamMemberships) {
+      const team = await ctx.db.get(tm.teamId);
+      if (team && team.organizationId === orgId) {
+        result.push({ teamId: tm.teamId as string });
+      }
+    }
+    return result;
+  },
+});
+
 // ============================================================================
 // Mutations
 // ============================================================================
@@ -456,13 +483,15 @@ export const deleteTeam = mutation({
       .withIndex("by_team", (q) => q.eq("teamId", teamId))
       .collect();
     for (const tm of teamMembers) await ctx.db.delete(tm._id);
-    // Cancel pending invitations that reference this team
-    const pendingInvitations = await ctx.db
+    // Cancel pending invitations that reference this team (use targeted index)
+    const teamInvitations = await ctx.db
       .query("invitations")
-      .withIndex("by_organization", (q) => q.eq("organizationId", team.organizationId))
+      .withIndex("by_org_and_team", (q) =>
+        q.eq("organizationId", team.organizationId).eq("teamId", teamId)
+      )
       .collect();
-    for (const inv of pendingInvitations) {
-      if (inv.teamId === teamId && inv.status === "pending") {
+    for (const inv of teamInvitations) {
+      if (inv.status === "pending") {
         await ctx.db.patch(inv._id, { status: "cancelled" });
       }
     }
