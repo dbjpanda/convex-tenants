@@ -427,6 +427,7 @@ describe("Scenario: Complete Invitation Flow", () => {
     await t.mutation(api.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId: "henry",
+      acceptingUserIdentifier: "henry@example.com",
     });
 
     // Verify henry is now a member
@@ -469,6 +470,7 @@ describe("Scenario: Complete Invitation Flow", () => {
     await t.mutation(api.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId: "henry",
+      acceptingUserIdentifier: "engineer@example.com",
     });
 
     // Should be member of org
@@ -514,6 +516,7 @@ describe("Scenario: Complete Invitation Flow", () => {
       t.mutation(api.invitations.acceptInvitation, {
         invitationId,
         acceptingUserId: "henry",
+        acceptingUserIdentifier: "henry@example.com",
       })
     ).rejects.toThrow();
   });
@@ -575,6 +578,7 @@ describe("Scenario: Complete Invitation Flow", () => {
     await t.mutation(api.invitations.acceptInvitation, {
       invitationId: pending[0]._id,
       acceptingUserId: "henry",
+      acceptingUserIdentifier: "henry@example.com",
     });
 
     // Should still have 2 pending
@@ -830,6 +834,7 @@ describe("Scenario: Edge Cases", () => {
       t.mutation(api.invitations.acceptInvitation, {
         invitationId,
         acceptingUserId: "bob",
+        acceptingUserIdentifier: "bob-other@example.com",
       })
     ).rejects.toThrow();
   });

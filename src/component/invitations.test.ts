@@ -119,6 +119,7 @@ describe("invitations", () => {
     await t.mutation(api.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId: "user_456",
+      acceptingUserIdentifier: "newuser@example.com",
     });
 
     const member = await t.query(api.members.getMember, {
@@ -183,12 +184,14 @@ describe("invitations", () => {
     await t.mutation(api.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId: "user_456",
+      acceptingUserIdentifier: "newuser@example.com",
     });
 
     await expect(
       t.mutation(api.invitations.acceptInvitation, {
         invitationId,
         acceptingUserId: "user_789",
+        acceptingUserIdentifier: "newuser@example.com",
       })
     ).rejects.toThrow();
   });
@@ -259,6 +262,7 @@ describe("invitations", () => {
     await t.mutation(api.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId: "user_456",
+      acceptingUserIdentifier: "engineer@example.com",
     });
 
     const isTeamMember = await t.query(api.teams.isTeamMember, {
@@ -300,12 +304,14 @@ describe("invitations", () => {
     await t.mutation(api.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId: "bob",
+      acceptingUserIdentifier: "bob@test.com",
     });
 
     await expect(
       t.mutation(api.invitations.acceptInvitation, {
         invitationId,
         acceptingUserId: "charlie",
+        acceptingUserIdentifier: "bob@test.com",
       })
     ).rejects.toThrow("Invitation has already been accepted");
   });

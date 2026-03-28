@@ -914,14 +914,15 @@ export class Tenants {
     ctx: MutationCtx,
     invitationId: string,
     acceptingUserId: string,
-    options?: { acceptingUserIdentifier?: string }
+    options?: { acceptingUserIdentifier?: string; skipIdentifierCheck?: boolean }
   ): Promise<void> {
     const invitation = await this.getInvitation(ctx, invitationId);
     await ctx.runMutation(this.component.invitations.acceptInvitation, {
       invitationId,
       acceptingUserId,
       acceptingUserIdentifier: options?.acceptingUserIdentifier,
-    });
+      skipIdentifierCheck: options?.skipIdentifierCheck,
+    } as { invitationId: string; acceptingUserId: string; acceptingUserIdentifier?: string });
     if (invitation) {
       await this.authz.assignRole(
         ctx,

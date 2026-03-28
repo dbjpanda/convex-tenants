@@ -1339,6 +1339,8 @@ export function makeTenantsAPI(
         
         await tenants.acceptInvitation(ctx, args.invitationId, userId, {
           acceptingUserIdentifier,
+          // Skip component-level identifier check if a custom validator already approved
+          skipIdentifierCheck: !!options.validateInvitationAccept,
         });
         
         if (options.onInvitationAccepted && invitationData) {

@@ -313,6 +313,8 @@ export const acceptInvitation = mutation({
     invitationId: v.string(),
     acceptingUserId: v.string(),
     acceptingUserIdentifier: v.optional(v.string()),
+    /** Set to true when the wrapper layer has already validated the identifier via a custom callback. */
+    skipIdentifierCheck: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -341,7 +343,23 @@ export const acceptInvitation = mutation({
         message: "You are already a member of this organization",
       });
     }
-    // No hardcoded validation - validation will be done via callback in makeTenantsAPI
+    // Defense in depth: enforce identifier match at the component level.
+    // Direct callers MUST provide acceptingUserIdentifier for identifier-based invitations.
+    if (!args.skipIdentifierCheck && invitation.inviteeIdentifier) {
+      if (!args.acceptingUserIdentifier) {
+        throw new ConvexError({
+          code: "FORBIDDEN",
+          message: "acceptingUserIdentifier is required to accept this invitation",
+        });
+      }
+      const normalize = (s: string) => s.trim().toLowerCase();
+      if (normalize(args.acceptingUserIdentifier) !== normalize(invitation.inviteeIdentifier)) {
+        throw new ConvexError({
+          code: "FORBIDDEN",
+          message: "Invitation identifier does not match the accepting user",
+        });
+      }
+    }
     await ctx.db.insert("members", {
       organizationId: invitation.organizationId,
       userId: args.acceptingUserId,

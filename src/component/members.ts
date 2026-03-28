@@ -117,6 +117,10 @@ export const listOrganizationMembers = query({
   },
 });
 
+/**
+ * Note: Uses .collect().length because Convex .count() does not support indexed range queries.
+ * For very large orgs (10,000+ members), consider using @convex-dev/aggregate for O(1) counts.
+ */
 export const countOrganizationMembers = query({
   args: {
     organizationId: v.string(),

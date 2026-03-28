@@ -176,6 +176,7 @@ export const listTeamsAsTree = query({
   },
 });
 
+/** See countOrganizationMembers note: .collect().length is required because Convex .count() doesn't support indexed ranges. */
 export const countTeams = query({
   args: { organizationId: v.string() },
   returns: v.number(),
