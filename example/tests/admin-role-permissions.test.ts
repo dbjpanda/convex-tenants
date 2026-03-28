@@ -111,6 +111,23 @@ describe("admin role permissions", () => {
     expect(result.invitationId).toBeDefined();
   });
 
+  test("member cannot delete organization (owner-only invariant)", async () => {
+    const t = initConvexTest();
+    const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+    const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+    const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+      name: "Member Delete Org",
+    });
+    await asAlice.mutation(api.testHelpers.strictAddMember, {
+      organizationId: orgId, memberUserId: "bob", role: "member",
+    });
+
+    await expect(
+      asBob.mutation(api.testHelpers.strictDeleteOrganization, { organizationId: orgId })
+    ).rejects.toThrow("Only the organization owner can delete the organization");
+  });
+
   test("owner can delete organization (has organizations:delete)", async () => {
     const t = initConvexTest();
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });

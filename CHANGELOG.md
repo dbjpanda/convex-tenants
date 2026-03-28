@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.1.7
+
+### Security
+- **Breaking:** `deleteOrganization` now enforces owner-only invariant even when `permissionMap.deleteOrganization` is `false`
+- **Breaking:** `acceptInvitation` now enforces exact identifier matching by default (previously no-op without `validateInvitationAccept`)
+- `checkPermission`, `getUserPermissions`, `getUserRoles` now require org membership
+- `listInvitations`, `countInvitations` now enforce `invitations:list` permission
+- Component-level `deleteOrganization` enforces `ownerId` check
+- Component-level `acceptInvitation` enforces identifier matching (defense in depth)
+
+### Features
+- Add `hasRole` query (O(1) role check with fallback to `getUserRoles`)
+- Add `checkAnyPermission` query (batch permission check with fallback)
+- Add `recomputeUser` mutation (admin API for rebuilding authz state)
+- Add `listUserTeamMemberships` component query (efficient per-user team lookup)
+- Add configurable `roleHierarchy` option to `makeTenantsAPI`
+
+### Performance
+- `removeMember`, `leaveOrganization`, `bulkRemoveMembers`: use `teamMembers.by_user` index — O(userTeams) instead of O(allTeams)
+- `deleteTeam`: use `by_org_and_team` index for invitation cleanup instead of collecting all org invitations
+- `countInvitations`: use `by_organization_and_status` index for direct status query
+- `cleanupTeamRelations`: single `listUserTeamMemberships` query instead of O(T) `isTeamMember` checks
+- Add `by_organization_and_status`, `by_org_and_team` indexes on invitations table
+- List queries (`listMembers`, `listTeams`, `listTeamMembers`, `listTeamsAsTree`) return empty instead of throwing on permission denied (subscription safety)
+- `getAuditLog` forwards `scope` to authz, eliminates 3x over-fetch
+- `offboardUser` passes `removeOverrides: true` for clean permission override cleanup
+- `deleteOrganization` fetches all members (including suspended) for authz cleanup
+
+### Authz Integration
+- `isTeamMember` now uses `authz.hasRelation()` instead of component DB query
+- `cleanupMemberAuthz` helper: prefers `offboardUser` > `revokeAllRoles` > `revokeRole`
+- `checkMemberPermission` moved to client layer with configurable hierarchy (component version deprecated)
+
+### Documentation
+- Add error handling guide, hooks guide, testing guide, known limitations
+- Add complete prop tables for all React components
+- Add pagination and bulk operation return type documentation
+- Populate CHANGELOG with all version history
+
 ## 0.1.6
 
 - Add `countMembers`, `countTeams`, `countInvitations` queries

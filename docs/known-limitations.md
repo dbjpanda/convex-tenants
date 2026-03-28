@@ -131,7 +131,16 @@ The component layer also enforces identifier matching as a defense-in-depth meas
 
 ---
 
-## 5. Expired Invitations Accumulate — No Cleanup
+## 5. Member `status` Field Is Optional in Schema
+
+**Severity:** Low
+**Affects:** Migrated/legacy data only
+
+The `members.status` field is `v.optional(...)` in the schema. The `by_organization_and_status` index treats `undefined` status as a distinct value — not as `"active"`. All current write paths (`addMember`, `bulkAddMembers`, `acceptInvitation`, `createOrganization`) explicitly set `status: "active"`, so this only affects data inserted by older code or direct DB writes. If you have legacy member rows without `status`, they will be excluded from `listMembers(status: "active")` queries. Run a backfill to set `status: "active"` on any rows where it's missing.
+
+---
+
+## 6. Expired Invitations Accumulate — No Cleanup
 
 **Severity:** Medium
 **Affects:** `countInvitations`, `listInvitations`
@@ -169,7 +178,7 @@ async function cleanupExpiredInvitations(ctx) {
 
 ---
 
-## 6. Organization Store — No Cross-Tab Sync
+## 7. Organization Store — No Cross-Tab Sync
 
 **Severity:** Medium
 **Affects:** Multi-tab usage
@@ -191,7 +200,7 @@ When the app first loads, the store restores `activeOrganizationId` from localSt
 
 ---
 
-## 7. `isTeamMember` — Authz vs DB Divergence
+## 8. `isTeamMember` — Authz vs DB Divergence
 
 **Severity:** Medium
 **Affects:** Any code path that checks team membership
@@ -212,7 +221,7 @@ If upgrading from a version that used the DB-based `isTeamMember`, existing team
 
 ---
 
-## 8. `getUser` Callback — Called Per Member, No Caching
+## 9. `getUser` Callback — Called Per Member, No Caching
 
 **Severity:** Low
 **Affects:** `listMembers`, `listTeamMembers` performance
@@ -229,7 +238,7 @@ Keep page sizes small (20-30) when `getUser` is configured. For larger pages, co
 
 ---
 
-## 9. Slug Changes Are Silent
+## 10. Slug Changes Are Silent
 
 **Severity:** Low
 **Affects:** `createOrganization`, `updateOrganization`
@@ -246,7 +255,7 @@ After creating or updating an org, query the org to get the final slug if slug a
 
 ---
 
-## 10. Team Nesting — No Depth Limit
+## 11. Team Nesting — No Depth Limit
 
 **Severity:** Low
 **Affects:** `updateTeam` with `parentTeamId`, `listTeamsAsTree`

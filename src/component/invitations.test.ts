@@ -561,4 +561,57 @@ describe("invitations", () => {
     expect(result.errors[0].inviteeIdentifier).toBe("existing@example.com");
     expect(result.errors[0].code).toBe("ALREADY_EXISTS");
   });
+
+  it("acceptInvitation rejects when identifier does not match", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Identifier Mismatch Org",
+      slug: "id-mismatch-org",
+    });
+
+    const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      inviteeIdentifier: "alice@example.com",
+      identifierType: "email",
+      role: "member",
+    });
+
+    // Wrong identifier — should be rejected
+    await expect(
+      t.mutation(api.invitations.acceptInvitation, {
+        invitationId,
+        acceptingUserId: "bob",
+        acceptingUserIdentifier: "bob@other.com",
+      })
+    ).rejects.toThrow("Invitation identifier does not match the accepting user");
+  });
+
+  it("acceptInvitation rejects when identifier is missing", async () => {
+    const t = createTestInstance();
+
+    const orgId = await t.mutation(api.organizations.createOrganization, {
+      userId: "user_123",
+      name: "Missing Identifier Org",
+      slug: "missing-id-org",
+    });
+
+    const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+      userId: "user_123",
+      organizationId: orgId,
+      inviteeIdentifier: "alice@example.com",
+      identifierType: "email",
+      role: "member",
+    });
+
+    // No identifier provided — should be rejected
+    await expect(
+      t.mutation(api.invitations.acceptInvitation, {
+        invitationId,
+        acceptingUserId: "bob",
+      })
+    ).rejects.toThrow("acceptingUserIdentifier is required to accept this invitation");
+  });
 });
