@@ -3,7 +3,7 @@
  */
 import type { Auth } from "convex/server";
 import { mutationGeneric, queryGeneric, paginationOptsValidator } from "convex/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import type { ComponentApi } from "../component/_generated/component.js";
 import type { AuthzClient } from "./authz.js";
 import type { TenantsPermissionMap } from "./authz.js";
@@ -246,6 +246,18 @@ export function makeTenantsAPI(
      * Client uploads the file to the returned URL, then passes the returned storageId to updateOrganization as logo.
      */
     generateUploadUrl?: (ctx: { storage: { generateUploadUrl: () => Promise<string> } }) => Promise<string>;
+
+    /**
+     * Optional allowlist of role strings accepted by mutations that set a role
+     * (addMember, updateMemberRole, createInvitation/inviteMember, bulkAddMembers,
+     * bulkInviteMembers, addTeamMember, updateTeamMemberRole).
+     *
+     * When set, any mutation that receives a role string outside this list is
+     * rejected at the API boundary with a FORBIDDEN error. This is a defense-in-depth
+     * safety net; the component layer performs its own authorization checks and
+     * is unaffected. Omit to allow any role string to flow through to the component.
+     */
+    validRoles?: readonly string[];
   }
 ) {
   const tenants = new Tenants(component, {
@@ -288,6 +300,16 @@ export function makeTenantsAPI(
     return member;
   }
 
+  function validateRole(role: string | undefined): void {
+    if (!options.validRoles || role === undefined) return;
+    if (!options.validRoles.includes(role)) {
+      throw new ConvexError({
+        code: "FORBIDDEN",
+        message: `role "${role}" is not permitted by validRoles allowlist`,
+      });
+    }
+  }
+
   async function requireActiveOrganization(
     ctx: QueryCtx,
     organizationId: string
@@ -310,6 +332,8 @@ export function makeTenantsAPI(
         sortBy: v.optional(v.union(v.literal("name"), v.literal("createdAt"), v.literal("slug"))),
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const orgs = await tenants.listOrganizations(ctx, userId, {
@@ -325,6 +349,8 @@ export function makeTenantsAPI(
 
     getOrganization: queryGeneric({
       args: { organizationId: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -334,6 +360,8 @@ export function makeTenantsAPI(
 
     getOrganizationBySlug: queryGeneric({
       args: { slug: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const org = await tenants.getOrganizationBySlug(ctx, args.slug);
@@ -357,6 +385,7 @@ export function makeTenantsAPI(
           })
         ),
       },
+      returns: v.string(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         if (options.onBeforeCreateOrganization) {
@@ -399,12 +428,11 @@ export function makeTenantsAPI(
     ...(options.generateUploadUrl
       ? {
           generateLogoUploadUrl: mutationGeneric({
-            args: { organizationId: v.optional(v.string()) },
+            args: { organizationId: v.string() },
+            returns: v.string(),
             handler: async (ctx, args) => {
               const userId = await requireAuth(ctx);
-              if (args.organizationId) {
-                await requireActiveMembership(ctx, userId, args.organizationId);
-              }
+              await requireActiveMembership(ctx, userId, args.organizationId);
               return await options.generateUploadUrl!(ctx);
             },
           }),
@@ -426,6 +454,7 @@ export function makeTenantsAPI(
         ),
         status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))),
       },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -462,6 +491,7 @@ export function makeTenantsAPI(
         newOwnerUserId: v.string(),
         previousOwnerRole: v.optional(v.string()),
       },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -474,6 +504,7 @@ export function makeTenantsAPI(
 
     deleteOrganization: mutationGeneric({
       args: { organizationId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const member = await requireActiveMembership(ctx, userId, args.organizationId);
@@ -511,6 +542,8 @@ export function makeTenantsAPI(
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         paginationOpts: v.optional(paginationOptsValidator),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -559,6 +592,7 @@ export function makeTenantsAPI(
         organizationId: v.string(),
         status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("all"))),
       },
+      returns: v.number(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -568,6 +602,8 @@ export function makeTenantsAPI(
 
     getMember: queryGeneric({
       args: { organizationId: v.string(), userId: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const callerId = await requireAuth(ctx);
         await requireMembership(ctx, callerId, args.organizationId);
@@ -582,6 +618,8 @@ export function makeTenantsAPI(
 
     getCurrentMember: queryGeneric({
       args: { organizationId: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         return await tenants.getMember(ctx, args.organizationId, userId);
@@ -594,6 +632,7 @@ export function makeTenantsAPI(
      */
     getCurrentUserEmail: queryGeneric({
       args: {},
+      returns: v.union(v.string(), v.null()),
       handler: async (ctx) => {
         const userId = await options.auth(ctx);
         if (!userId || !options.getUser) return null;
@@ -608,6 +647,8 @@ export function makeTenantsAPI(
         userId: v.string(),
         minRole: v.string(),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const callerId = await requireAuth(ctx);
         await requireMembership(ctx, callerId, args.organizationId);
@@ -631,8 +672,10 @@ export function makeTenantsAPI(
 
     addMember: mutationGeneric({
       args: { organizationId: v.string(), memberUserId: v.string(), role: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        validateRole(args.role);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         if (options.onBeforeAddMember) {
@@ -661,6 +704,7 @@ export function makeTenantsAPI(
 
     removeMember: mutationGeneric({
       args: { organizationId: v.string(), memberUserId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -685,8 +729,11 @@ export function makeTenantsAPI(
         organizationId: v.string(),
         members: v.array(v.object({ memberUserId: v.string(), role: v.string() })),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        for (const m of args.members) validateRole(m.role);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         if (typeof options.maxMembers === "number") {
@@ -715,6 +762,8 @@ export function makeTenantsAPI(
         organizationId: v.string(),
         memberUserIds: v.array(v.string()),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -733,8 +782,10 @@ export function makeTenantsAPI(
 
     updateMemberRole: mutationGeneric({
       args: { organizationId: v.string(), memberUserId: v.string(), role: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        validateRole(args.role);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
         if (options.onBeforeUpdateMemberRole) {
@@ -761,6 +812,7 @@ export function makeTenantsAPI(
 
     leaveOrganization: mutationGeneric({
       args: { organizationId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -777,6 +829,7 @@ export function makeTenantsAPI(
 
     suspendMember: mutationGeneric({
       args: { organizationId: v.string(), memberUserId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -787,6 +840,7 @@ export function makeTenantsAPI(
 
     unsuspendMember: mutationGeneric({
       args: { organizationId: v.string(), memberUserId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -803,6 +857,8 @@ export function makeTenantsAPI(
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         paginationOpts: v.optional(paginationOptsValidator),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -822,6 +878,8 @@ export function makeTenantsAPI(
 
     listTeamsAsTree: queryGeneric({
       args: { organizationId: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -836,6 +894,7 @@ export function makeTenantsAPI(
 
     countTeams: queryGeneric({
       args: { organizationId: v.string() },
+      returns: v.number(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -845,6 +904,8 @@ export function makeTenantsAPI(
 
     getTeam: queryGeneric({
       args: { teamId: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
@@ -862,6 +923,8 @@ export function makeTenantsAPI(
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         paginationOpts: v.optional(paginationOptsValidator),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
@@ -911,6 +974,7 @@ export function makeTenantsAPI(
 
     isTeamMember: queryGeneric({
       args: { teamId: v.string() },
+      returns: v.boolean(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         return await tenants.isTeamMember(ctx, args.teamId, userId);
@@ -926,6 +990,7 @@ export function makeTenantsAPI(
         metadata: v.optional(v.any()),
         parentTeamId: v.optional(v.string()),
       },
+      returns: v.string(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -970,6 +1035,7 @@ export function makeTenantsAPI(
         metadata: v.optional(v.any()),
         parentTeamId: v.optional(v.union(v.null(), v.string())),
       },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
@@ -997,6 +1063,7 @@ export function makeTenantsAPI(
 
     deleteTeam: mutationGeneric({
       args: { teamId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const teamForOrg = await tenants.getTeam(ctx, args.teamId);
@@ -1019,8 +1086,10 @@ export function makeTenantsAPI(
 
     addTeamMember: mutationGeneric({
       args: { teamId: v.string(), memberUserId: v.string(), role: v.optional(v.string()) },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        validateRole(args.role);
         const team = await tenants.getTeam(ctx, args.teamId);
         if (!team) throw new Error("Team not found");
         await requireActiveMembership(ctx, userId, team.organizationId);
@@ -1034,8 +1103,10 @@ export function makeTenantsAPI(
 
     updateTeamMemberRole: mutationGeneric({
       args: { teamId: v.string(), memberUserId: v.string(), role: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        validateRole(args.role);
         const team = await tenants.getTeam(ctx, args.teamId);
         if (!team) throw new Error("Team not found");
         await requireActiveMembership(ctx, userId, team.organizationId);
@@ -1046,6 +1117,7 @@ export function makeTenantsAPI(
 
     removeTeamMember: mutationGeneric({
       args: { teamId: v.string(), memberUserId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const team = await tenants.getTeam(ctx, args.teamId);
@@ -1067,6 +1139,8 @@ export function makeTenantsAPI(
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         paginationOpts: v.optional(paginationOptsValidator),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -1089,6 +1163,7 @@ export function makeTenantsAPI(
         organizationId: v.string(),
         status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled"), v.literal("expired"), v.literal("all"))),
       },
+      returns: v.number(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -1100,6 +1175,8 @@ export function makeTenantsAPI(
 
     getInvitation: queryGeneric({
       args: { invitationId: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         // Note: This endpoint is intentionally accessible without authentication
         // to support invite-link flows where recipients view invitation details
@@ -1136,6 +1213,8 @@ export function makeTenantsAPI(
         identifier: v.string(),
         identifierType: v.optional(v.string()),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         if (!options.getUser) {
@@ -1187,11 +1266,14 @@ export function makeTenantsAPI(
         teamId: v.optional(v.string()),
         message: v.optional(v.string()),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        validateRole(args.role);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
-        
+
         // Validate invitation creation
         if (options.validateInvitationCreate) {
           const validation = await options.validateInvitationCreate(ctx, {
@@ -1252,11 +1334,14 @@ export function makeTenantsAPI(
           teamId: v.optional(v.string()),
         })),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        for (const inv of args.invitations) validateRole(inv.role);
         await requireActiveMembership(ctx, userId, args.organizationId);
         await requireActiveOrganization(ctx, args.organizationId);
-        
+
         // Validate each invitation if callback provided — skip invalid entries
         const validInvitations = [];
         const validationErrors: Array<{ inviteeIdentifier: string; reason: string }> = [];
@@ -1318,6 +1403,7 @@ export function makeTenantsAPI(
 
     acceptInvitation: mutationGeneric({
       args: { invitationId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const inv = await tenants.getInvitation(ctx, args.invitationId);
@@ -1406,6 +1492,8 @@ export function makeTenantsAPI(
 
     resendInvitation: mutationGeneric({
       args: { invitationId: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const invitation = await tenants.getInvitation(ctx, args.invitationId);
@@ -1438,6 +1526,7 @@ export function makeTenantsAPI(
 
     cancelInvitation: mutationGeneric({
       args: { invitationId: v.string() },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         const inv = await tenants.getInvitation(ctx, args.invitationId);
@@ -1452,6 +1541,7 @@ export function makeTenantsAPI(
 
     checkPermission: queryGeneric({
       args: { organizationId: v.string(), permission: v.string() },
+      returns: v.object({ allowed: v.boolean(), reason: v.string() }),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -1465,6 +1555,7 @@ export function makeTenantsAPI(
         organizationId: v.string(),
         permissions: v.array(v.string()),
       },
+      returns: v.object({ allowed: v.boolean(), reason: v.string() }),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -1475,6 +1566,8 @@ export function makeTenantsAPI(
 
     getUserPermissions: queryGeneric({
       args: { organizationId: v.string() },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -1484,6 +1577,8 @@ export function makeTenantsAPI(
 
     getUserRoles: queryGeneric({
       args: { organizationId: v.optional(v.string()) },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         if (args.organizationId) {
@@ -1498,6 +1593,7 @@ export function makeTenantsAPI(
         organizationId: v.string(),
         role: v.string(),
       },
+      returns: v.boolean(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);
@@ -1514,6 +1610,8 @@ export function makeTenantsAPI(
         reason: v.optional(v.string()),
         expiresAt: v.optional(v.number()),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -1534,6 +1632,8 @@ export function makeTenantsAPI(
         reason: v.optional(v.string()),
         expiresAt: v.optional(v.number()),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -1550,6 +1650,7 @@ export function makeTenantsAPI(
         organizationId: v.string(),
         targetUserId: v.string(),
       },
+      returns: v.null(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireActiveMembership(ctx, userId, args.organizationId);
@@ -1565,6 +1666,8 @@ export function makeTenantsAPI(
         action: v.optional(v.string()),
         limit: v.optional(v.number()),
       },
+      // TODO: tighten return validator
+      returns: v.any(),
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         await requireMembership(ctx, userId, args.organizationId);

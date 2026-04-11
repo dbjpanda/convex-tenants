@@ -341,7 +341,9 @@ describe("Journey 6: Logo upload URL", () => {
     // -----------------------------------------------------------------------
     // Step 2: Alice calls strictGenerateLogoUploadUrl
     // -----------------------------------------------------------------------
-    const url = await asAlice.mutation(api.testHelpers.strictGenerateLogoUploadUrl, {});
+    const url = await asAlice.mutation(api.testHelpers.strictGenerateLogoUploadUrl, {
+      organizationId: orgId,
+    });
 
     // -----------------------------------------------------------------------
     // Step 3: Verify returns the fake upload URL string
