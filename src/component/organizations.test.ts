@@ -337,6 +337,8 @@ describe("organizations", () => {
       userId: "user_123",
       organizationId: orgId,
     });
+    // Deletion cascade runs in a scheduled internalAction — drain it.
+    await t.finishInProgressScheduledFunctions();
 
     const org = await t.query(api.organizations.getOrganization, {
       organizationId: orgId,
@@ -347,5 +349,203 @@ describe("organizations", () => {
       organizationId: orgId,
     });
     expect(teams).toHaveLength(0);
+  });
+
+  // ==========================================================================
+  // updateOrganization authz + metadata caps
+  // ==========================================================================
+  describe("updateOrganization invariants", () => {
+    it("rejects non-admin/non-owner caller (FORBIDDEN)", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Update Authz Org",
+        slug: "update-authz-org",
+      });
+      await t.mutation(api.members.addMember, {
+        userId: "owner",
+        organizationId: orgId,
+        memberUserId: "member_user",
+        role: "member",
+      });
+      await expect(
+        t.mutation(api.organizations.updateOrganization, {
+          userId: "member_user",
+          organizationId: orgId,
+          name: "Mutated By Member",
+        })
+      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
+    });
+
+    it("rejects metadata > 10KB on updateOrganization", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Big Metadata Org",
+        slug: "big-metadata-org",
+      });
+      const huge = { blob: "x".repeat(10_001) };
+      await expect(
+        t.mutation(api.organizations.updateOrganization, {
+          userId: "owner",
+          organizationId: orgId,
+          metadata: huge,
+        })
+      ).rejects.toThrow(/Metadata exceeds maximum size/);
+    });
+  });
+
+  describe("createOrganization metadata cap", () => {
+    it("rejects metadata > 10KB at create time", async () => {
+      const t = createTestInstance();
+      const huge = { blob: "x".repeat(10_001) };
+      await expect(
+        t.mutation(api.organizations.createOrganization, {
+          userId: "owner",
+          name: "Too Big Org",
+          slug: "too-big-org",
+          metadata: huge,
+        })
+      ).rejects.toThrow(/Metadata exceeds maximum size/);
+    });
+  });
+
+  // ==========================================================================
+  // Async deleteOrganization behavior
+  // ==========================================================================
+  describe("deleteOrganization async cascade", () => {
+    it("sets status=archived and deletionScheduledAt synchronously before drain", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Async Delete Org",
+        slug: "async-delete-org",
+      });
+      await t.mutation(api.organizations.deleteOrganization, {
+        userId: "owner",
+        organizationId: orgId,
+      });
+      // Read immediately WITHOUT draining scheduler — should still see the doc
+      // marked archived and with deletionScheduledAt set.
+      const org = await t.query(api.organizations.getOrganization, {
+        organizationId: orgId,
+      });
+      expect(org).not.toBeNull();
+      expect(org?.status).toBe("archived");
+      // Drain before the test ends to avoid leaking scheduled work.
+      await t.finishInProgressScheduledFunctions();
+    });
+
+    it("fully removes org doc and all child rows after finishing scheduled functions", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Full Cascade Org",
+        slug: "full-cascade-org",
+      });
+      await t.mutation(api.members.addMember, {
+        userId: "owner",
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+      const teamId = await t.mutation(api.teams.createTeam, {
+        userId: "owner",
+        organizationId: orgId,
+        name: "Team Alpha",
+      });
+      await t.mutation(api.teams.addTeamMember, {
+        userId: "owner",
+        teamId,
+        memberUserId: "bob",
+      });
+      await t.mutation(api.invitations.inviteMember, {
+        userId: "owner",
+        organizationId: orgId,
+        inviteeIdentifier: "pending@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await t.mutation(api.organizations.deleteOrganization, {
+        userId: "owner",
+        organizationId: orgId,
+      });
+      await t.finishInProgressScheduledFunctions();
+
+      const org = await t.query(api.organizations.getOrganization, {
+        organizationId: orgId,
+      });
+      expect(org).toBeNull();
+
+      const teams = await t.query(api.teams.listTeams, { organizationId: orgId });
+      expect(teams).toHaveLength(0);
+
+      const members = await t.query(api.members.listOrganizationMembers, {
+        organizationId: orgId,
+      });
+      expect(members).toHaveLength(0);
+    });
+  });
+
+  // ==========================================================================
+  // listUserOrganizations status filter
+  // ==========================================================================
+  describe("listUserOrganizations status filter", () => {
+    async function setup() {
+      const t = createTestInstance();
+      const activeOrgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "u",
+        name: "Active",
+        slug: "active",
+      });
+      // Owner of another org that will be suspended for this user via suspend.
+      // We create it as owner, then add a second user "u" as a member, and suspend that member.
+      const suspendedOrgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "admin_owner",
+        name: "Suspended",
+        slug: "suspended",
+      });
+      await t.mutation(api.members.addMember, {
+        userId: "admin_owner",
+        organizationId: suspendedOrgId,
+        memberUserId: "u",
+        role: "member",
+      });
+      await t.mutation(api.members.suspendMember, {
+        userId: "admin_owner",
+        organizationId: suspendedOrgId,
+        memberUserId: "u",
+      });
+      return { t, activeOrgId, suspendedOrgId };
+    }
+
+    it("defaults to status='active' returning only active memberships", async () => {
+      const { t, activeOrgId } = await setup();
+      const orgs = await t.query(api.organizations.listUserOrganizations, {
+        userId: "u",
+        status: "active",
+      });
+      expect(orgs.map((o: any) => o._id)).toEqual([activeOrgId]);
+    });
+
+    it("status='suspended' returns only suspended memberships", async () => {
+      const { t, suspendedOrgId } = await setup();
+      const orgs = await t.query(api.organizations.listUserOrganizations, {
+        userId: "u",
+        status: "suspended",
+      });
+      expect(orgs.map((o: any) => o._id)).toEqual([suspendedOrgId]);
+    });
+
+    it("status='all' returns both active and suspended memberships", async () => {
+      const { t, activeOrgId, suspendedOrgId } = await setup();
+      const orgs = await t.query(api.organizations.listUserOrganizations, {
+        userId: "u",
+        status: "all",
+      });
+      const ids = orgs.map((o: any) => o._id).sort();
+      expect(ids).toEqual([activeOrgId, suspendedOrgId].sort());
+    });
   });
 });

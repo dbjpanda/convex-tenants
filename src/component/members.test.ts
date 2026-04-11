@@ -705,4 +705,129 @@ describe("members", () => {
     });
     expect(isMemberAfter).toBe(false);
   });
+
+  // ==========================================================================
+  // Role/bulk invariants regression tests
+  // ==========================================================================
+  describe("updateMemberRole invariants", () => {
+    async function setup() {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Role Invariants Org",
+        slug: "role-invariants-org",
+      });
+      await t.mutation(api.members.addMember, {
+        userId: "owner",
+        organizationId: orgId,
+        memberUserId: "admin_user",
+        role: "admin",
+      });
+      await t.mutation(api.members.addMember, {
+        userId: "owner",
+        organizationId: orgId,
+        memberUserId: "member_user",
+        role: "member",
+      });
+      await t.mutation(api.members.addMember, {
+        userId: "owner",
+        organizationId: orgId,
+        memberUserId: "target",
+        role: "member",
+      });
+      return { t, orgId };
+    }
+
+    it("rejects self-escalation (caller.userId === memberUserId)", async () => {
+      const { t, orgId } = await setup();
+      await expect(
+        t.mutation(api.members.updateMemberRole, {
+          userId: "admin_user",
+          organizationId: orgId,
+          memberUserId: "admin_user",
+          role: "admin",
+        })
+      ).rejects.toThrow(/Cannot change your own role/);
+    });
+
+    it("rejects role: 'owner' (must use transferOwnership)", async () => {
+      const { t, orgId } = await setup();
+      await expect(
+        t.mutation(api.members.updateMemberRole, {
+          userId: "admin_user",
+          organizationId: orgId,
+          memberUserId: "target",
+          role: "owner",
+        })
+      ).rejects.toThrow(/transferOwnership|owner role/);
+    });
+
+    it("rejects non-admin/non-owner caller (FORBIDDEN)", async () => {
+      const { t, orgId } = await setup();
+      await expect(
+        t.mutation(api.members.updateMemberRole, {
+          userId: "member_user",
+          organizationId: orgId,
+          memberUserId: "target",
+          role: "admin",
+        })
+      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
+    });
+
+    it("rejects suspended admin caller (FORBIDDEN)", async () => {
+      const { t, orgId } = await setup();
+      await t.mutation(api.members.suspendMember, {
+        userId: "owner",
+        organizationId: orgId,
+        memberUserId: "admin_user",
+      });
+      await expect(
+        t.mutation(api.members.updateMemberRole, {
+          userId: "admin_user",
+          organizationId: orgId,
+          memberUserId: "target",
+          role: "admin",
+        })
+      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
+    });
+  });
+
+  describe("bulk caps", () => {
+    it("bulkAddMembers rejects input array length > 100", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Bulk Add Org",
+        slug: "bulk-add-org",
+      });
+      const tooMany = Array.from({ length: 101 }, (_, i) => ({
+        memberUserId: `u_${i}`,
+        role: "member",
+      }));
+      await expect(
+        t.mutation(api.members.bulkAddMembers, {
+          userId: "owner",
+          organizationId: orgId,
+          members: tooMany,
+        })
+      ).rejects.toThrow(/Cannot add more than 100/);
+    });
+
+    it("bulkRemoveMembers rejects input array length > 100", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Bulk Remove Org",
+        slug: "bulk-remove-org",
+      });
+      const tooMany = Array.from({ length: 101 }, (_, i) => `u_${i}`);
+      await expect(
+        t.mutation(api.members.bulkRemoveMembers, {
+          userId: "owner",
+          organizationId: orgId,
+          memberUserIds: tooMany,
+        })
+      ).rejects.toThrow(/Cannot remove more than 100/);
+    });
+  });
 });

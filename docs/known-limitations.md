@@ -127,7 +127,7 @@ validateInvitationAccept: async (_ctx, { invitation, acceptingUserIdentifier }) 
 
 If you override `validateInvitationAccept`, always include an exact identifier match as part of your validation, or document why your looser policy is acceptable for your use case.
 
-The component layer also enforces identifier matching as a defense-in-depth measure, but this check is bypassed when the wrapper signals that a custom validator was already used (`skipIdentifierCheck: true`).
+The component layer also enforces identifier matching as a defense-in-depth measure, but this check is bypassed when the wrapper signals that a custom validator was already used. As of v0.2.0 the bypass is triggered by either `skipIdentifierCheck: true` (deprecated) or `trustedSkipToken === "TRUSTED_WRAPPER_SKIP"`. Both paths are publicly reachable on the component mutation, so **a direct component caller that bypasses `makeTenantsAPI` can still skip identifier matching** — the bypass is not actually gated, only renamed. A real fix requires Convex component identity primitives that do not exist yet. Always prefer calling through `makeTenantsAPI` and treat direct component mutations as a trusted surface only.
 
 ---
 
@@ -140,41 +140,38 @@ The `members.status` field is `v.optional(...)` in the schema. The `by_organizat
 
 ---
 
-## 6. Expired Invitations Accumulate — No Cleanup
+## 6. Expired Invitations Accumulate Unless Pruned
 
 **Severity:** Medium
 **Affects:** `countInvitations`, `listInvitations`
 
 ### The Problem
 
-Invitation expiry is checked lazily at read time via `isInvitationExpired()`. The `status` field is only updated to `"expired"` when a mutation encounters the invitation (e.g., `acceptInvitation` or `resendInvitation`). There is no background job or scheduled function to transition pending invitations to expired status.
+Invitation expiry is checked lazily at read time via `isInvitationExpired()`. Without background cleanup, logically-expired invitations remain in `"pending"` state, so `countInvitations("pending")` systematically over-reports and stale rows accumulate.
 
-This means:
-- `countInvitations("pending")` includes logically-expired invitations that were never touched after expiry
-- Stale invitation rows accumulate indefinitely
-- The pending count is systematically over-reported
+### Mitigation (v0.2.0+)
 
-### Mitigation
-
-Consumers can schedule a periodic cleanup action:
+The component now exposes `pruneExpiredInvitations({ organizationId?, limit? })` as an **`internalMutation`** that marks pending invitations with `expiresAt < now` as `"expired"`. Because it's internal, it is not reachable from client code — only from the consumer app's crons, actions, or other internal functions. Wire it into your cron:
 
 ```typescript
-// Run daily via ctx.scheduler or a cron
-async function cleanupExpiredInvitations(ctx) {
-  const pending = await ctx.runQuery(component.invitations.listInvitations, {
-    organizationId,
-  });
-  for (const inv of pending) {
-    if (inv.expiresAt < Date.now() && inv.status === "pending") {
-      // Touch the invitation to trigger expiry
-      await ctx.runMutation(component.invitations.resendInvitation, {
-        userId: adminUserId,
-        invitationId: inv._id,
-      }); // This will throw "expired" and patch the status
-    }
-  }
-}
+// convex/crons.ts
+import { cronJobs } from "convex/server";
+import { components } from "./_generated/api";
+
+const crons = cronJobs();
+crons.daily(
+  "prune expired invitations",
+  { hourUTC: 3, minuteUTC: 0 },
+  components.tenants.invitations.pruneExpiredInvitations,
+  { limit: 500 },
+);
+export default crons;
 ```
+
+**Gotchas:**
+- The org-scoped path (`organizationId` provided) uses the `by_organization_and_status` index and is efficient.
+- The global path (`organizationId` omitted) is a bounded `.take(limit)` scan over the head of the table. If the head is dominated by non-pending rows, the prune is best-effort and may return `expired: 0` even when the tail has expired pending rows. Prefer per-org scheduling at scale.
+- The mutation is `internal`, so direct HTTP clients cannot call it. Consumers wrap it in their own cron or internal admin action as needed.
 
 ---
 

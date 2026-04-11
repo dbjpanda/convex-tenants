@@ -733,6 +733,8 @@ describe("Scenario: Organization Deletion Cascade", () => {
       userId: "alice",
       organizationId: orgId,
     });
+    // Deletion cascade runs in a scheduled internalAction — drain it.
+    await t.finishInProgressScheduledFunctions();
 
     // Verify everything is gone
     const org = await t.query(api.organizations.getOrganization, {

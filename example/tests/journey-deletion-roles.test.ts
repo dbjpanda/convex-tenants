@@ -215,6 +215,8 @@ describe("Journey 1: Complex org deletion — verify EVERYTHING is cleaned", () 
     await asAlice.mutation(api.testHelpers.strictDeleteOrganization, {
       organizationId: orgId,
     });
+    // Deletion cascade runs in a scheduled internalAction — drain it.
+    await t.finishInProgressScheduledFunctions();
 
     // -----------------------------------------------------------------------
     // Step 14: Verify: org is null (getOrganizationBySlug returns null)

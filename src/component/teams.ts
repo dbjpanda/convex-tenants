@@ -302,6 +302,18 @@ export const listTeamMembers = query({
   },
 });
 
+/**
+ * Check whether a user is a member of a team, reading the `teamMembers` table directly.
+ *
+ * This component query is the DB source-of-truth for team membership. Note that the
+ * client-class version in `src/client/tenants-class.ts` (`Tenants#isTeamMember`) reads
+ * authz relations instead, and the two can diverge if authz cleanup and DB cleanup run
+ * out of order (e.g. a teamMember row deleted while its authz relation lingers, or
+ * vice versa).
+ *
+ * Consumers should prefer this component query when they need strict DB truth, and the
+ * client-class version when they need authz-reflected state.
+ */
 export const isTeamMember = query({
   args: {
     teamId: v.string(),
@@ -420,8 +432,8 @@ export const updateTeam = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can update teams" });
     }
     const updates: Record<string, unknown> = {};
     if (args.name !== undefined) updates.name = args.name;
@@ -475,8 +487,8 @@ export const deleteTeam = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can delete teams" });
     }
     const teamWithParent = team as { parentTeamId?: Id<"teams"> };
     const childTeams = await ctx.db
@@ -526,8 +538,8 @@ export const addTeamMember = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can add team members" });
     }
     const orgMember = await ctx.db
       .query("members")
@@ -577,8 +589,8 @@ export const updateTeamMemberRole = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can update team member roles" });
     }
     const tm = await ctx.db
       .query("teamMembers")
@@ -605,8 +617,8 @@ export const removeTeamMember = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can remove team members" });
     }
     const teamMember = await ctx.db
       .query("teamMembers")

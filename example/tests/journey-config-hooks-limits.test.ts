@@ -47,6 +47,8 @@ describe("Journey 1: Permission map override — skip authz check", () => {
 
     // Owner CAN delete (authz check skipped, owner check passes)
     await asAlice.mutation(api.testHelpers.permMapDeleteOrg, { organizationId: orgId });
+    // Deletion cascade runs in a scheduled internalAction — drain it.
+    await t.finishInProgressScheduledFunctions();
     const aliceOrgs = await asAlice.query(api.testHelpers.strictListOrganizations, {});
     const deletedOrg = aliceOrgs.find((o: any) => o._id === orgId);
     expect(deletedOrg).toBeUndefined();

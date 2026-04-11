@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import schema from "./schema.js";
-import { api } from "./_generated/api.js";
+import { api, internal } from "./_generated/api.js";
 
 const modules = Object.fromEntries(
   Object.entries(import.meta.glob("./**/*.ts")).filter(
@@ -613,5 +613,240 @@ describe("invitations", () => {
         acceptingUserId: "bob",
       })
     ).rejects.toThrow("acceptingUserIdentifier is required to accept this invitation");
+  });
+
+  // ==========================================================================
+  // trustedSkipToken / skipIdentifierCheck on acceptInvitation
+  // ==========================================================================
+  describe("acceptInvitation trustedSkipToken handling", () => {
+    async function createInvitation() {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Trusted Skip Org",
+        slug: "trusted-skip-org",
+      });
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "owner",
+        organizationId: orgId,
+        inviteeIdentifier: "alice@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+      return { t, orgId, invitationId };
+    }
+
+    it("accepts with trustedSkipToken=TRUSTED_WRAPPER_SKIP (skips identifier check)", async () => {
+      const { t, orgId, invitationId } = await createInvitation();
+      await t.mutation(api.invitations.acceptInvitation, {
+        invitationId,
+        acceptingUserId: "bob",
+        trustedSkipToken: "TRUSTED_WRAPPER_SKIP",
+      });
+      const member = await t.query(api.members.getMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member).not.toBeNull();
+    });
+
+    it("rejects with wrong trustedSkipToken value (still enforces identifier check)", async () => {
+      const { t, invitationId } = await createInvitation();
+      await expect(
+        t.mutation(api.invitations.acceptInvitation, {
+          invitationId,
+          acceptingUserId: "bob",
+          trustedSkipToken: "NOT_THE_REAL_TOKEN",
+        })
+      ).rejects.toThrow(/acceptingUserIdentifier is required/);
+    });
+
+    it("accepts with deprecated skipIdentifierCheck=true", async () => {
+      const { t, orgId, invitationId } = await createInvitation();
+      await t.mutation(api.invitations.acceptInvitation, {
+        invitationId,
+        acceptingUserId: "bob",
+        skipIdentifierCheck: true,
+      });
+      const member = await t.query(api.members.getMember, {
+        organizationId: orgId,
+        userId: "bob",
+      });
+      expect(member).not.toBeNull();
+    });
+  });
+
+  // ==========================================================================
+  // pruneExpiredInvitations
+  // ==========================================================================
+  describe("pruneExpiredInvitations", () => {
+    async function setupExpiredFixture() {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Prune Org",
+        slug: "prune-org",
+      });
+      const past = Date.now() - 1000;
+      const future = Date.now() + 48 * 60 * 60 * 1000;
+
+      // Expired pending
+      const { invitationId: expiredId } = await t.mutation(
+        api.invitations.inviteMember,
+        {
+          userId: "owner",
+          organizationId: orgId,
+          inviteeIdentifier: "expired@example.com",
+          identifierType: "email",
+          role: "member",
+          expiresAt: past,
+        }
+      );
+
+      // Still-valid pending
+      const { invitationId: validId } = await t.mutation(
+        api.invitations.inviteMember,
+        {
+          userId: "owner",
+          organizationId: orgId,
+          inviteeIdentifier: "valid@example.com",
+          identifierType: "email",
+          role: "member",
+          expiresAt: future,
+        }
+      );
+
+      // An already-cancelled invitation (status != pending)
+      const { invitationId: cancelledId } = await t.mutation(
+        api.invitations.inviteMember,
+        {
+          userId: "owner",
+          organizationId: orgId,
+          inviteeIdentifier: "cancel-me@example.com",
+          identifierType: "email",
+          role: "member",
+          expiresAt: past,
+        }
+      );
+      await t.mutation(api.invitations.cancelInvitation, {
+        userId: "owner",
+        invitationId: cancelledId,
+      });
+
+      return { t, orgId, expiredId, validId, cancelledId };
+    }
+
+    it("marks only pending invitations with expiresAt < now as expired (org scope)", async () => {
+      const { t, orgId, expiredId, validId, cancelledId } = await setupExpiredFixture();
+      const result = await t.mutation(internal.invitations.pruneExpiredInvitations, {
+        organizationId: orgId,
+      });
+      expect(result.expired).toBe(1);
+
+      const expiredInv = await t.query(api.invitations.getInvitation, {
+        invitationId: expiredId,
+      });
+      expect(expiredInv?.status).toBe("expired");
+
+      const validInv = await t.query(api.invitations.getInvitation, {
+        invitationId: validId,
+      });
+      expect(validInv?.status).toBe("pending");
+
+      const cancelledInv = await t.query(api.invitations.getInvitation, {
+        invitationId: cancelledId,
+      });
+      expect(cancelledInv?.status).toBe("cancelled");
+    });
+
+    it("leaves already-expired invitations alone", async () => {
+      const { t, orgId, expiredId } = await setupExpiredFixture();
+      // First prune marks it expired
+      await t.mutation(internal.invitations.pruneExpiredInvitations, { organizationId: orgId });
+      // Second prune should see 0 more expirations (already-expired is not pending)
+      const second = await t.mutation(internal.invitations.pruneExpiredInvitations, {
+        organizationId: orgId,
+      });
+      expect(second.expired).toBe(0);
+      const inv = await t.query(api.invitations.getInvitation, {
+        invitationId: expiredId,
+      });
+      expect(inv?.status).toBe("expired");
+    });
+
+    it("respects limit arg", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Limit Org",
+        slug: "limit-org",
+      });
+      const past = Date.now() - 1000;
+      // Create 3 expired pending invites
+      for (let i = 0; i < 3; i += 1) {
+        await t.mutation(api.invitations.inviteMember, {
+          userId: "owner",
+          organizationId: orgId,
+          inviteeIdentifier: `u${i}@example.com`,
+          identifierType: "email",
+          role: "member",
+          expiresAt: past,
+        });
+      }
+      const result = await t.mutation(internal.invitations.pruneExpiredInvitations, {
+        organizationId: orgId,
+        limit: 2,
+      });
+      // Only 2 candidates scanned (and eligible) — at most 2 expired.
+      expect(result.scanned).toBeLessThanOrEqual(2);
+      expect(result.expired).toBeLessThanOrEqual(2);
+    });
+
+    it("returns { scanned, expired } shape", async () => {
+      const { t, orgId } = await setupExpiredFixture();
+      const result = await t.mutation(internal.invitations.pruneExpiredInvitations, {
+        organizationId: orgId,
+      });
+      expect(typeof result.scanned).toBe("number");
+      expect(typeof result.expired).toBe("number");
+    });
+
+    it("scans globally up to limit when organizationId is omitted", async () => {
+      const t = createTestInstance();
+      const orgAId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Global A",
+        slug: "global-a",
+      });
+      const orgBId = await t.mutation(api.organizations.createOrganization, {
+        userId: "owner",
+        name: "Global B",
+        slug: "global-b",
+      });
+      const past = Date.now() - 1000;
+      await t.mutation(api.invitations.inviteMember, {
+        userId: "owner",
+        organizationId: orgAId,
+        inviteeIdentifier: "a@example.com",
+        identifierType: "email",
+        role: "member",
+        expiresAt: past,
+      });
+      await t.mutation(api.invitations.inviteMember, {
+        userId: "owner",
+        organizationId: orgBId,
+        inviteeIdentifier: "b@example.com",
+        identifierType: "email",
+        role: "member",
+        expiresAt: past,
+      });
+
+      const result = await t.mutation(internal.invitations.pruneExpiredInvitations, {
+        limit: 200,
+      });
+      // Both orgs' invites should have been expired in the global scan.
+      expect(result.expired).toBe(2);
+      expect(result.scanned).toBeGreaterThanOrEqual(2);
+    });
   });
 });

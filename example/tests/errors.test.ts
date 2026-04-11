@@ -158,6 +158,8 @@ describe("makeTenantsAPI - error paths", () => {
       await asAlice.mutation(api.testHelpers.strictDeleteOrganization, {
         organizationId: orgId,
       });
+      // Deletion cascade runs in a scheduled internalAction — drain it.
+      await t.finishInProgressScheduledFunctions();
 
       // Org is gone, membership check should fail
       await expect(

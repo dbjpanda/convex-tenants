@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { isInvitationExpired } from "./helpers";
 import type { Id } from "./_generated/dataModel";
 
@@ -325,16 +325,42 @@ export const inviteMember = mutation({
   },
 });
 
+/**
+ * Sentinel token that the trusted wrapper layer (makeTenantsAPI) passes when it
+ * has already validated the invitation identifier via a consumer-supplied
+ * callback. Direct component callers should NOT use this — it exists only so
+ * the wrapper can opt out of the component-level identifier check after doing
+ * its own check. This is a soft boundary: any caller who knows this string can
+ * bypass the check. A stronger boundary requires Convex component identity
+ * primitives that do not yet exist. Tracked in docs/known-limitations.md §4.
+ */
+const TRUSTED_WRAPPER_SKIP_SENTINEL = "TRUSTED_WRAPPER_SKIP";
+
 export const acceptInvitation = mutation({
   args: {
     invitationId: v.string(),
     acceptingUserId: v.string(),
     acceptingUserIdentifier: v.optional(v.string()),
-    /** Set to true when the wrapper layer has already validated the identifier via a custom callback. */
+    /**
+     * @deprecated Use `trustedSkipToken` instead. Retained for backwards
+     * compatibility with the current wrapper call sites in
+     * `src/client/makeTenantsAPI.ts` and `src/client/tenants-class.ts`.
+     * A future follow-up should migrate the wrapper and remove this arg.
+     */
     skipIdentifierCheck: v.optional(v.boolean()),
+    /**
+     * Opaque trust token set by the wrapper layer (makeTenantsAPI) when it has
+     * already validated the invitation identifier via a consumer callback.
+     * Must equal the internal sentinel to take effect. Unknown values are
+     * ignored (identifier check is enforced).
+     */
+    trustedSkipToken: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const skipIdentifier =
+      args.skipIdentifierCheck === true ||
+      args.trustedSkipToken === TRUSTED_WRAPPER_SKIP_SENTINEL;
     const invitationId = args.invitationId as Id<"invitations">;
     const invitation = await ctx.db.get(invitationId);
     if (!invitation) throw new ConvexError({ code: "NOT_FOUND", message: "Invitation not found" });
@@ -362,7 +388,7 @@ export const acceptInvitation = mutation({
     }
     // Defense in depth: enforce identifier match at the component level.
     // Direct callers MUST provide acceptingUserIdentifier for identifier-based invitations.
-    if (!args.skipIdentifierCheck && invitation.inviteeIdentifier) {
+    if (!skipIdentifier && invitation.inviteeIdentifier) {
       if (!args.acceptingUserIdentifier) {
         throw new ConvexError({
           code: "FORBIDDEN",
@@ -558,5 +584,51 @@ export const bulkInviteMembers = mutation({
       }
     }
     return { success, errors };
+  },
+});
+
+// Internal mutation — scheduled by the consumer app via `convex/crons.ts`. Not
+// part of the public HTTP surface; callable only via `components.tenants.invitations.pruneExpiredInvitations`
+// from consumer crons, actions, or other internal functions.
+export const pruneExpiredInvitations = internalMutation({
+  args: {
+    organizationId: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    scanned: v.number(),
+    expired: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const limit = Math.max(1, Math.min(args.limit ?? 200, 1000));
+    const now = Date.now();
+
+    // Fetch candidate pending invitations. When an org is provided we can use
+    // the targeted `by_organization_and_status` compound index. Otherwise we
+    // fall back to a bounded scan of the `invitations` table — there is no
+    // global `by_status` index (see schema.ts), so we rely on `.take(limit)`
+    // plus a post-filter to keep this bounded.
+    let candidates;
+    if (args.organizationId) {
+      const orgId = args.organizationId as Id<"organizations">;
+      candidates = await ctx.db
+        .query("invitations")
+        .withIndex("by_organization_and_status", (q) =>
+          q.eq("organizationId", orgId).eq("status", "pending")
+        )
+        .take(limit);
+    } else {
+      // No global by_status index — bounded full-table scan capped by `limit`.
+      candidates = await ctx.db.query("invitations").take(limit);
+    }
+
+    let expired = 0;
+    for (const inv of candidates) {
+      if (inv.status === "pending" && inv.expiresAt < now) {
+        await ctx.db.patch(inv._id, { status: "expired" });
+        expired += 1;
+      }
+    }
+    return { scanned: candidates.length, expired };
   },
 });

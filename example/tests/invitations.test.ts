@@ -543,4 +543,175 @@ describe("makeTenantsAPI - invitations", () => {
       expect(member?.role).toBe("member");
     });
   });
+
+  // ==========================================================================
+  // Audit + permissions + PII regression tests (TEST-N7..N11)
+  // ==========================================================================
+  describe("audit log + permissions + PII", () => {
+    test("unauthenticated getInvitation strips PII (inviterId, inviterName, inviteeIdentifier)", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "PII Strip Org",
+      });
+      const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        inviteeIdentifier: "pii@test.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      // Anonymous caller — no withIdentity
+      const invitation = await t.query(api.testHelpers.strictGetInvitation, {
+        invitationId,
+      });
+      expect(invitation).not.toBeNull();
+      expect(invitation).not.toHaveProperty("inviterId");
+      expect(invitation).not.toHaveProperty("inviterName");
+      expect(invitation).not.toHaveProperty("inviteeIdentifier");
+    });
+
+    test("checkMemberPermission for another user without members:list permission throws", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "CheckPerm Other Org",
+      });
+      // Bob joins as a plain member (lacks members:list in default role map)
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      await expect(
+        asBob.query(api.testHelpers.strictCheckMemberPermission, {
+          organizationId: orgId,
+          userId: "alice",
+          minRole: "member",
+        })
+      ).rejects.toThrow(/members:list permission required/);
+    });
+
+    test("checkMemberPermission for self succeeds without members:list", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "CheckPerm Self Org",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      const result = await asBob.query(api.testHelpers.strictCheckMemberPermission, {
+        organizationId: orgId,
+        userId: "bob",
+        minRole: "member",
+      });
+      expect(result.hasPermission).toBe(true);
+      expect(result.currentRole).toBe("member");
+    });
+
+    test("getAuditLog as an ex-member (removed after log entries exist) throws", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "ExMember Audit Org",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "admin",
+      });
+      // Generate some audit activity
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "carol",
+        role: "member",
+      });
+      // Remove bob
+      await asAlice.mutation(api.testHelpers.strictRemoveMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+      });
+
+      await expect(
+        asBob.query(api.testHelpers.strictGetAuditLog, {
+          organizationId: orgId,
+        })
+      ).rejects.toThrow();
+    });
+
+    test("resendInvitation called by non-member of the target org throws", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asMallory = t.withIdentity({ subject: "mallory", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Resend Authz Org",
+      });
+      const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        inviteeIdentifier: "invitee@test.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await expect(
+        asMallory.mutation(api.testHelpers.strictResendInvitation, { invitationId })
+      ).rejects.toThrow();
+    });
+
+    test("cancelInvitation called by non-member of the target org throws", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asMallory = t.withIdentity({ subject: "mallory", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Cancel Authz Org",
+      });
+      const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        inviteeIdentifier: "invitee@test.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await expect(
+        asMallory.mutation(api.testHelpers.strictCancelInvitation, { invitationId })
+      ).rejects.toThrow();
+    });
+
+    test("acceptInvitation with email-typed invitation + mismatched email user (no custom validator) throws identifier mismatch", async () => {
+      // Uses the default `strictApi` which has NO validateInvitationAccept set,
+      // so the wrapper enforces exact case-insensitive email match.
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Mismatch Accept Org",
+      });
+      // Invitation for "carol@test.com" — but bob (user.email = bob@test.com) is the one accepting.
+      const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        inviteeIdentifier: "carol@test.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await expect(
+        asBob.mutation(api.testHelpers.strictAcceptInvitation, { invitationId })
+      ).rejects.toThrow(/Invitation identifier does not match/);
+    });
+  });
 });
