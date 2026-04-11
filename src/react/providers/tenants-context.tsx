@@ -58,31 +58,42 @@ export interface Team {
 }
 
 // ============================================================================
-// Context Value Interface
+// Split Context Values
 // ============================================================================
 
-export interface TenantsContextValue {
-  // Data
+/**
+ * Read-only data provided by `TenantsProvider`. Re-renders when any slice of
+ * tenant data changes (orgs, members, invitations, teams, loading states).
+ */
+export interface TenantsDataContextValue {
   organizations: Organization[];
   currentOrganization: Organization | null;
   members: Member[];
   invitations: Invitation[];
   teams: Team[];
 
-  // Loading states
   isLoading: boolean;
   isOrganizationsLoading: boolean;
   isMembersLoading: boolean;
   isInvitationsLoading: boolean;
   isTeamsLoading: boolean;
 
-  // Current user's role in the active organization
   currentRole: string | null;
-
-  /** Current user's email from tenants API (getCurrentUserEmail). Used by JoinByDomainSection when no prop is passed. */
   currentUserEmail?: string | null | undefined;
 
-  // Organization actions
+  /**
+   * The api object passed to TenantsProvider. Used by extended components
+   * (MemberModerationSection, BulkInviteSection, etc.) to call optional APIs.
+   */
+  api: Record<string, FunctionReference<"query" | "mutation", "public"> | undefined>;
+}
+
+/**
+ * Stable actions/setters provided by `TenantsProvider`. The reference to this
+ * context value is memoized and only changes when the active organization
+ * identity changes, so components that only need actions rarely re-render.
+ */
+export interface TenantsActionsContextValue {
   switchOrganization: (organizationId: string) => void;
   createOrganization: (data: {
     name: string;
@@ -100,14 +111,9 @@ export interface TenantsContextValue {
   deleteOrganization: () => Promise<void>;
   leaveOrganization: () => Promise<void>;
 
-  // Member actions
   removeMember: (memberUserId: string) => Promise<void>;
-  updateMemberRole: (
-    memberUserId: string,
-    role: string
-  ) => Promise<void>;
+  updateMemberRole: (memberUserId: string, role: string) => Promise<void>;
 
-  // Invitation actions
   inviteMember: (data: {
     inviteeIdentifier: string;
     identifierType?: string;
@@ -118,7 +124,6 @@ export interface TenantsContextValue {
   resendInvitation: (invitationId: string) => Promise<void>;
   cancelInvitation: (invitationId: string) => Promise<void>;
 
-  // Team actions
   createTeam: (data: {
     name: string;
     description?: string;
@@ -130,41 +135,51 @@ export interface TenantsContextValue {
   addTeamMember: (memberUserId: string, teamId: string) => Promise<void>;
   removeTeamMember: (memberUserId: string, teamId: string) => Promise<void>;
 
-  // Toast callback
   onToast?: (message: string, type: "success" | "error") => void;
-
-  /**
-   * The api object passed to TenantsProvider. Used by extended components
-   * (MemberModerationSection, BulkInviteSection, etc.) to call optional APIs.
-   */
-  api: Record<string, FunctionReference<"query" | "mutation", "public"> | undefined>;
 }
 
-// ============================================================================
-// Context
-// ============================================================================
-
-export const TenantsContext = createContext<TenantsContextValue | null>(null);
-
 /**
- * Hook to access the TenantsContext.
- * Must be used within a TenantsProvider.
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const { currentOrganization, members, isOwnerOrAdmin } = useTenants();
- *   // ...
- * }
- * ```
+ * Combined shape returned by `useTenants()` for backward compatibility. New
+ * code should prefer `useTenantsData()` / `useTenantsActions()` directly.
  */
-export function useTenants(): TenantsContextValue {
-  const context = useContext(TenantsContext);
+export type TenantsContextValue = TenantsDataContextValue & TenantsActionsContextValue;
+
+// ============================================================================
+// Contexts
+// ============================================================================
+
+export const TenantsDataContext = createContext<TenantsDataContextValue | null>(null);
+export const TenantsActionsContext = createContext<TenantsActionsContextValue | null>(null);
+
+export function useTenantsData(): TenantsDataContextValue {
+  const context = useContext(TenantsDataContext);
   if (!context) {
     throw new Error(
-      "useTenants must be used within a TenantsProvider. " +
+      "useTenantsData must be used within a TenantsProvider. " +
         "Wrap your app with <TenantsProvider api={api.yourModule}>...</TenantsProvider>"
     );
   }
   return context;
+}
+
+export function useTenantsActions(): TenantsActionsContextValue {
+  const context = useContext(TenantsActionsContext);
+  if (!context) {
+    throw new Error(
+      "useTenantsActions must be used within a TenantsProvider. " +
+        "Wrap your app with <TenantsProvider api={api.yourModule}>...</TenantsProvider>"
+    );
+  }
+  return context;
+}
+
+/**
+ * Hook to access the combined TenantsContext (data + actions).
+ * Provided for backward compatibility; prefer `useTenantsData` or
+ * `useTenantsActions` when you only need one slice to avoid re-renders.
+ */
+export function useTenants(): TenantsContextValue {
+  const data = useTenantsData();
+  const actions = useTenantsActions();
+  return { ...data, ...actions };
 }

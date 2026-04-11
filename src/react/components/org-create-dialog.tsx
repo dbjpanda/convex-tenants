@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode, useCallback, useContext } from "react";
 import { Plus, Building2 } from "lucide-react";
-import { TenantsContext } from "../providers/tenants-context.js";
+import { TenantsActionsContext } from "../providers/tenants-context.js";
 import { Button } from "../ui/button.js";
 import {
   Dialog,
@@ -95,7 +95,7 @@ export function CreateOrganizationDialog({
   const [error, setError] = useState<string | null>(null);
 
   // Try to use context, fall back to props (useContext returns null if no provider)
-  const contextValue = useContext(TenantsContext);
+  const contextValue = useContext(TenantsActionsContext);
 
   const createOrganization = createOrganizationProp ?? contextValue?.createOrganization;
   const onToast = onToastProp ?? contextValue?.onToast;

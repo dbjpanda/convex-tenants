@@ -2,7 +2,7 @@
 
 import { type ReactNode, useMemo } from "react";
 import { Users, Plus } from "lucide-react";
-import { useTenants } from "../providers/tenants-context.js";
+import { useTenantsData, useTenantsActions } from "../providers/tenants-context.js";
 import { InviteMemberDialog } from "./members-invite-dialog.js";
 import { MembersTable } from "./members-table.js";
 import { Button } from "../ui/button.js";
@@ -107,6 +107,8 @@ export function MembersSection({
     currentRole,
     isMembersLoading,
     isInvitationsLoading,
+  } = useTenantsData();
+  const {
     removeMember,
     updateMemberRole,
     inviteMember,
@@ -114,7 +116,7 @@ export function MembersSection({
     cancelInvitation,
     addTeamMember,
     onToast,
-  } = useTenants();
+  } = useTenantsActions();
 
   const isDataLoading = isMembersLoading || isInvitationsLoading;
 

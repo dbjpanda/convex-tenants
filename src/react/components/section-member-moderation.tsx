@@ -4,14 +4,14 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { Shield, UserX, UserCheck, Loader2 } from "lucide-react";
-import { useTenants } from "../providers/tenants-context.js";
+import { useTenantsData } from "../providers/tenants-context.js";
 
 /**
  * Member moderation: suspend/unsuspend and bulk remove.
  * Renders only when api exposes suspendMember / unsuspendMember / bulkRemoveMembers.
  */
 export function MemberModerationSection() {
-  const { currentOrganization, api } = useTenants();
+  const { currentOrganization, api } = useTenantsData();
   const a = api as Record<string, FunctionReference<"query"> | FunctionReference<"mutation"> | undefined>;
 
   const currentMember = useQuery(

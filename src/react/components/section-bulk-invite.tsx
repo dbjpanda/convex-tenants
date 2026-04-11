@@ -4,14 +4,23 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { Users, Loader2 } from "lucide-react";
-import { useTenants } from "../providers/tenants-context.js";
+import { useTenantsData } from "../providers/tenants-context.js";
+import { Button } from "../ui/button.js";
+import { Textarea } from "../ui/textarea.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select.js";
 
 /**
  * Bulk invite members by email (one per line or comma-separated).
  * Renders only when api exposes bulkInviteMembers.
  */
 export function BulkInviteSection() {
-  const { currentOrganization, api } = useTenants();
+  const { currentOrganization, api } = useTenantsData();
   const a = api as Record<string, FunctionReference<"mutation"> | undefined>;
 
   const bulkInvite = useMutation((a.bulkInviteMembers ?? a.inviteMember) as FunctionReference<"mutation">);
@@ -57,36 +66,34 @@ export function BulkInviteSection() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
           <label htmlFor="bulk-invite-emails" className="mb-1 block text-sm font-medium">Emails</label>
-          <textarea
+          <Textarea
             id="bulk-invite-emails"
             value={emailsText}
             onChange={(e) => setEmailsText(e.target.value)}
             placeholder="alice@example.com, bob@example.com"
             rows={3}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
         </div>
         <div>
           <label htmlFor="bulk-invite-role" className="mb-1 block text-sm font-medium">Role</label>
-          <select
-            id="bulk-invite-role"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="flex h-9 w-32 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="member">Member</option>
-            <option value="admin">Admin</option>
-          </select>
+          <Select value={role} onValueChange={setRole}>
+            <SelectTrigger id="bulk-invite-role" className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="member">Member</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <button
+        <Button
           type="button"
           onClick={handleBulkInvite}
           disabled={submitting || !emailsText.trim()}
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
           Bulk invite
-        </button>
+        </Button>
       </div>
       {result && (
         <p className="mt-3 text-sm text-muted-foreground">

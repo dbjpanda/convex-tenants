@@ -4,7 +4,8 @@ import { useState, useContext, type ReactNode } from "react";
 import { Building2, Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn, generateSlugFromName } from "../utils.js";
 import {
-  TenantsContext,
+  TenantsDataContext,
+  TenantsActionsContext,
   type Organization as ContextOrganization,
 } from "../providers/tenants-context.js";
 import type { Organization } from "../hooks/use-organization.js";
@@ -117,21 +118,22 @@ export function OrganizationSwitcher({
   chevronsIcon,
   plusIcon,
 }: OrganizationSwitcherProps) {
-  // Try to get context (may be null if not inside TenantsProvider)
-  const context = useContext(TenantsContext);
+  // Try to get split contexts (may be null if not inside TenantsProvider)
+  const dataContext = useContext(TenantsDataContext);
+  const actionsContext = useContext(TenantsActionsContext);
 
   // Use context or props
-  const organizations = organizationsProp ?? context?.organizations ?? [];
+  const organizations = organizationsProp ?? dataContext?.organizations ?? [];
   const currentOrganization =
-    currentOrganizationProp ?? context?.currentOrganization ?? null;
-  const isLoading = isLoadingProp ?? context?.isOrganizationsLoading ?? false;
+    currentOrganizationProp ?? dataContext?.currentOrganization ?? null;
+  const isLoading = isLoadingProp ?? dataContext?.isOrganizationsLoading ?? false;
   const switchOrganization =
-    onSwitchOrganizationProp ?? context?.switchOrganization;
+    onSwitchOrganizationProp ?? actionsContext?.switchOrganization;
   const createOrganization =
     onCreateOrganizationProp ??
-    (context?.createOrganization
+    (actionsContext?.createOrganization
       ? async (data: { name: string; slug: string }) => {
-          await context.createOrganization(data);
+          await actionsContext.createOrganization(data);
         }
       : undefined);
 

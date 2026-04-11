@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import {
   MoreHorizontal,
   UserMinus,
@@ -250,18 +250,19 @@ export function MembersTable({
   const invitationsCount = invitations.length;
   const totalCount = membersCount + invitationsCount;
 
-  const getDescription = () => {
+  const description = useMemo(() => {
     if (filter === "all")
       return `${totalCount} people (${membersCount} members, ${invitationsCount} pending)`;
     if (filter === "members")
       return `${membersCount} active member${membersCount !== 1 ? "s" : ""}`;
     return `${invitationsCount} pending invitation${invitationsCount !== 1 ? "s" : ""}`;
-  };
+  }, [filter, totalCount, membersCount, invitationsCount]);
 
-  // Unified data for "all" filter
-  const unifiedData: UnifiedData[] =
-    filter === "all"
-      ? [
+  // Unified data for "all" filter (memoized to avoid rebuilding on every render)
+  const unifiedData: UnifiedData[] = useMemo(
+    () =>
+      filter === "all"
+        ? [
           ...members.map(
             (member): UnifiedMember => ({
               type: "member",
@@ -287,7 +288,9 @@ export function MembersTable({
             })
           ),
         ]
-      : [];
+        : [],
+    [filter, members, invitations]
+  );
 
   const handleRemoveMember = async (memberUserId: string) => {
     try {
@@ -587,7 +590,7 @@ export function MembersTable({
             <SelectItem value="invitations">Invitations Only</SelectItem>
           </SelectContent>
         </Select>
-        <span className="text-sm text-muted-foreground">{getDescription()}</span>
+        <span className="text-sm text-muted-foreground">{description}</span>
       </div>
 
       {/* Table */}

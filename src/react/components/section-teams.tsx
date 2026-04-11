@@ -1,8 +1,8 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useMemo, useCallback } from "react";
 import { Users, Plus } from "lucide-react";
-import { useTenants } from "../providers/tenants-context.js";
+import { useTenantsData, useTenantsActions } from "../providers/tenants-context.js";
 import { TeamsGrid } from "./teams-grid.js";
 import { CreateTeamDialog } from "./team-create-dialog.js";
 import { Button } from "../ui/button.js";
@@ -70,10 +70,31 @@ export function TeamsSection({
     isOrganizationsLoading,
     currentRole,
     isTeamsLoading,
-    createTeam,
-    deleteTeam,
-    onToast,
-  } = useTenants();
+  } = useTenantsData();
+  const { createTeam, deleteTeam, onToast } = useTenantsActions();
+
+  // Transform teams for the grid (memoized so the array ref is stable across renders)
+  const transformedTeams: Team[] = useMemo(
+    () =>
+      teams.map((t) => ({
+        _id: t._id,
+        _creationTime: t._creationTime,
+        name: t.name,
+        organizationId: t.organizationId,
+        description: t.description ?? null,
+        slug: t.slug,
+        metadata: undefined,
+      })),
+    [teams]
+  );
+
+  const onCreateTeam = useCallback(
+    async (name: string, description?: string) => {
+      const result = await createTeam({ name, description });
+      return result ?? "";
+    },
+    [createTeam]
+  );
 
   // Show full card skeleton while organizations load, or "select org" when done loading with none selected
   if (isOrganizationsLoading || !currentOrganization) {
@@ -90,17 +111,6 @@ export function TeamsSection({
     </div>
   );
   const PlusIcon = plusIcon ?? <Plus className="size-4" />;
-
-  // Transform teams for the grid
-  const transformedTeams: Team[] = teams.map((t) => ({
-    _id: t._id,
-    _creationTime: t._creationTime,
-    name: t.name,
-    organizationId: t.organizationId,
-    description: t.description ?? null,
-    slug: t.slug,
-    metadata: undefined,
-  }));
 
   return (
     <Card className={className}>
@@ -124,10 +134,7 @@ export function TeamsSection({
           <CardAction>
             <CreateTeamDialog
               organizationName={currentOrganization.name}
-              onCreateTeam={async (name, description) => {
-                const result = await createTeam({ name, description });
-                return result ?? "";
-              }}
+              onCreateTeam={onCreateTeam}
               onToast={onToast}
               trigger={
                 <Button>
@@ -154,10 +161,7 @@ export function TeamsSection({
           emptyAction={
             <CreateTeamDialog
               organizationName={currentOrganization.name}
-              onCreateTeam={async (name, description) => {
-                const result = await createTeam({ name, description });
-                return result ?? "";
-              }}
+              onCreateTeam={onCreateTeam}
               onToast={onToast}
               trigger={
                 <Button>

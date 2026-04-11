@@ -4,8 +4,17 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { UsersRound, Loader2 } from "lucide-react";
-import { useTenants } from "../providers/tenants-context.js";
+import { useTenantsData, useTenantsActions } from "../providers/tenants-context.js";
 import type { Team } from "../providers/tenants-context.js";
+import { Button } from "../ui/button.js";
+import { Input } from "../ui/input.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select.js";
 
 type TeamTreeEntry = { team: Team; children: TeamTreeEntry[] };
 
@@ -27,7 +36,8 @@ function TreeList({ entries, depth = 0 }: { entries: TeamTreeEntry[]; depth?: nu
  * Renders only when api exposes listTeamsAsTree.
  */
 export function NestedTeamsSection() {
-  const { currentOrganization, teams, createTeam, api } = useTenants();
+  const { currentOrganization, teams, api } = useTenantsData();
+  const { createTeam } = useTenantsActions();
   const a = api as Record<string, FunctionReference<"query"> | undefined>;
 
   const teamTree = useQuery(
@@ -75,47 +85,52 @@ export function NestedTeamsSection() {
       )}
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Name</label>
-          <input
+          <label htmlFor="nested-team-name" className="mb-1 block text-xs font-medium text-muted-foreground">Name</label>
+          <Input
+            id="nested-team-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="h-9 w-40 rounded-md border border-input bg-background px-3 text-sm"
+            className="w-40"
             placeholder="Team name"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Description</label>
-          <input
+          <label htmlFor="nested-team-description" className="mb-1 block text-xs font-medium text-muted-foreground">Description</label>
+          <Input
+            id="nested-team-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="h-9 w-48 rounded-md border border-input bg-background px-3 text-sm"
+            className="w-48"
             placeholder="Optional"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Parent</label>
-          <select
-            value={parentTeamId ?? ""}
-            onChange={(e) => setParentTeamId(e.target.value || null)}
-            className="h-9 w-36 rounded-md border border-input bg-background px-3 text-sm"
+          <label htmlFor="nested-team-parent" className="mb-1 block text-xs font-medium text-muted-foreground">Parent</label>
+          <Select
+            value={parentTeamId ?? "__root__"}
+            onValueChange={(v) => setParentTeamId(v === "__root__" ? null : v)}
           >
-            <option value="">Root</option>
-            {teams.map((t) => (
-              <option key={t._id} value={t._id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="nested-team-parent" className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__root__">Root</SelectItem>
+              {teams.map((t) => (
+                <SelectItem key={t._id} value={t._id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <button
+        <Button
           type="button"
           onClick={handleCreate}
           disabled={creating || !name.trim()}
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {creating ? <Loader2 className="size-4 animate-spin" /> : null}
           Create team
-        </button>
+        </Button>
       </div>
     </section>
   );

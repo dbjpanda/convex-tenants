@@ -5,8 +5,10 @@ import { useQuery, useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { useOrganizationStore } from "../stores/organization-store.js";
 import {
-  TenantsContext,
-  type TenantsContextValue,
+  TenantsDataContext,
+  TenantsActionsContext,
+  type TenantsDataContextValue,
+  type TenantsActionsContextValue,
   type Organization,
   type Member,
   type Invitation,
@@ -184,6 +186,20 @@ export interface TenantsAPI {
 // Provider Props
 // ============================================================================
 
+/**
+ * Opt-out flags for eager subscriptions. If a feature is set to `false`, the
+ * corresponding `useQuery` is skipped and the context returns an empty array
+ * for that slice. All default to `true` for backward compatibility.
+ */
+export interface TenantsFeatureFlags {
+  /** Subscribe to organization members (default: true). */
+  members?: boolean;
+  /** Subscribe to organization invitations (default: true). */
+  invitations?: boolean;
+  /** Subscribe to organization teams (default: true). */
+  teams?: boolean;
+}
+
 export interface TenantsProviderProps {
   /**
    * The api namespace containing all tenants functions.
@@ -206,11 +222,22 @@ export interface TenantsProviderProps {
    * Optional toast callback for notifications
    */
   onToast?: (message: string, type: "success" | "error") => void;
+
+  /**
+   * Optional feature flags to gate eager subscriptions. Set a flag to `false`
+   * to skip the underlying `useQuery` for that slice when the consuming UI
+   * does not need it (e.g. a page that only shows the org switcher).
+   */
+  features?: TenantsFeatureFlags;
 }
 
 // ============================================================================
 // Provider Component
 // ============================================================================
+
+const EMPTY_MEMBERS: Member[] = [];
+const EMPTY_INVITATIONS: Invitation[] = [];
+const EMPTY_TEAMS: Team[] = [];
 
 /**
  * TenantsProvider - The main context provider for the tenants package.
@@ -237,8 +264,13 @@ export function TenantsProvider({
   api,
   children,
   onToast,
+  features,
 }: TenantsProviderProps) {
   const { activeOrganizationId, setActiveOrganizationId } = useOrganizationStore();
+
+  const membersEnabled = features?.members ?? true;
+  const invitationsEnabled = features?.invitations ?? true;
+  const teamsEnabled = features?.teams ?? true;
 
   // ============================================================================
   // Queries
@@ -263,32 +295,44 @@ export function TenantsProvider({
     }
   }, [organizations, activeOrganizationId, setActiveOrganizationId]);
 
-  // Organization-scoped queries (skip if no org; no paginationOpts => array result)
+  // Organization-scoped queries (skip if no org or feature disabled; no paginationOpts => array result)
   const membersRaw = useQuery(
     api.listMembers,
-    currentOrganization ? { organizationId: currentOrganization._id } : "skip"
+    membersEnabled && currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
   const members = useMemo(
-    () => (membersRaw === undefined ? [] : Array.isArray(membersRaw) ? membersRaw : membersRaw.page),
-    [membersRaw]
+    () => {
+      if (!membersEnabled) return EMPTY_MEMBERS;
+      if (membersRaw === undefined) return EMPTY_MEMBERS;
+      return Array.isArray(membersRaw) ? membersRaw : membersRaw.page;
+    },
+    [membersRaw, membersEnabled]
   );
 
   const invitationsRaw = useQuery(
     api.listInvitations,
-    currentOrganization ? { organizationId: currentOrganization._id } : "skip"
+    invitationsEnabled && currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
   const invitations = useMemo(
-    () => (invitationsRaw === undefined ? [] : Array.isArray(invitationsRaw) ? invitationsRaw : invitationsRaw.page),
-    [invitationsRaw]
+    () => {
+      if (!invitationsEnabled) return EMPTY_INVITATIONS;
+      if (invitationsRaw === undefined) return EMPTY_INVITATIONS;
+      return Array.isArray(invitationsRaw) ? invitationsRaw : invitationsRaw.page;
+    },
+    [invitationsRaw, invitationsEnabled]
   );
 
   const teamsRaw = useQuery(
     api.listTeams,
-    currentOrganization ? { organizationId: currentOrganization._id } : "skip"
+    teamsEnabled && currentOrganization ? { organizationId: currentOrganization._id } : "skip"
   );
   const teams = useMemo(
-    () => (teamsRaw === undefined ? [] : Array.isArray(teamsRaw) ? teamsRaw : teamsRaw.page),
-    [teamsRaw]
+    () => {
+      if (!teamsEnabled) return EMPTY_TEAMS;
+      if (teamsRaw === undefined) return EMPTY_TEAMS;
+      return Array.isArray(teamsRaw) ? teamsRaw : teamsRaw.page;
+    },
+    [teamsRaw, teamsEnabled]
   );
 
   const currentUserEmailQueryRef = api.getCurrentUserEmail ?? api.listOrganizations;
@@ -323,9 +367,9 @@ export function TenantsProvider({
   // ============================================================================
 
   const isOrganizationsLoading = organizationsRaw === undefined;
-  const isMembersLoading = currentOrganization ? membersRaw === undefined : false;
-  const isInvitationsLoading = currentOrganization ? invitationsRaw === undefined : false;
-  const isTeamsLoading = currentOrganization ? teamsRaw === undefined : false;
+  const isMembersLoading = membersEnabled && currentOrganization ? membersRaw === undefined : false;
+  const isInvitationsLoading = invitationsEnabled && currentOrganization ? invitationsRaw === undefined : false;
+  const isTeamsLoading = teamsEnabled && currentOrganization ? teamsRaw === undefined : false;
   const isLoading = isOrganizationsLoading || isMembersLoading || isInvitationsLoading || isTeamsLoading;
 
   // ============================================================================
@@ -337,6 +381,8 @@ export function TenantsProvider({
   // ============================================================================
   // Action Handlers
   // ============================================================================
+
+  const currentOrgId = currentOrganization?._id ?? null;
 
   const switchOrganization = useCallback(
     (organizationId: string) => {
@@ -370,10 +416,10 @@ export function TenantsProvider({
       metadata?: Record<string, unknown>;
       status?: "active" | "suspended" | "archived";
     }) => {
-      if (!currentOrganization) throw new Error("No organization selected");
+      if (!currentOrgId) throw new Error("No organization selected");
       try {
         await updateOrganizationMutation({
-          organizationId: currentOrganization._id,
+          organizationId: currentOrgId,
           ...data,
         });
         onToast?.("Organization updated successfully", "success");
@@ -382,15 +428,15 @@ export function TenantsProvider({
         throw error;
       }
     },
-    [currentOrganization, updateOrganizationMutation, onToast]
+    [currentOrgId, updateOrganizationMutation, onToast]
   );
 
   const deleteOrganization = useCallback(
     async () => {
-      if (!currentOrganization) throw new Error("No organization selected");
+      if (!currentOrgId) throw new Error("No organization selected");
       try {
-        await deleteOrganizationMutation({ organizationId: currentOrganization._id });
-        const nextOrg = organizations.find((o) => o._id !== currentOrganization._id);
+        await deleteOrganizationMutation({ organizationId: currentOrgId });
+        const nextOrg = organizations.find((o) => o._id !== currentOrgId);
         setActiveOrganizationId(nextOrg?._id ?? null);
         onToast?.("Organization deleted", "success");
       } catch (error: any) {
@@ -398,15 +444,15 @@ export function TenantsProvider({
         throw error;
       }
     },
-    [currentOrganization, deleteOrganizationMutation, organizations, setActiveOrganizationId, onToast]
+    [currentOrgId, deleteOrganizationMutation, organizations, setActiveOrganizationId, onToast]
   );
 
   const leaveOrganization = useCallback(
     async () => {
-      if (!currentOrganization) throw new Error("No organization selected");
+      if (!currentOrgId) throw new Error("No organization selected");
       try {
-        await leaveOrganizationMutation({ organizationId: currentOrganization._id });
-        const nextOrg = organizations.find((o) => o._id !== currentOrganization._id);
+        await leaveOrganizationMutation({ organizationId: currentOrgId });
+        const nextOrg = organizations.find((o) => o._id !== currentOrgId);
         setActiveOrganizationId(nextOrg?._id ?? null);
         onToast?.("Left organization successfully", "success");
       } catch (error: any) {
@@ -414,15 +460,15 @@ export function TenantsProvider({
         throw error;
       }
     },
-    [currentOrganization, leaveOrganizationMutation, organizations, setActiveOrganizationId, onToast]
+    [currentOrgId, leaveOrganizationMutation, organizations, setActiveOrganizationId, onToast]
   );
 
   const removeMember = useCallback(
     async (memberUserId: string) => {
-      if (!currentOrganization) throw new Error("No organization selected");
+      if (!currentOrgId) throw new Error("No organization selected");
       try {
         await removeMemberMutation({
-          organizationId: currentOrganization._id,
+          organizationId: currentOrgId,
           memberUserId,
         });
         onToast?.("Member removed successfully", "success");
@@ -431,15 +477,15 @@ export function TenantsProvider({
         throw error;
       }
     },
-    [currentOrganization, removeMemberMutation, onToast]
+    [currentOrgId, removeMemberMutation, onToast]
   );
 
   const updateMemberRole = useCallback(
     async (memberUserId: string, role: string) => {
-      if (!currentOrganization) throw new Error("No organization selected");
+      if (!currentOrgId) throw new Error("No organization selected");
       try {
         await updateMemberRoleMutation({
-          organizationId: currentOrganization._id,
+          organizationId: currentOrgId,
           memberUserId,
           role,
         });
@@ -449,15 +495,15 @@ export function TenantsProvider({
         throw error;
       }
     },
-    [currentOrganization, updateMemberRoleMutation, onToast]
+    [currentOrgId, updateMemberRoleMutation, onToast]
   );
 
   const inviteMember = useCallback(
     async (data: { inviteeIdentifier: string; identifierType?: string; role: string; teamId?: string; message?: string }) => {
-      if (!currentOrganization) throw new Error("No organization selected");
+      if (!currentOrgId) throw new Error("No organization selected");
       try {
         const result = await inviteMemberMutation({
-          organizationId: currentOrganization._id,
+          organizationId: currentOrgId,
           ...data,
         });
         onToast?.("Invitation sent successfully!", "success");
@@ -467,7 +513,7 @@ export function TenantsProvider({
         throw error;
       }
     },
-    [currentOrganization, inviteMemberMutation, onToast]
+    [currentOrgId, inviteMemberMutation, onToast]
   );
 
   const resendInvitation = useCallback(
@@ -498,10 +544,10 @@ export function TenantsProvider({
 
   const createTeam = useCallback(
     async (data: { name: string; description?: string; slug?: string; metadata?: Record<string, unknown>; parentTeamId?: string }) => {
-      if (!currentOrganization) throw new Error("No organization selected");
+      if (!currentOrgId) throw new Error("No organization selected");
       try {
         const teamId = await createTeamMutation({
-          organizationId: currentOrganization._id,
+          organizationId: currentOrgId,
           ...data,
         });
         onToast?.("Team created successfully!", "success");
@@ -511,7 +557,7 @@ export function TenantsProvider({
         throw error;
       }
     },
-    [currentOrganization, createTeamMutation, onToast]
+    [currentOrgId, createTeamMutation, onToast]
   );
 
   const deleteTeam = useCallback(
@@ -554,52 +600,29 @@ export function TenantsProvider({
   );
 
   // ============================================================================
-  // Context Value
+  // Context Values — split into data (changes often) and actions (rarely)
   // ============================================================================
 
-  const value: TenantsContextValue = useMemo(
+  const apiAsRecord = api as unknown as Record<
+    string,
+    FunctionReference<"query" | "mutation", "public"> | undefined
+  >;
+
+  const dataValue: TenantsDataContextValue = useMemo(
     () => ({
-      // Data
       organizations,
       currentOrganization,
       members,
       invitations,
       teams,
-
-      // Loading states
       isLoading,
       isOrganizationsLoading,
       isMembersLoading,
       isInvitationsLoading,
       isTeamsLoading,
-
-      // Current role
       currentRole,
-
-      // Current user email (from getCurrentUserEmail when provided)
       currentUserEmail,
-
-      // Actions
-      switchOrganization,
-      createOrganization,
-      updateOrganization,
-      deleteOrganization,
-      leaveOrganization,
-      removeMember,
-      updateMemberRole,
-      inviteMember,
-      resendInvitation,
-      cancelInvitation,
-      createTeam,
-      deleteTeam,
-      addTeamMember,
-      removeTeamMember,
-
-      // API ref for extended components
-      api: api as unknown as Record<string, FunctionReference<"query" | "mutation", "public"> | undefined>,
-
-      // Toast
-      onToast,
+      api: apiAsRecord,
     }),
     [
       organizations,
@@ -614,6 +637,12 @@ export function TenantsProvider({
       isTeamsLoading,
       currentRole,
       currentUserEmail,
+      apiAsRecord,
+    ]
+  );
+
+  const actionsValue: TenantsActionsContextValue = useMemo(
+    () => ({
       switchOrganization,
       createOrganization,
       updateOrganization,
@@ -628,14 +657,32 @@ export function TenantsProvider({
       deleteTeam,
       addTeamMember,
       removeTeamMember,
-      api,
+      onToast,
+    }),
+    [
+      switchOrganization,
+      createOrganization,
+      updateOrganization,
+      deleteOrganization,
+      leaveOrganization,
+      removeMember,
+      updateMemberRole,
+      inviteMember,
+      resendInvitation,
+      cancelInvitation,
+      createTeam,
+      deleteTeam,
+      addTeamMember,
+      removeTeamMember,
       onToast,
     ]
   );
 
   return (
-    <TenantsContext.Provider value={value}>
-      {children}
-    </TenantsContext.Provider>
+    <TenantsDataContext.Provider value={dataValue}>
+      <TenantsActionsContext.Provider value={actionsValue}>
+        {children}
+      </TenantsActionsContext.Provider>
+    </TenantsDataContext.Provider>
   );
 }
