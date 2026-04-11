@@ -27,7 +27,7 @@ export interface TenantsAPI {
   createOrganization: FunctionReference<
     "mutation",
     "public",
-    { name: string; slug: string; logo?: string; metadata?: any },
+    { name: string; slug: string; logo?: string; metadata?: Record<string, unknown> },
     string
   >;
   updateOrganization: FunctionReference<
@@ -38,7 +38,7 @@ export interface TenantsAPI {
       name?: string;
       slug?: string;
       logo?: string | null;
-      metadata?: any;
+      metadata?: Record<string, unknown>;
       status?: "active" | "suspended" | "archived";
     },
     null
@@ -112,7 +112,7 @@ export interface TenantsAPI {
   createTeam: FunctionReference<
     "mutation",
     "public",
-    { organizationId: string; name: string; description?: string; slug?: string; metadata?: any; parentTeamId?: string },
+    { organizationId: string; name: string; description?: string; slug?: string; metadata?: Record<string, unknown>; parentTeamId?: string },
     string
   >;
   deleteTeam: FunctionReference<
@@ -346,7 +346,7 @@ export function TenantsProvider({
   );
 
   const createOrganization = useCallback(
-    async (data: { name: string; slug: string; logo?: string; metadata?: any }) => {
+    async (data: { name: string; slug: string; logo?: string; metadata?: Record<string, unknown> }) => {
       try {
         const orgId = await createOrgMutation(data);
         if (orgId) {
@@ -367,7 +367,7 @@ export function TenantsProvider({
       name?: string;
       slug?: string;
       logo?: string | null;
-      metadata?: any;
+      metadata?: Record<string, unknown>;
       status?: "active" | "suspended" | "archived";
     }) => {
       if (!currentOrganization) throw new Error("No organization selected");
@@ -497,7 +497,7 @@ export function TenantsProvider({
   );
 
   const createTeam = useCallback(
-    async (data: { name: string; description?: string; slug?: string; metadata?: any; parentTeamId?: string }) => {
+    async (data: { name: string; description?: string; slug?: string; metadata?: Record<string, unknown>; parentTeamId?: string }) => {
       if (!currentOrganization) throw new Error("No organization selected");
       try {
         const teamId = await createTeamMutation({
@@ -596,7 +596,7 @@ export function TenantsProvider({
       removeTeamMember,
 
       // API ref for extended components
-      api,
+      api: api as unknown as Record<string, FunctionReference<"query" | "mutation", "public"> | undefined>,
 
       // Toast
       onToast,
