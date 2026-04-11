@@ -210,7 +210,8 @@ describe("makeTenantsAPI - invitations", () => {
         }
       );
 
-      const invitation = await t.query(api.testHelpers.strictGetInvitation, {
+      // Authenticated caller should receive full invitation details including inviteeIdentifier
+      const invitation = await asAlice.query(api.testHelpers.strictGetInvitation, {
         invitationId,
       });
 

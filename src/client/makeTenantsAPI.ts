@@ -71,7 +71,7 @@ export function makeTenantsAPI(
     getUser?: (
       ctx: { db: any },
       userId: string
-    ) => Promise<{ name?: string; email?: string } | null>;
+    ) => Promise<{ name?: string; email?: string; phoneNumber?: string; username?: string } | null>;
 
     onBeforeCreateOrganization?: (
       ctx: any,
@@ -293,7 +293,7 @@ export function makeTenantsAPI(
     organizationId: string
   ): Promise<void> {
     const org = await tenants.getOrganization(ctx, organizationId);
-    if (!org) return;
+    if (!org) throw new Error("Organization not found");
     const status = (org as { status?: "active" | "suspended" | "archived" }).status ?? "active";
     if (status === "suspended") {
       throw new Error("Organization is suspended");
@@ -399,9 +399,12 @@ export function makeTenantsAPI(
     ...(options.generateUploadUrl
       ? {
           generateLogoUploadUrl: mutationGeneric({
-            args: {},
-            handler: async (ctx) => {
-              await requireAuth(ctx);
+            args: { organizationId: v.optional(v.string()) },
+            handler: async (ctx, args) => {
+              const userId = await requireAuth(ctx);
+              if (args.organizationId) {
+                await requireActiveMembership(ctx, userId, args.organizationId);
+              }
               return await options.generateUploadUrl!(ctx);
             },
           }),
@@ -608,10 +611,19 @@ export function makeTenantsAPI(
       handler: async (ctx, args) => {
         const callerId = await requireAuth(ctx);
         await requireMembership(ctx, callerId, args.organizationId);
+        // Callers may only check their own membership status unless they hold
+        // the members:list permission, which grants the ability to inspect others.
+        if (args.userId !== callerId) {
+          const canList = await tenants.can(ctx, callerId, "members:list", args.organizationId);
+          if (!canList) {
+            throw new ConvexError({ code: "FORBIDDEN", message: "members:list permission required to inspect other members" });
+          }
+        }
+        const targetUserId = args.userId;
         return await tenants.checkMemberPermission(
           ctx,
           args.organizationId,
-          args.userId,
+          targetUserId,
           args.minRole
         );
       },
@@ -1050,6 +1062,7 @@ export function makeTenantsAPI(
     listInvitations: queryGeneric({
       args: {
         organizationId: v.string(),
+        status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled"), v.literal("expired"))),
         sortBy: v.optional(v.union(v.literal("inviteeIdentifier"), v.literal("expiresAt"), v.literal("createdAt"))),
         sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         paginationOpts: v.optional(paginationOptsValidator),
@@ -1063,6 +1076,7 @@ export function makeTenantsAPI(
           return args.paginationOpts ? { page: [], isDone: true, continueCursor: "" } : [];
         }
         return await tenants.listInvitations(ctx, args.organizationId, {
+          status: args.status,
           sortBy: args.sortBy,
           sortOrder: args.sortOrder,
           paginationOpts: args.paginationOpts,
@@ -1103,17 +1117,25 @@ export function makeTenantsAPI(
         }
 
         if (userId) {
+          // Authenticated callers (org members and invitees) receive full invitation details.
+          // The invitation ID is a hard-to-guess UUID, so possession of the token is a
+          // reasonable trust signal — the invitee needs inviteeIdentifier to confirm the
+          // invitation is addressed to them before accepting.
           return invitation;
         }
 
-        // For unauthenticated access, return limited invitation details
-        const { inviterId, ...safeInvitation } = invitation;
+        // For unauthenticated access, strip PII fields: inviterId, inviterName, inviteeIdentifier
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { inviterId, inviterName, inviteeIdentifier, ...safeInvitation } = invitation;
         return safeInvitation;
       },
     }),
 
     getPendingInvitations: queryGeneric({
-      args: { identifier: v.string() },
+      args: {
+        identifier: v.string(),
+        identifierType: v.optional(v.string()),
+      },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
         if (!options.getUser) {
@@ -1123,18 +1145,36 @@ export function makeTenantsAPI(
         }
 
         const user = await options.getUser(ctx, userId);
-        const userIdentifier = user?.email; // Can be email, phone, username, etc.
+
+        // Derive the user's identifier field based on the declared identifierType.
+        // Fall back to email for backwards compatibility when identifierType is absent.
+        const identifierType = args.identifierType ?? "email";
+        let userIdentifier: string | undefined;
+        if (identifierType === "phone") {
+          userIdentifier = user?.phoneNumber;
+        } else if (identifierType === "username") {
+          userIdentifier = user?.username ?? user?.name;
+        } else {
+          // "email" or any unknown type — default to email
+          userIdentifier = user?.email;
+        }
+
         if (!userIdentifier) {
           throw new Error(
             "Authenticated user identifier is required for getPendingInvitations"
           );
         }
 
-        if (normalizeEmail(args.identifier) !== normalizeEmail(userIdentifier)) {
+        // Use type-appropriate normalization: email uses normalizeEmail, others use trim+lowercase
+        const normalizeIdentifier = identifierType === "email"
+          ? normalizeEmail
+          : (s: string) => s.trim().toLowerCase();
+
+        if (normalizeIdentifier(args.identifier) !== normalizeIdentifier(userIdentifier)) {
           throw new Error("Cannot query invitations for another identifier");
         }
 
-        return await tenants.getPendingInvitations(ctx, normalizeEmail(userIdentifier));
+        return await tenants.getPendingInvitations(ctx, normalizeIdentifier(userIdentifier));
       },
     }),
 
@@ -1292,7 +1332,16 @@ export function makeTenantsAPI(
         }
 
         const user = await options.getUser(ctx, userId);
-        const acceptingUserIdentifier = user?.email; // Can be email, phone, username, etc.
+        // Derive the accepting user's identifier using the same type as the invitation
+        const invIdentifierType = inv.identifierType ?? "email";
+        let acceptingUserIdentifier: string | undefined;
+        if (invIdentifierType === "phone") {
+          acceptingUserIdentifier = user?.phoneNumber;
+        } else if (invIdentifierType === "username") {
+          acceptingUserIdentifier = user?.username ?? user?.name;
+        } else {
+          acceptingUserIdentifier = user?.email;
+        }
         if (!acceptingUserIdentifier) {
           throw new Error(
             "Authenticated user identifier is required for invitation acceptance"
@@ -1518,6 +1567,8 @@ export function makeTenantsAPI(
       },
       handler: async (ctx, args) => {
         const userId = await requireAuth(ctx);
+        await requireMembership(ctx, userId, args.organizationId);
+        await requireActiveOrganization(ctx, args.organizationId);
         return await tenants.getAuditLog(
           ctx,
           userId,

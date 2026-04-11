@@ -10,7 +10,7 @@ export interface Organization {
   name: string;
   slug: string;
   logo: string | null;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   ownerId: string;
   role: string;
 }
@@ -29,7 +29,7 @@ export interface UseOrganizationOptions {
   createOrganizationMutation: FunctionReference<
     "mutation",
     "public",
-    { name: string; slug: string; logo?: string; metadata?: any },
+    { name: string; slug: string; logo?: string; metadata?: Record<string, unknown> },
     string
   >;
 }
@@ -57,10 +57,7 @@ export function useOrganization(options: UseOrganizationOptions) {
   // Sync local storage when organizations load
   useEffect(() => {
     if (organizations.length > 0 && !activeOrganizationId) {
-      // Only one org, set it as active
-      if (organizations.length === 1) {
-        setActiveOrganizationId(organizations[0]._id);
-      }
+      setActiveOrganizationId(organizations[0]._id);
     }
   }, [organizations, activeOrganizationId, setActiveOrganizationId]);
 
@@ -74,7 +71,7 @@ export function useOrganization(options: UseOrganizationOptions) {
 
   // Create a new organization
   const createOrganization = useCallback(
-    async (data: { name: string; slug: string; logo?: string; metadata?: any }) => {
+    async (data: { name: string; slug: string; logo?: string; metadata?: Record<string, unknown> }) => {
       try {
         const organizationId = await createOrgMutation(data);
         // Immediately set the new organization as active

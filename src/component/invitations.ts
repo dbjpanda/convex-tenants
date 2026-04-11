@@ -33,6 +33,7 @@ const invitationShape = v.object({
 export const listInvitations = query({
   args: {
     organizationId: v.string(),
+    status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled"), v.literal("expired"))),
     sortBy: v.optional(v.union(v.literal("inviteeIdentifier"), v.literal("expiresAt"), v.literal("createdAt"))),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     paginationOpts: v.optional(paginationOptsValidator),
@@ -46,14 +47,23 @@ export const listInvitations = query({
     })
   ),
   handler: async (ctx, args) => {
+    const orgId = args.organizationId as Id<"organizations">;
     if (args.paginationOpts) {
-      const result = await ctx.db
-        .query("invitations")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", args.organizationId as Id<"organizations">)
-        )
-        .order("desc")
-        .paginate(args.paginationOpts);
+      const result = args.status !== undefined
+        ? await ctx.db
+            .query("invitations")
+            .withIndex("by_organization_and_status", (q) =>
+              q.eq("organizationId", orgId).eq("status", args.status!)
+            )
+            .order("desc")
+            .paginate(args.paginationOpts)
+        : await ctx.db
+            .query("invitations")
+            .withIndex("by_organization", (q) =>
+              q.eq("organizationId", orgId)
+            )
+            .order("desc")
+            .paginate(args.paginationOpts);
       return {
         ...result,
         page: result.page.map((inv) => {
@@ -76,12 +86,19 @@ export const listInvitations = query({
         }),
       };
     }
-    const invitations = await ctx.db
-      .query("invitations")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId as Id<"organizations">)
-      )
-      .collect();
+    const invitations = args.status !== undefined
+      ? await ctx.db
+          .query("invitations")
+          .withIndex("by_organization_and_status", (q) =>
+            q.eq("organizationId", orgId).eq("status", args.status!)
+          )
+          .collect()
+      : await ctx.db
+          .query("invitations")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", orgId)
+          )
+          .collect();
 
     const sortBy = args.sortBy ?? "createdAt";
     const order = args.sortOrder ?? "desc";
@@ -400,6 +417,16 @@ export const resendInvitation = mutation({
     const invitationId = args.invitationId as Id<"invitations">;
     const invitation = await ctx.db.get(invitationId);
     if (!invitation) throw new ConvexError({ code: "NOT_FOUND", message: "Invitation not found" });
+    // Verify the caller is an active member of the invitation's organization
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", invitation.organizationId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember || callerMember.status === "suspended") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not an active member of this organization" });
+    }
     if (invitation.status !== "pending") {
       throw new ConvexError({
         code: "INVALID_STATE",
@@ -426,6 +453,16 @@ export const cancelInvitation = mutation({
     const invitationId = args.invitationId as Id<"invitations">;
     const invitation = await ctx.db.get(invitationId);
     if (!invitation) throw new ConvexError({ code: "NOT_FOUND", message: "Invitation not found" });
+    // Verify the caller is an active member of the invitation's organization
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", invitation.organizationId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember || callerMember.status === "suspended") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not an active member of this organization" });
+    }
     if (invitation.status !== "pending") {
       throw new ConvexError({
         code: "INVALID_STATE",
@@ -458,6 +495,9 @@ export const bulkInviteMembers = mutation({
     errors: v.array(v.object({ inviteeIdentifier: v.string(), code: v.string(), message: v.string() })),
   }),
   handler: async (ctx, args) => {
+    if (args.invitations.length > 100) {
+      throw new ConvexError({ code: "INVALID_ARGUMENT", message: "Cannot invite more than 100 members at once" });
+    }
     const orgId = args.organizationId as Id<"organizations">;
     const defaultExpiresAt = args.expiresAt ?? Date.now() + 48 * 60 * 60 * 1000;
     const success: { invitationId: string; inviteeIdentifier: string; expiresAt: number }[] = [];

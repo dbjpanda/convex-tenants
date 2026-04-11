@@ -178,6 +178,9 @@ export const createOrganization = mutation({
   },
   returns: v.string(),
   handler: async (ctx, args) => {
+    if (args.metadata !== undefined && JSON.stringify(args.metadata).length > 10000) {
+      throw new ConvexError({ code: "INVALID_ARGUMENT", message: "Metadata exceeds maximum size of 10KB" });
+    }
     const uniqueSlug = await ensureUniqueSlug(ctx, args.slug);
     const organizationId = await ctx.db.insert("organizations", {
       name: args.name,
@@ -218,15 +221,19 @@ export const updateOrganization = mutation({
       throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
     }
 
-    // Verify the caller is a member of this organization
+    if (args.metadata !== undefined && JSON.stringify(args.metadata).length > 10000) {
+      throw new ConvexError({ code: "INVALID_ARGUMENT", message: "Metadata exceeds maximum size of 10KB" });
+    }
+
+    // Verify the caller is an admin or owner of this organization
     const member = await ctx.db
       .query("members")
       .withIndex("by_organization_and_user", (q) =>
         q.eq("organizationId", orgId).eq("userId", args.userId)
       )
       .unique();
-    if (!member) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
+    if (!member || !["admin", "owner"].includes(member.role)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can update the organization" });
     }
 
     const updates: Record<string, unknown> = {};

@@ -323,6 +323,24 @@ export const updateMemberRole = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;
+    // Reject self-escalation
+    if (args.memberUserId === args.userId) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Cannot change your own role" });
+    }
+    // Only admins or owners may update roles
+    const callerMember = await ctx.db
+      .query("members")
+      .withIndex("by_organization_and_user", (q) =>
+        q.eq("organizationId", orgId).eq("userId", args.userId)
+      )
+      .unique();
+    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can update member roles" });
+    }
+    // Only transferOwnership may grant the owner role
+    if (args.role === "owner") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Use transferOwnership to grant the owner role" });
+    }
     const member = await ctx.db
       .query("members")
       .withIndex("by_organization_and_user", (q) =>
@@ -397,6 +415,9 @@ export const bulkAddMembers = mutation({
     errors: v.array(v.object({ userId: v.string(), code: v.string(), message: v.string() })),
   }),
   handler: async (ctx, args) => {
+    if (args.members.length > 100) {
+      throw new ConvexError({ code: "INVALID_ARGUMENT", message: "Cannot add more than 100 members at once" });
+    }
     const orgId = args.organizationId as Id<"organizations">;
     const success: string[] = [];
     const errors: { userId: string; code: string; message: string }[] = [];
@@ -446,6 +467,9 @@ export const bulkRemoveMembers = mutation({
     errors: v.array(v.object({ userId: v.string(), code: v.string(), message: v.string() })),
   }),
   handler: async (ctx, args) => {
+    if (args.memberUserIds.length > 100) {
+      throw new ConvexError({ code: "INVALID_ARGUMENT", message: "Cannot remove more than 100 members at once" });
+    }
     const orgId = args.organizationId as Id<"organizations">;
     const org = await ctx.db.get(orgId);
     const success: string[] = [];

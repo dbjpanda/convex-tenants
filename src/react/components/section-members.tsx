@@ -127,7 +127,7 @@ export function MembersSection({
     role: m.role,
     user: m.user || {
       name: m.userId,
-      email: `${m.userId}@example.com`,
+      email: undefined,
     },
     teams: m.teams || [],
   })), [members]);
@@ -165,7 +165,7 @@ export function MembersSection({
     );
   }
 
-  const shouldShowInviteButton = showInviteButton ?? !!currentRole;
+  const shouldShowInviteButton = showInviteButton ?? (currentRole === "owner" || currentRole === "admin");
 
   const UsersIcon = usersIcon ?? (
     <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
@@ -227,8 +227,8 @@ export function MembersSection({
           invitations={transformedInvitations}
           teams={transformedTeams}
           isLoading={isDataLoading}
-          isOwner={!!currentRole}
-          isOwnerOrAdmin={!!currentRole}
+          isOwner={currentRole === "owner"}
+          isOwnerOrAdmin={currentRole === "owner" || currentRole === "admin"}
           invitationPath={invitationPath}
           onRemoveMember={removeMember}
           onUpdateMemberRole={updateMemberRole}

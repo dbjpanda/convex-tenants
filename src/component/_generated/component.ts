@@ -157,6 +157,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           };
           sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt";
           sortOrder?: "asc" | "desc";
+          status?: "pending" | "accepted" | "cancelled" | "expired";
         },
         | Array<{
             _creationTime: number;

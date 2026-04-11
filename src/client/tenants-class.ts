@@ -837,6 +837,7 @@ export class Tenants {
     ctx: QueryCtx,
     organizationId: string,
     options?: {
+      status?: "pending" | "accepted" | "cancelled" | "expired";
       sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt";
       sortOrder?: "asc" | "desc";
       paginationOpts?: { numItems: number; cursor: string | null };
@@ -844,6 +845,7 @@ export class Tenants {
   ): Promise<Invitation[] | { page: Invitation[]; isDone: boolean; continueCursor: string }> {
     return await ctx.runQuery(this.component.invitations.listInvitations, {
       organizationId,
+      status: options?.status,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
       paginationOpts: options?.paginationOpts,

@@ -25,8 +25,7 @@ export default defineSchema({
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))), // default active
   })
     .index("by_slug", ["slug"])
-    .index("by_owner", ["ownerId"])
-    .index("by_status", ["status"]),
+    .index("by_owner", ["ownerId"]),
 
   // Organization members table
   members: defineTable({
@@ -85,8 +84,6 @@ export default defineSchema({
     expiresAt: v.number(),
   })
     .index("by_organization", ["organizationId"])
-    .index("by_invitee_identifier", ["inviteeIdentifier"])
-    .index("by_status", ["status"])
     .index("by_invitee_identifier_and_status", ["inviteeIdentifier", "status"])
     .index("by_org_invitee_and_status", ["organizationId", "inviteeIdentifier", "status"])
     .index("by_organization_and_status", ["organizationId", "status"])

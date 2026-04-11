@@ -374,12 +374,11 @@ describe("Scenario: Role Hierarchy (Owner > Admin > Member)", () => {
       role: "admin",
     });
 
-    // Owner can promote to owner
-    await t.mutation(api.members.updateMemberRole, {
+    // Owner can transfer ownership (which grants the owner role)
+    await t.mutation(api.organizations.transferOwnership, {
       userId: "alice",
       organizationId: orgId,
-      memberUserId: "bob",
-      role: "owner",
+      newOwnerUserId: "bob",
     });
 
     const bob = await t.query(api.members.getMember, {

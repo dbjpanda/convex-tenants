@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { FunctionReference } from "convex/server";
 
 // ============================================================================
 // Types
@@ -12,7 +13,7 @@ export interface Organization {
   name: string;
   slug: string;
   logo: string | null;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   ownerId: string;
   status?: "active" | "suspended" | "archived";
   role: string;
@@ -53,7 +54,7 @@ export interface Team {
   slug?: string;
   description?: string | null;
   organizationId: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -87,13 +88,13 @@ export interface TenantsContextValue {
     name: string;
     slug: string;
     logo?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }) => Promise<string | null>;
   updateOrganization: (data: {
     name?: string;
     slug?: string;
     logo?: string | null;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
     status?: "active" | "suspended" | "archived";
   }) => Promise<void>;
   deleteOrganization: () => Promise<void>;
@@ -122,7 +123,7 @@ export interface TenantsContextValue {
     name: string;
     description?: string;
     slug?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
     parentTeamId?: string;
   }) => Promise<string | null>;
   deleteTeam: (teamId: string) => Promise<void>;
@@ -136,7 +137,7 @@ export interface TenantsContextValue {
    * The api object passed to TenantsProvider. Used by extended components
    * (MemberModerationSection, BulkInviteSection, etc.) to call optional APIs.
    */
-  api: unknown;
+  api: Record<string, FunctionReference<"query" | "mutation", "public"> | undefined>;
 }
 
 // ============================================================================

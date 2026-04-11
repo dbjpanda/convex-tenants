@@ -29,8 +29,10 @@ export function configureOrganizationStore(options: { storageKey?: string }): vo
   if (options.storageKey !== undefined) {
     storageKey = options.storageKey;
   }
-  // Re-initialize with the new key on next access
+  // Re-initialize state from the new key on next access
   initialized = false;
+  // Re-attach the cross-tab listener so it responds to the new key
+  attachStorageListener();
 }
 
 function getStorageKey(): string {
@@ -71,9 +73,30 @@ function initFromStorage() {
 // This allows configureOrganizationStore() to set a custom key before any read occurs.
 let initialized = false;
 
+// Cross-tab sync: listen for storage events from other tabs so state stays consistent.
+// Storing the handler reference allows us to remove and re-register it if the storage key changes.
+let storageListenerHandler: ((event: StorageEvent) => void) | null = null;
+
+function attachStorageListener() {
+  if (typeof window === "undefined") return;
+  // Remove any previously registered listener before attaching a new one (handles key rotation
+  // after configureOrganizationStore is called mid-session).
+  if (storageListenerHandler) {
+    window.removeEventListener("storage", storageListenerHandler);
+  }
+  storageListenerHandler = (event) => {
+    if (event.key === getStorageKey()) {
+      initFromStorage();
+      emitChange();
+    }
+  };
+  window.addEventListener("storage", storageListenerHandler);
+}
+
 function ensureInitialized() {
   if (!initialized) {
     initFromStorage();
+    attachStorageListener();
     initialized = true;
   }
 }

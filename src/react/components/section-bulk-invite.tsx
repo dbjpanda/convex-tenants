@@ -56,8 +56,9 @@ export function BulkInviteSection() {
       </p>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
-          <label className="mb-1 block text-sm font-medium">Emails</label>
+          <label htmlFor="bulk-invite-emails" className="mb-1 block text-sm font-medium">Emails</label>
           <textarea
+            id="bulk-invite-emails"
             value={emailsText}
             onChange={(e) => setEmailsText(e.target.value)}
             placeholder="alice@example.com, bob@example.com"
@@ -66,8 +67,9 @@ export function BulkInviteSection() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Role</label>
+          <label htmlFor="bulk-invite-role" className="mb-1 block text-sm font-medium">Role</label>
           <select
+            id="bulk-invite-role"
             value={role}
             onChange={(e) => setRole(e.target.value)}
             className="flex h-9 w-32 rounded-md border border-input bg-background px-3 text-sm"

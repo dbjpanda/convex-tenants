@@ -460,12 +460,11 @@ describe("Journey 4: Rapid state transitions — consistency under churn", () =>
     });
 
     // -----------------------------------------------------------------------
-    // Step 4: Immediately update bob to owner (via updateMemberRole)
+    // Step 4: Transfer ownership to bob (only transferOwnership may grant owner role)
     // -----------------------------------------------------------------------
-    await asAlice.mutation(api.testHelpers.strictUpdateMemberRole, {
+    await asAlice.mutation(api.testHelpers.strictTransferOwnership, {
       organizationId: orgId,
-      memberUserId: "bob",
-      role: "owner",
+      newOwnerUserId: "bob",
     });
 
     // -----------------------------------------------------------------------

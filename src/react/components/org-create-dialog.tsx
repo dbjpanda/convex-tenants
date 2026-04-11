@@ -50,7 +50,7 @@ export interface CreateOrganizationDialogProps {
     name: string;
     slug: string;
     logo?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }) => Promise<string | null>;
 
   /**

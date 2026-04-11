@@ -141,20 +141,21 @@ export function OrgSettingsPanel() {
         </h3>
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm" />
+            <label htmlFor="org-settings-name" className="mb-1 block text-sm font-medium">Name</label>
+            <input id="org-settings-name" value={name} onChange={(e) => setName(e.target.value)} className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Slug</label>
+            <label htmlFor="org-settings-slug" className="mb-1 block text-sm font-medium">Slug</label>
             <input
+              id="org-settings-slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-"))}
               className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as "active" | "suspended" | "archived")} className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm">
+            <label htmlFor="org-settings-status" className="mb-1 block text-sm font-medium">Status</label>
+            <select id="org-settings-status" value={status} onChange={(e) => setStatus(e.target.value as "active" | "suspended" | "archived")} className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm">
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
               <option value="archived">Archived</option>

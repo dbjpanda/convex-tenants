@@ -160,6 +160,15 @@ export function TeamsGrid({
             onTeamClick && "cursor-pointer transition-shadow hover:shadow-md"
           )}
           onClick={() => onTeamClick?.(team)}
+          role={onTeamClick ? "button" : undefined}
+          tabIndex={onTeamClick ? 0 : undefined}
+          onKeyDown={onTeamClick ? (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              // preventDefault on Space is intentional: suppresses page scroll per ARIA role="button" spec
+              e.preventDefault();
+              onTeamClick(team);
+            }
+          } : undefined}
         >
           <CardHeader className="pb-2">
             <div className="flex items-start justify-between">

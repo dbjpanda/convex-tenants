@@ -75,16 +75,23 @@ export const listTeams = query({
         }),
       };
     }
-    let teams = await ctx.db
-      .query("teams")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId as Id<"organizations">)
-      )
-      .collect();
-
+    const orgId = args.organizationId as Id<"organizations">;
+    let teams;
     if (args.parentTeamId !== undefined) {
       const pid = args.parentTeamId === null ? undefined : (args.parentTeamId as Id<"teams">);
-      teams = teams.filter((t) => (t as { parentTeamId?: Id<"teams"> }).parentTeamId === pid);
+      teams = await ctx.db
+        .query("teams")
+        .withIndex("by_organization_and_parent", (q) =>
+          q.eq("organizationId", orgId).eq("parentTeamId", pid)
+        )
+        .collect();
+    } else {
+      teams = await ctx.db
+        .query("teams")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", orgId)
+        )
+        .collect();
     }
 
     const sortBy = args.sortBy ?? "name";
