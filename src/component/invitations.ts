@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { query, mutation, internalMutation } from "./_generated/server";
 import { isInvitationExpired } from "./helpers";
 import type { Id } from "./_generated/dataModel";
@@ -40,11 +40,7 @@ export const listInvitations = query({
   },
   returns: v.union(
     v.array(invitationShape),
-    v.object({
-      page: v.array(invitationShape),
-      isDone: v.boolean(),
-      continueCursor: v.string(),
-    })
+    paginationResultValidator(invitationShape)
   ),
   handler: async (ctx, args) => {
     const orgId = args.organizationId as Id<"organizations">;

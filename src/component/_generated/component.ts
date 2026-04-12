@@ -32,6 +32,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           acceptingUserIdentifier?: string;
           invitationId: string;
           skipIdentifierCheck?: boolean;
+          trustedSkipToken?: string;
         },
         null,
         Name
@@ -192,6 +193,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               status: "pending" | "accepted" | "cancelled" | "expired";
               teamId: null | string;
             }>;
+            pageStatus?: "SplitRecommended" | "SplitRequired" | null;
+            splitCursor?: string | null;
           },
         Name
       >;
@@ -325,6 +328,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               suspendedAt?: number;
               userId: string;
             }>;
+            pageStatus?: "SplitRecommended" | "SplitRequired" | null;
+            splitCursor?: string | null;
           },
         Name
       >;
@@ -434,6 +439,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           sortBy?: "name" | "createdAt" | "slug";
           sortOrder?: "asc" | "desc";
+          status?: "active" | "suspended" | "all";
           userId: string;
         },
         Array<{
@@ -578,6 +584,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               teamId: string;
               userId: string;
             }>;
+            pageStatus?: "SplitRecommended" | "SplitRequired" | null;
+            splitCursor?: string | null;
           },
         Name
       >;
@@ -621,6 +629,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               parentTeamId?: string;
               slug?: string;
             }>;
+            pageStatus?: "SplitRecommended" | "SplitRequired" | null;
+            splitCursor?: string | null;
           },
         Name
       >;

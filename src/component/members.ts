@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { query, mutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
@@ -29,11 +29,7 @@ export const listOrganizationMembers = query({
   },
   returns: v.union(
     v.array(memberShape),
-    v.object({
-      page: v.array(memberShape),
-      isDone: v.boolean(),
-      continueCursor: v.string(),
-    })
+    paginationResultValidator(memberShape)
   ),
   handler: async (ctx, args) => {
     if (args.paginationOpts) {

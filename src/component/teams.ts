@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { query, mutation } from "./_generated/server";
 import { ensureUniqueTeamSlug, getTeamAncestorIds } from "./helpers";
 import type { Id } from "./_generated/dataModel";
@@ -30,11 +30,7 @@ export const listTeams = query({
   },
   returns: v.union(
     v.array(teamShape),
-    v.object({
-      page: v.array(teamShape),
-      isDone: v.boolean(),
-      continueCursor: v.string(),
-    })
+    paginationResultValidator(teamShape)
   ),
   handler: async (ctx, args) => {
     if (args.paginationOpts) {
@@ -247,11 +243,7 @@ export const listTeamMembers = query({
   },
   returns: v.union(
     v.array(teamMemberShape),
-    v.object({
-      page: v.array(teamMemberShape),
-      isDone: v.boolean(),
-      continueCursor: v.string(),
-    })
+    paginationResultValidator(teamMemberShape)
   ),
   handler: async (ctx, args) => {
     if (args.paginationOpts) {

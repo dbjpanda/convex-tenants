@@ -22,7 +22,6 @@
     "outDir": "./dist",
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/react/*"]
     }
