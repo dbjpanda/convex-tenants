@@ -266,3 +266,35 @@ Cycle detection in `updateTeam` walks the ancestor chain via `getTeamAncestorIds
 ### Recommendation
 
 Keep team hierarchies shallow (3-5 levels). There is no built-in enforcement of a maximum depth.
+
+---
+
+## 8. `listUserTeamMemberships` Cross-Table N+1
+
+**Severity:** Medium
+**Affects:** `listUserTeamMemberships`, `bulkRemoveMembers` (which calls it per user)
+
+### The Problem
+
+`listUserTeamMemberships` in `src/component/teams.ts` queries `teamMembers` by the `by_user` index, then for each result calls `ctx.db.get(tm.teamId)` to check whether the team belongs to the requested organization. This is N+1 where N is the number of teams the user belongs to across all orgs.
+
+For `bulkRemoveMembers`, this runs per user being removed, compounding the cost.
+
+### Fix
+
+Denormalize `organizationId` onto the `teamMembers` table and add a `by_user_and_organization` compound index. A single indexed query replaces the loop. This requires a schema migration (widen → backfill → narrow) via `@convex-dev/migrations`.
+
+### Current Recommendation
+
+Acceptable for users in fewer than ~50 teams. For platform users with many cross-org teams, consider implementing the denormalization as a consumer-level migration.
+
+---
+
+## 9. Phone/Username `identifierType` — Limited Test Coverage
+
+**Severity:** Low
+**Affects:** `getPendingInvitations`, `acceptInvitation` with `identifierType: "phone"` or `"username"`
+
+The `identifierType` feature (v0.2.0) is implemented in the wrapper layer (`makeTenantsAPI.ts`) and derives the user's identifier from `getUser` callback fields (`phoneNumber`, `username`). However, the test suite's `getUser` helper in `example/convex/testHelpers.ts` only returns an `email` field — there is no test helper that returns `phoneNumber` or `username`.
+
+The code paths for phone/username normalization and matching are exercised only via static code review, not runtime tests. Adding coverage requires a new `makeTenantsAPI` instance in the test helpers with a `getUser` that returns phone/username fields.
