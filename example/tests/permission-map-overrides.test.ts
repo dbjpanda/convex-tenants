@@ -27,8 +27,6 @@ describe("permissionMap overrides", () => {
 
     // Owner CAN still delete (authz check skipped, but owner check passes)
     await asAlice.mutation(api.testHelpers.permMapDeleteOrg, { organizationId: orgId });
-    // Deletion cascade runs in a scheduled internalAction — drain it.
-    await t.finishInProgressScheduledFunctions();
     const org = await asAlice.query(api.testHelpers.strictGetOrganizationBySlug, {
       slug: "permmap-false-org",
     });

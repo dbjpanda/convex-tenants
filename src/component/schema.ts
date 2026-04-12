@@ -23,18 +23,6 @@ export default defineSchema({
     ),
     ownerId: v.string(), // References parent app's users table
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("archived"))), // default active
-    /**
-     * Set when a delete has been requested. A scheduled internalAction drains the
-     * org's child tables in batches and then removes the org doc itself. Presence
-     * of this field indicates the org is being torn down asynchronously.
-     */
-    deletionScheduledAt: v.optional(v.number()),
-    /**
-     * Counts re-scheduling attempts of the delete action when `_finalizeOrganizationDelete`
-     * finds that a racing insert landed after the drain loop. Bounded retry prevents
-     * infinite re-scheduling if a consumer keeps inserting into a deleting org.
-     */
-    deleteRetryCount: v.optional(v.number()),
   })
     .index("by_slug", ["slug"])
     .index("by_owner", ["ownerId"]),

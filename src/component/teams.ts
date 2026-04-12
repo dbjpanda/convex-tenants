@@ -432,8 +432,8 @@ export const updateTeam = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can update teams" });
+    if (!callerMember || callerMember.status === "suspended") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not an active member of this organization" });
     }
     const updates: Record<string, unknown> = {};
     if (args.name !== undefined) updates.name = args.name;
@@ -487,8 +487,8 @@ export const deleteTeam = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can delete teams" });
+    if (!callerMember || callerMember.status === "suspended") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not an active member of this organization" });
     }
     const teamWithParent = team as { parentTeamId?: Id<"teams"> };
     const childTeams = await ctx.db
@@ -538,8 +538,8 @@ export const addTeamMember = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can add team members" });
+    if (!callerMember || callerMember.status === "suspended") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not an active member of this organization" });
     }
     const orgMember = await ctx.db
       .query("members")
@@ -589,8 +589,8 @@ export const updateTeamMemberRole = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can update team member roles" });
+    if (!callerMember || callerMember.status === "suspended") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not an active member of this organization" });
     }
     const tm = await ctx.db
       .query("teamMembers")
@@ -617,8 +617,8 @@ export const removeTeamMember = mutation({
         q.eq("organizationId", team.organizationId).eq("userId", args.userId)
       )
       .unique();
-    if (!callerMember || callerMember.status === "suspended" || !["admin", "owner"].includes(callerMember.role)) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Only admins or owners can remove team members" });
+    if (!callerMember || callerMember.status === "suspended") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Not an active member of this organization" });
     }
     const teamMember = await ctx.db
       .query("teamMembers")

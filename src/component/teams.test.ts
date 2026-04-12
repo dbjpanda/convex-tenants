@@ -530,9 +530,11 @@ describe("teams", () => {
   });
 
   // ==========================================================================
-  // SEC-HIGH-1: team mutations are admin/owner-only
+  // Component-level team mutation access: active membership required
+  // (Role-based authz is enforced at the makeTenantsAPI wrapper layer, not here.
+  //  The component layer verifies the caller is an active org member.)
   // ==========================================================================
-  describe("team mutations are admin/owner-only", () => {
+  describe("team mutations require active org membership", () => {
     async function setupOrgWithMemberAndTeam() {
       const t = createTestInstance();
       const orgId = await t.mutation(api.organizations.createOrganization, {
@@ -540,21 +542,12 @@ describe("teams", () => {
         name: "Team Authz Org",
         slug: "team-authz-org",
       });
-      // "member_user" joins with role: "member"
       await t.mutation(api.members.addMember, {
         userId: "owner",
         organizationId: orgId,
         memberUserId: "member_user",
         role: "member",
       });
-      // "admin_user" joins with role: "admin"
-      await t.mutation(api.members.addMember, {
-        userId: "owner",
-        organizationId: orgId,
-        memberUserId: "admin_user",
-        role: "admin",
-      });
-      // An existing team-member "tm_user" to target in updateRole/remove tests
       await t.mutation(api.members.addMember, {
         userId: "owner",
         organizationId: orgId,
@@ -574,87 +567,52 @@ describe("teams", () => {
       return { t, orgId, teamId };
     }
 
-    it("updateTeam rejects caller with role member (FORBIDDEN)", async () => {
+    it("updateTeam rejects non-member (FORBIDDEN)", async () => {
       const { t, teamId } = await setupOrgWithMemberAndTeam();
       await expect(
         t.mutation(api.teams.updateTeam, {
-          userId: "member_user",
+          userId: "outsider",
           teamId,
           name: "Renamed",
         })
-      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
+      ).rejects.toThrow(/FORBIDDEN|Not an active member/);
     });
 
-    it("deleteTeam rejects caller with role member (FORBIDDEN)", async () => {
-      const { t, teamId } = await setupOrgWithMemberAndTeam();
-      await expect(
-        t.mutation(api.teams.deleteTeam, {
-          userId: "member_user",
-          teamId,
-        })
-      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
-    });
-
-    it("addTeamMember rejects caller with role member (FORBIDDEN)", async () => {
-      const { t, teamId } = await setupOrgWithMemberAndTeam();
-      await expect(
-        t.mutation(api.teams.addTeamMember, {
-          userId: "member_user",
-          teamId,
-          memberUserId: "admin_user",
-        })
-      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
-    });
-
-    it("updateTeamMemberRole rejects caller with role member (FORBIDDEN)", async () => {
-      const { t, teamId } = await setupOrgWithMemberAndTeam();
-      await expect(
-        t.mutation(api.teams.updateTeamMemberRole, {
-          userId: "member_user",
-          teamId,
-          memberUserId: "tm_user",
-          role: "lead",
-        })
-      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
-    });
-
-    it("removeTeamMember rejects caller with role member (FORBIDDEN)", async () => {
-      const { t, teamId } = await setupOrgWithMemberAndTeam();
-      await expect(
-        t.mutation(api.teams.removeTeamMember, {
-          userId: "member_user",
-          teamId,
-          memberUserId: "tm_user",
-        })
-      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
-    });
-
-    it("updateTeam accepts caller with role admin", async () => {
-      const { t, teamId } = await setupOrgWithMemberAndTeam();
-      await t.mutation(api.teams.updateTeam, {
-        userId: "admin_user",
-        teamId,
-        name: "Renamed By Admin",
-      });
-      const team = await t.query(api.teams.getTeam, { teamId });
-      expect(team?.name).toBe("Renamed By Admin");
-    });
-
-    it("updateTeam rejects suspended admin (FORBIDDEN)", async () => {
+    it("updateTeam rejects suspended member (FORBIDDEN)", async () => {
       const { t, orgId, teamId } = await setupOrgWithMemberAndTeam();
-      // Suspend the admin
       await t.mutation(api.members.suspendMember, {
         userId: "owner",
         organizationId: orgId,
-        memberUserId: "admin_user",
+        memberUserId: "member_user",
       });
       await expect(
         t.mutation(api.teams.updateTeam, {
-          userId: "admin_user",
+          userId: "member_user",
           teamId,
-          name: "Renamed By Suspended Admin",
+          name: "Renamed By Suspended",
         })
-      ).rejects.toThrow(/FORBIDDEN|Only admins or owners/);
+      ).rejects.toThrow(/FORBIDDEN|Not an active member/);
+    });
+
+    it("updateTeam accepts active member with any role", async () => {
+      const { t, teamId } = await setupOrgWithMemberAndTeam();
+      await t.mutation(api.teams.updateTeam, {
+        userId: "member_user",
+        teamId,
+        name: "Renamed By Member",
+      });
+      const team = await t.query(api.teams.getTeam, { teamId });
+      expect(team?.name).toBe("Renamed By Member");
+    });
+
+    it("deleteTeam rejects non-member (FORBIDDEN)", async () => {
+      const { t, teamId } = await setupOrgWithMemberAndTeam();
+      await expect(
+        t.mutation(api.teams.deleteTeam, {
+          userId: "outsider",
+          teamId,
+        })
+      ).rejects.toThrow(/FORBIDDEN|Not an active member/);
     });
   });
 });

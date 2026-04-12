@@ -337,8 +337,6 @@ describe("organizations", () => {
       userId: "user_123",
       organizationId: orgId,
     });
-    // Deletion cascade runs in a scheduled internalAction — drain it.
-    await t.finishInProgressScheduledFunctions();
 
     const org = await t.query(api.organizations.getOrganization, {
       organizationId: orgId,
@@ -411,32 +409,10 @@ describe("organizations", () => {
   });
 
   // ==========================================================================
-  // Async deleteOrganization behavior
+  // deleteOrganization cascade
   // ==========================================================================
-  describe("deleteOrganization async cascade", () => {
-    it("sets status=archived and deletionScheduledAt synchronously before drain", async () => {
-      const t = createTestInstance();
-      const orgId = await t.mutation(api.organizations.createOrganization, {
-        userId: "owner",
-        name: "Async Delete Org",
-        slug: "async-delete-org",
-      });
-      await t.mutation(api.organizations.deleteOrganization, {
-        userId: "owner",
-        organizationId: orgId,
-      });
-      // Read immediately WITHOUT draining scheduler — should still see the doc
-      // marked archived and with deletionScheduledAt set.
-      const org = await t.query(api.organizations.getOrganization, {
-        organizationId: orgId,
-      });
-      expect(org).not.toBeNull();
-      expect(org?.status).toBe("archived");
-      // Drain before the test ends to avoid leaking scheduled work.
-      await t.finishInProgressScheduledFunctions();
-    });
-
-    it("fully removes org doc and all child rows after finishing scheduled functions", async () => {
+  describe("deleteOrganization cascade", () => {
+    it("fully removes org doc and all child rows", async () => {
       const t = createTestInstance();
       const orgId = await t.mutation(api.organizations.createOrganization, {
         userId: "owner",
@@ -471,7 +447,6 @@ describe("organizations", () => {
         userId: "owner",
         organizationId: orgId,
       });
-      await t.finishInProgressScheduledFunctions();
 
       const org = await t.query(api.organizations.getOrganization, {
         organizationId: orgId,

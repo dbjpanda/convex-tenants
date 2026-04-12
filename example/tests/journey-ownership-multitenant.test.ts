@@ -381,8 +381,6 @@ describe("Journey 3: Multi-tenant stress — 3 orgs, overlapping members, full i
     await asAlice.mutation(api.testHelpers.strictDeleteOrganization, {
       organizationId: orgAId,
     });
-    // Deletion cascade runs in a scheduled internalAction — drain it.
-    await t.finishInProgressScheduledFunctions();
 
     // -----------------------------------------------------------------------
     // Step 14: Verify: diana and eve's OrgA memberships gone,

@@ -3,7 +3,6 @@
 ## 0.2.0
 
 ### Breaking changes
-- **`deleteOrganization` is now async.** The mutation now marks the org as `status: "archived"` and schedules an internal action that drains teams, team members, invitations, and members in 200-row batches before deleting the org doc. Callers that previously read state immediately after `deleteOrganization` must either tolerate transient archived state or call `t.finishInProgressScheduledFunctions()` in tests.
 - **`generateLogoUploadUrl` now requires `organizationId`.** Previously optional; upload URLs are now always scoped to an org membership check.
 - **`listUserOrganizations` defaults to `status: "active"`.** Previously returned all memberships regardless of status. Pass `status: "all"` to get the legacy behavior. Legacy rows where `status === undefined` are still treated as active.
 - **React: `TenantsContext` export removed** from the providers barrel. Consumers must switch to `useTenants()` / `useTenantsData()` / `useTenantsActions()`, or import `TenantsDataContext` / `TenantsActionsContext` directly.
@@ -34,8 +33,9 @@
 
 ### Features
 - **New internal mutation** `pruneExpiredInvitations({ organizationId?, limit? })` — component `internalMutation` that marks pending invitations with `expiresAt < now` as `"expired"`. Consumers wire it into their own cron (see `docs/known-limitations.md` §6). The org-scoped path uses the `by_organization_and_status` index; the global path is a bounded `.take(limit)` scan and is best-effort (it can starve if older non-pending rows dominate the head).
-- New `organizations.deletionScheduledAt?: number` schema field records async-delete start time.
-- New `organizations.deleteRetryCount?: number` schema field bounds `_finalizeOrganizationDelete` re-scheduling when racing inserts land during a drain. Default cap is 5 retries before giving up with `INTERNAL`.
+
+### Deferred
+- **ARCH-CRIT-1** Async batch `deleteOrganization` was attempted but reverted due to `convex-test@0.0.40` incompatibility with `ctx.scheduler.runAfter` from mutations. The synchronous cascade remains, with a scale ceiling of ~100 members / ~30 teams per transaction. Implement an async wrapper in the consumer app for larger orgs.
 
 ### React
 - **REACT-5** `TenantsContextValue` split into `TenantsDataContextValue` + `TenantsActionsContextValue` with separate memoization. `useTenants()` is retained as a thin aggregator for back-compat; prefer `useTenantsData()` / `useTenantsActions()` for new code.
@@ -53,11 +53,10 @@
 - Fix: `organization-store` now syncs across tabs via a `storage` event listener, with listener re-attach on `configureOrganizationStore()` key rotation.
 
 ### Migration
-- **Tests:** update any test that asserts post-delete state to call `t.finishInProgressScheduledFunctions()` after `deleteOrganization`.
 - **Consumers of `generateLogoUploadUrl`:** pass `organizationId` on every call.
 - **Consumers of `TenantsContext`:** switch to `useTenants()` / `useTenantsData()` / `useTenantsActions()`.
 - **Consumers of `listUserOrganizations`:** pass `status: "all"` if you want the legacy behavior of listing suspended memberships alongside active ones.
-- **Schema:** `organizations.deletionScheduledAt` and `members.by_user_and_status` are additive. No data migration required.
+- **Schema:** `members.by_user_and_status` index is additive. No data migration required.
 
 ## 0.1.7
 

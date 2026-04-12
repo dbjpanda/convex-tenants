@@ -171,8 +171,6 @@ describe("Journey 1: Full org lifecycle — create -> grow -> transfer -> delete
     await asBob.mutation(api.testHelpers.strictDeleteOrganization, {
       organizationId: orgId,
     });
-    // Deletion cascade runs in a scheduled internalAction — drain it.
-    await t.finishInProgressScheduledFunctions();
 
     // -----------------------------------------------------------------------
     // Step 13: Verify org gone, all members gone, all teams gone

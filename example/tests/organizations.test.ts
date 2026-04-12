@@ -319,8 +319,6 @@ describe("makeTenantsAPI - organizations", () => {
       await asAlice.mutation(api.testHelpers.strictDeleteOrganization, {
         organizationId: orgId,
       });
-      // Deletion cascade runs in a scheduled internalAction — drain it.
-      await t.finishInProgressScheduledFunctions();
 
       // After deletion, Alice is no longer a member — membership check fails.
       // Verify the org is gone by checking that membership throws.

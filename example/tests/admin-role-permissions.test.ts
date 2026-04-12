@@ -139,8 +139,6 @@ describe("admin role permissions", () => {
     await asAlice.mutation(api.testHelpers.strictDeleteOrganization, {
       organizationId: orgId,
     });
-    // Deletion cascade runs in a scheduled internalAction — drain it.
-    await t.finishInProgressScheduledFunctions();
 
     const org = await asAlice.query(api.testHelpers.strictGetOrganizationBySlug, {
       slug: "owner-delete-org",
