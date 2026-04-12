@@ -15,6 +15,7 @@ node_modules
 *.tsbuildinfo
 
 # Claude Code
+.claude/settings.local.json
 .claude/worktrees/
 docs/superpowers
 .remember
