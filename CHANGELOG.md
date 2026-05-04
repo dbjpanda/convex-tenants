@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0
+
+### Upgrade action required
+- **Existing deployments must run `authz.syncRoles()` after upgrading.** The default `member` role now grants `members:["list"]` and `teams:["list", "listMembers"]`. Without a sync, existing members will see stale permissions and be unable to view the org member or team lists.
+
+### Added
+- **Invitation decline flow.** New `"declined"` status on the `invitations` schema, `declineInvitation` component mutation, `Tenants` class + `makeTenantsAPI` passthrough, `useAcceptInvitation` hook now exposes `isDeclining`, `declined`, and a `declineInvitation` callback, and `invitation-accept` UI renders a Declining... state and a declined-success card.
+- **Members table status filter.** Replaces the old "members | invitations" toggle with active/suspended/pending. Suspended members render with a red badge. Non-pending invitations are suppressed from the unified view (the member record is the source of truth once accepted).
+- **Optional `syncRole` / `syncRoles` on `AuthzClient` interface** for post-deploy permission rebuild. Documented in `CLAUDE.md` and `example/convex/authz.ts`.
+
+### Changed
+- **Default `member` role broadened** to include `members:["list"]` and `teams:["list", "listMembers"]` so new members can see the org member and team lists out of the box. See "Upgrade action required" above.
+- **Peer dependency:** `@djpanda/convex-authz` bumped from `^2.1.1` to `^2.3.0` (required for `syncRole` / `syncRoles`).
+
+### Fixed
+- `TenantsProvider` was passing no `status` arg to `api.listMembers`, so the server-side default of `"active"` filtered suspended members out before they reached the table. Provider now passes `status: "all"` and the table partitions client-side.
+- Members table filter now correctly partitions active / suspended / pending in the unified view.
+
 ## 0.2.0
 
 ### Breaking changes
