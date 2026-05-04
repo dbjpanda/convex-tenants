@@ -49,11 +49,17 @@ function useTheme() {
 export function RootLayout() {
   const { signOut } = useAuthActions();
   const { dark, toggle: toggleTheme } = useTheme();
-  const { currentRole } = useTenants();
+  const { currentRole, isOrganizationsLoading } = useTenants();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const isOwnerOrAdmin = currentRole === "owner" || currentRole === "admin";
+  // While orgs are loading, currentRole is undefined — render admin-only nav
+  // items optimistically so deep-link refreshes don't briefly hide them.
+  // The page itself enforces access; the sidebar is just navigation.
+  const isOwnerOrAdmin =
+    isOrganizationsLoading ||
+    currentRole === "owner" ||
+    currentRole === "admin";
 
   const navItems = [
     { path: "/teams", label: "Teams", icon: UsersRound },

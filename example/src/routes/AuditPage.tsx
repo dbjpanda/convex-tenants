@@ -55,6 +55,16 @@ export function AuditPage() {
     return <EmptyState />;
   }
 
+  // While orgs are loading, currentRole is undefined — avoid flashing
+  // "Access Restricted" before the role resolves.
+  if (isOrganizationsLoading || !currentOrganization) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   const isOwnerOrAdmin = currentRole === "owner" || currentRole === "admin";
 
   if (!isOwnerOrAdmin) {

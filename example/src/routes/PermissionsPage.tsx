@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useTenants } from "@djpanda/convex-tenants/react";
-import { Shield, Check, X, ChevronRight } from "lucide-react";
+import { Shield, Check, X, ChevronRight, Loader2 } from "lucide-react";
 import { EmptyState } from "../components/EmptyState";
 import { OrgInfoBar } from "../components/OrgInfoBar";
 
@@ -15,6 +15,14 @@ export function PermissionsPage() {
 
   if (showEmptyState) {
     return <EmptyState />;
+  }
+
+  if (isOrganizationsLoading || !currentOrganization) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   const isOwnerOrAdmin = currentRole === "owner" || currentRole === "admin";

@@ -1,5 +1,5 @@
 import { useTenants, OrgSettingsPanel } from "@djpanda/convex-tenants/react";
-import { Settings } from "lucide-react";
+import { Settings, Loader2 } from "lucide-react";
 import { EmptyState } from "../components/EmptyState";
 import { OrgInfoBar } from "../components/OrgInfoBar";
 
@@ -12,6 +12,14 @@ export function SettingsPage() {
 
   if (showEmptyState) {
     return <EmptyState />;
+  }
+
+  if (isOrganizationsLoading || !currentOrganization) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   const isOwnerOrAdmin = currentRole === "owner" || currentRole === "admin";
