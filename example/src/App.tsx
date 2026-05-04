@@ -5,6 +5,7 @@ import { api } from "../convex/_generated/api";
 import { TenantsProvider } from "@djpanda/convex-tenants/react";
 import { Loader2 } from "lucide-react";
 import { SignIn } from "./components/SignIn";
+import { useToaster } from "./components/Toaster";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
@@ -16,6 +17,7 @@ const router = createRouter({
 
 function App() {
   const { isLoading, isAuthenticated } = useConvexAuth();
+  const { notify, Toaster } = useToaster();
 
   if (isLoading) {
     return (
@@ -30,17 +32,9 @@ function App() {
   }
 
   return (
-    <TenantsProvider
-      api={api.tenants as any}
-      onToast={(message, type) => {
-        if (type === "error") {
-          alert(`Error: ${message}`);
-        } else {
-          console.log(`✓ ${message}`);
-        }
-      }}
-    >
+    <TenantsProvider api={api.tenants as any} onToast={notify}>
       <RouterProvider router={router} />
+      <Toaster />
     </TenantsProvider>
   );
 }

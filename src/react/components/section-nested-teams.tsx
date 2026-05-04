@@ -36,8 +36,9 @@ function TreeList({ entries, depth = 0 }: { entries: TeamTreeEntry[]; depth?: nu
  * Renders only when api exposes listTeamsAsTree.
  */
 export function NestedTeamsSection() {
-  const { currentOrganization, teams, api } = useTenantsData();
+  const { currentOrganization, teams, api, currentRole } = useTenantsData();
   const { createTeam } = useTenantsActions();
+  const canCreate = currentRole === "owner" || currentRole === "admin";
   const a = api as Record<string, FunctionReference<"query"> | undefined>;
 
   const teamTree = useQuery(
@@ -83,6 +84,7 @@ export function NestedTeamsSection() {
           <TreeList entries={teamTree} />
         </div>
       )}
+      {canCreate && (
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="nested-team-name" className="mb-1 block text-xs font-medium text-muted-foreground">Name</label>
@@ -132,6 +134,7 @@ export function NestedTeamsSection() {
           Create team
         </Button>
       </div>
+      )}
     </section>
   );
 }

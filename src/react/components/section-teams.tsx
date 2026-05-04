@@ -103,7 +103,8 @@ export function TeamsSection({
     );
   }
 
-  const shouldShowCreateButton = showCreateButton ?? !!currentRole;
+  const shouldShowCreateButton =
+    showCreateButton ?? (currentRole === "owner" || currentRole === "admin");
 
   const UsersIcon = usersIcon ?? (
     <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
@@ -152,7 +153,7 @@ export function TeamsSection({
         <TeamsGrid
           teams={transformedTeams}
           isLoading={isTeamsLoading}
-          isOwnerOrAdmin={!!currentRole}
+          isOwnerOrAdmin={currentRole === "owner" || currentRole === "admin"}
           onTeamClick={onTeamClick}
           onDeleteTeam={deleteTeam}
           onToast={onToast}

@@ -473,6 +473,18 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       organizationId,
       memberUserId,
     });
+    // Audit: emit `attribute_set` so suspension is observable in the audit log.
+    // The members table's `status` column remains the source of truth for queries;
+    // this is a parallel write purely for auditability.
+    if (this.authz.setAttribute) {
+      await this.authz.setAttribute(
+        ctx,
+        memberUserId,
+        `tenants:org:${organizationId}:suspended`,
+        true,
+        userId
+      );
+    }
   }
 
   async unsuspendMember(
@@ -487,6 +499,15 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       organizationId,
       memberUserId,
     });
+    // Audit: emit `attribute_removed` paired with the suspend write above.
+    if (this.authz.removeAttribute) {
+      await this.authz.removeAttribute(
+        ctx,
+        memberUserId,
+        `tenants:org:${organizationId}:suspended`,
+        userId
+      );
+    }
   }
 
   async leaveOrganization(
@@ -814,9 +835,22 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     const fetchLimit = Math.max(callerLimit * 4, 200);
     const result = await this.authz.getAuditLog(ctx, { ...options, limit: fetchLimit });
     if (Array.isArray(result)) {
+      // Org-scoped tenants events store the scope in details.scope (role/permission
+      // events). Attribute events (e.g. our suspend/unsuspend audit) don't carry
+      // a scope — we encode the org id into the attribute key prefix instead
+      // (`tenants:org:${organizationId}:...`). Match either shape.
+      const orgKeyPrefix = `tenants:org:${organizationId}:`;
       const matchesScope = (entry: { details?: unknown }) => {
-        const details = entry.details as { scope?: { type?: string; id?: string } } | undefined;
-        return details?.scope?.type === scope.type && details?.scope?.id === scope.id;
+        const details = entry.details as
+          | { scope?: { type?: string; id?: string }; attribute?: { key?: string } }
+          | undefined;
+        if (details?.scope?.type === scope.type && details?.scope?.id === scope.id) {
+          return true;
+        }
+        if (details?.attribute?.key?.startsWith(orgKeyPrefix)) {
+          return true;
+        }
+        return false;
       };
       return result.filter(matchesScope).slice(0, callerLimit);
     }

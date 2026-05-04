@@ -95,6 +95,12 @@ export interface AuthzClient<P extends PermissionDefinition = PermissionDefiniti
   /** Rebuild effective permissions/roles for a user (after schema/role changes). */
   recomputeUser?(ctx: any, userId: string): Promise<void>;
 
+  /** Set a user attribute (also emits an `attribute_set` audit entry). */
+  setAttribute?(ctx: any, userId: string, key: string, value: unknown, actorId?: string): Promise<string>;
+
+  /** Remove a user attribute (also emits an `attribute_removed` audit entry). */
+  removeAttribute?(ctx: any, userId: string, key: string, actorId?: string): Promise<boolean>;
+
   /**
    * Re-materialize permissions for every user holding the given role.
    * Requires an ActionCtx — pages through assignments and runs one mutation per user.
