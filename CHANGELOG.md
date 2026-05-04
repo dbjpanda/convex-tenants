@@ -5,6 +5,9 @@
 ### Upgrade action required
 - **Existing deployments must run `authz.syncRoles()` after upgrading.** The default `member` role now grants `members:["list"]` and `teams:["list", "listMembers"]`. Without a sync, existing members will see stale permissions and be unable to view the org member or team lists.
 
+### Breaking changes
+- **`useAcceptInvitation` now requires `declineInvitationMutation`** in `UseAcceptInvitationOptions` (previously optional). Required to fix a Rules of Hooks violation where `useMutation` was called inside a ternary. Consumers using the hook without decline support must add the mutation reference: `declineInvitationMutation: api.tenants.declineInvitation`.
+
 ### Added
 - **Invitation decline flow.** New `"declined"` status on the `invitations` schema, `declineInvitation` component mutation, `Tenants` class + `makeTenantsAPI` passthrough, `useAcceptInvitation` hook now exposes `isDeclining`, `declined`, and a `declineInvitation` callback, and `invitation-accept` UI renders a Declining... state and a declined-success card.
 - **Members table status filter.** Replaces the old "members | invitations" toggle with active/suspended/pending. Suspended members render with a red badge. Non-pending invitations are suppressed from the unified view (the member record is the source of truth once accepted).

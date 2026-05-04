@@ -16,7 +16,7 @@ export {
 } from "./authz.js";
 
 // Re-export authz utility types so consumers don't need a second import
-// when they want to type their own AuthzClient<P, R> annotations.
+// when they want to type their own AuthzClient<P> annotations.
 export type {
   PermissionDefinition,
   RoleDefinition,

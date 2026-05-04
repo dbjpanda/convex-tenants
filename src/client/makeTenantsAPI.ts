@@ -8,7 +8,7 @@ import type { ComponentApi } from "../component/_generated/component.js";
 import type { AuthzClient } from "./authz.js";
 import type { TenantsPermissionMap } from "./authz.js";
 import { Tenants } from "./tenants-class.js";
-import type { PermissionDefinition, RoleDefinition } from "@djpanda/convex-authz";
+import type { PermissionDefinition } from "@djpanda/convex-authz";
 import type { Member, OrgRole, InvitationRole, QueryCtx, TeamMember } from "./types.js";
 import { normalizeEmail, orgScope } from "./helpers.js";
 
@@ -62,14 +62,11 @@ import { normalizeEmail, orgScope } from "./helpers.js";
  * });
  * ```
  */
-export function makeTenantsAPI<
-  P extends PermissionDefinition = PermissionDefinition,
-  R extends RoleDefinition<P> = RoleDefinition<P>,
->(
+export function makeTenantsAPI<P extends PermissionDefinition = PermissionDefinition>(
   component: ComponentApi,
   options: {
     auth: (ctx: { auth: Auth }) => Promise<string | null>;
-    authz: AuthzClient<P, R>;
+    authz: AuthzClient<P>;
     creatorRole?: string;
     permissionMap?: Partial<TenantsPermissionMap>;
     getUser?: (
@@ -264,7 +261,7 @@ export function makeTenantsAPI<
     validRoles?: readonly string[];
   }
 ) {
-  const tenants = new Tenants<P, R>(component, {
+  const tenants = new Tenants<P>(component, {
     authz: options.authz,
     creatorRole: options.creatorRole,
     defaultInvitationExpiration: options.defaultInvitationExpiration,

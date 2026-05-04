@@ -8,11 +8,7 @@
  */
 
 import { definePermissions, defineRoles } from "@djpanda/convex-authz";
-import type {
-  PermissionDefinition,
-  RoleDefinition,
-  PermissionArg,
-} from "@djpanda/convex-authz";
+import type { PermissionDefinition, PermissionArg } from "@djpanda/convex-authz";
 
 // ============================================================================
 // AuthzClient Interface
@@ -36,10 +32,7 @@ export interface RelationEntity {
  * ReBAC methods (`addRelation`, `removeRelation`, `hasRelation`) are
  * now on the `Authz` class directly instead of `component.rebac.*`.
  */
-export interface AuthzClient<
-  P extends PermissionDefinition = PermissionDefinition,
-  R extends RoleDefinition<P> = RoleDefinition<P>,
-> {
+export interface AuthzClient<P extends PermissionDefinition = PermissionDefinition> {
   /** Check if a user has a permission (returns boolean). */
   can(ctx: any, userId: string, permission: PermissionArg<P>, scope?: { type: string; id: string }): Promise<boolean>;
 

@@ -8,11 +8,7 @@ import {
   DEFAULT_TENANTS_PERMISSION_MAP,
   type TenantsPermissionMap,
 } from "./authz.js";
-import type {
-  PermissionDefinition,
-  RoleDefinition,
-  PermissionArg,
-} from "@djpanda/convex-authz";
+import type { PermissionDefinition, PermissionArg } from "@djpanda/convex-authz";
 import type {
   Organization,
   OrganizationWithRole,
@@ -35,23 +31,20 @@ export type { QueryCtx, MutationCtx };
  * - Syncs role assignments / revocations (via authz)
  * - Syncs team membership relations (via ReBAC)
  */
-export class Tenants<
-  P extends PermissionDefinition = PermissionDefinition,
-  R extends RoleDefinition<P> = RoleDefinition<P>,
-> {
+export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
   private static readonly DEFAULT_ROLE_HIERARCHY: Record<string, number> = {
     owner: 3,
     admin: 2,
     member: 1,
   };
 
-  private authz: AuthzClient<P, R>;
+  private authz: AuthzClient<P>;
   private permissionMap: TenantsPermissionMap;
 
   constructor(
     private component: ComponentApi,
     private options: {
-      authz: AuthzClient<P, R>;
+      authz: AuthzClient<P>;
       creatorRole?: string;
       defaultInvitationExpiration?: number;
       permissionMap?: Partial<TenantsPermissionMap>;
