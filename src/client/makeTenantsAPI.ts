@@ -2,12 +2,13 @@
  * API factory: build Convex query/mutation handlers from Tenants + auth.
  */
 import type { Auth } from "convex/server";
-import { mutationGeneric, queryGeneric, paginationOptsValidator } from "convex/server";
+import { actionGeneric, mutationGeneric, queryGeneric, paginationOptsValidator } from "convex/server";
 import { v, ConvexError } from "convex/values";
 import type { ComponentApi } from "../component/_generated/component.js";
 import type { AuthzClient } from "./authz.js";
 import type { TenantsPermissionMap } from "./authz.js";
 import { Tenants } from "./tenants-class.js";
+import type { PermissionDefinition, RoleDefinition } from "@djpanda/convex-authz";
 import type { Member, OrgRole, InvitationRole, QueryCtx, TeamMember } from "./types.js";
 import { normalizeEmail, orgScope } from "./helpers.js";
 
@@ -61,11 +62,14 @@ import { normalizeEmail, orgScope } from "./helpers.js";
  * });
  * ```
  */
-export function makeTenantsAPI(
+export function makeTenantsAPI<
+  P extends PermissionDefinition = PermissionDefinition,
+  R extends RoleDefinition<P> = RoleDefinition<P>,
+>(
   component: ComponentApi,
   options: {
     auth: (ctx: { auth: Auth }) => Promise<string | null>;
-    authz: AuthzClient;
+    authz: AuthzClient<P, R>;
     creatorRole?: string;
     permissionMap?: Partial<TenantsPermissionMap>;
     getUser?: (
@@ -260,7 +264,7 @@ export function makeTenantsAPI(
     validRoles?: readonly string[];
   }
 ) {
-  const tenants = new Tenants(component, {
+  const tenants = new Tenants<P, R>(component, {
     authz: options.authz,
     creatorRole: options.creatorRole,
     defaultInvitationExpiration: options.defaultInvitationExpiration,
@@ -1687,6 +1691,45 @@ export function makeTenantsAPI(
           args.organizationId,
           { userId: args.userId, action: args.action, limit: args.limit }
         );
+      },
+    }),
+
+    /**
+     * Re-materialize effective permissions for every user holding any role
+     * in the catalog. Run after editing role/permission definitions in
+     * `authz.ts` and redeploying — existing members otherwise carry the OLD
+     * materialized permissions until their role is reassigned.
+     *
+     * This is an action (not a mutation) because it pages through role
+     * assignments and runs one mutation per user. Idempotent.
+     *
+     * Invoke via `npx convex run tenants:syncRoles` after deploying role changes.
+     * Requires `@djpanda/convex-authz` >= 2.3.0.
+     */
+    syncRoles: actionGeneric({
+      args: {},
+      returns: v.object({
+        rolesProcessed: v.number(),
+        usersProcessed: v.number(),
+      }),
+      handler: async (ctx) => {
+        return await tenants.syncRoles(ctx);
+      },
+    }),
+
+    /**
+     * Re-materialize effective permissions for every user holding the given role.
+     * Per-role variant of `syncRoles` — useful when only one role's
+     * permissions changed and you want to avoid scanning every assignment.
+     *
+     * Invoke via `npx convex run tenants:syncRole '{"role":"member"}'`.
+     * Requires `@djpanda/convex-authz` >= 2.3.0.
+     */
+    syncRole: actionGeneric({
+      args: { role: v.string() },
+      returns: v.object({ usersProcessed: v.number() }),
+      handler: async (ctx, args) => {
+        return await tenants.syncRole(ctx, args.role);
       },
     }),
   };

@@ -65,6 +65,9 @@ export const {
   grantPermission,
   denyPermission,
   getAuditLog,
+  // Role sync (post-deploy: rebuild materialized permissions)
+  syncRoles,
+  syncRole,
 } = makeTenantsAPI(components.tenants, {
   authz,
   creatorRole: "owner", // role assigned on org creation (matches authz.ts)

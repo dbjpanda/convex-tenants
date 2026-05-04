@@ -8,6 +8,11 @@
  */
 
 import { definePermissions, defineRoles } from "@djpanda/convex-authz";
+import type {
+  PermissionDefinition,
+  RoleDefinition,
+  PermissionArg,
+} from "@djpanda/convex-authz";
 
 // ============================================================================
 // AuthzClient Interface
@@ -31,12 +36,15 @@ export interface RelationEntity {
  * ReBAC methods (`addRelation`, `removeRelation`, `hasRelation`) are
  * now on the `Authz` class directly instead of `component.rebac.*`.
  */
-export interface AuthzClient {
+export interface AuthzClient<
+  P extends PermissionDefinition = PermissionDefinition,
+  R extends RoleDefinition<P> = RoleDefinition<P>,
+> {
   /** Check if a user has a permission (returns boolean). */
-  can(ctx: any, userId: string, permission: string, scope?: { type: string; id: string }): Promise<boolean>;
+  can(ctx: any, userId: string, permission: PermissionArg<P>, scope?: { type: string; id: string }): Promise<boolean>;
 
   /** Require a permission or throw an error. */
-  require(ctx: any, userId: string, permission: string, scope?: { type: string; id: string }): Promise<void>;
+  require(ctx: any, userId: string, permission: PermissionArg<P>, scope?: { type: string; id: string }): Promise<void>;
 
   /** Assign a role to a user. */
   assignRole(ctx: any, userId: string, role: string, scope?: { type: string; id: string }, expiresAt?: number, actorId?: string): Promise<string>;
@@ -54,10 +62,10 @@ export interface AuthzClient {
   hasRole?(ctx: any, userId: string, role: string, scope?: { type: string; id: string }): Promise<boolean>;
 
   /** Grant a direct permission override. */
-  grantPermission(ctx: any, userId: string, permission: string, scope?: { type: string; id: string }, reason?: string, expiresAt?: number, actorId?: string): Promise<string>;
+  grantPermission(ctx: any, userId: string, permission: PermissionArg<P>, scope?: { type: string; id: string }, reason?: string, expiresAt?: number, actorId?: string): Promise<string>;
 
   /** Deny a permission (explicit override). */
-  denyPermission(ctx: any, userId: string, permission: string, scope?: { type: string; id: string }, reason?: string, expiresAt?: number, actorId?: string): Promise<string>;
+  denyPermission(ctx: any, userId: string, permission: PermissionArg<P>, scope?: { type: string; id: string }, reason?: string, expiresAt?: number, actorId?: string): Promise<string>;
 
   /** Get audit log entries. */
   getAuditLog(ctx: any, options?: { userId?: string; action?: string; limit?: number; scope?: { type: string; id: string } }): Promise<any>;
@@ -74,7 +82,7 @@ export interface AuthzClient {
   // -- v2 bulk methods --
 
   /** Check if user has any of the given permissions. */
-  canAny?(ctx: any, userId: string, permissions: string[], scope?: { type: string; id: string }): Promise<boolean>;
+  canAny?(ctx: any, userId: string, permissions: PermissionArg<P>[], scope?: { type: string; id: string }): Promise<boolean>;
 
   /** Assign multiple roles to a user in one call (max 20). */
   assignRoles?(ctx: any, userId: string, roles: Array<{ role: string; scope?: { type: string; id: string }; expiresAt?: number }>, actorId?: string): Promise<{ assigned: number; assignmentIds: string[] }>;

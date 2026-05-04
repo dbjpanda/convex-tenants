@@ -9,6 +9,11 @@ import {
   type TenantsPermissionMap,
 } from "./authz.js";
 import type {
+  PermissionDefinition,
+  RoleDefinition,
+  PermissionArg,
+} from "@djpanda/convex-authz";
+import type {
   Organization,
   OrganizationWithRole,
   Member,
@@ -30,20 +35,23 @@ export type { QueryCtx, MutationCtx };
  * - Syncs role assignments / revocations (via authz)
  * - Syncs team membership relations (via ReBAC)
  */
-export class Tenants {
+export class Tenants<
+  P extends PermissionDefinition = PermissionDefinition,
+  R extends RoleDefinition<P> = RoleDefinition<P>,
+> {
   private static readonly DEFAULT_ROLE_HIERARCHY: Record<string, number> = {
     owner: 3,
     admin: 2,
     member: 1,
   };
 
-  private authz: AuthzClient;
+  private authz: AuthzClient<P, R>;
   private permissionMap: TenantsPermissionMap;
 
   constructor(
     private component: ComponentApi,
     private options: {
-      authz: AuthzClient;
+      authz: AuthzClient<P, R>;
       creatorRole?: string;
       defaultInvitationExpiration?: number;
       permissionMap?: Partial<TenantsPermissionMap>;
@@ -65,7 +73,7 @@ export class Tenants {
   ): Promise<void> {
     const permission = this.permissionMap[operation];
     if (permission === false) return;
-    await this.authz.require(ctx, userId, permission, scope);
+    await this.authz.require(ctx, userId, permission as PermissionArg<P>, scope);
   }
 
   /** Require a permission for an operation (for use by API layer, e.g. listTeamMembers). */
@@ -181,7 +189,7 @@ export class Tenants {
   ): Promise<string> {
     const createPermission = this.permissionMap.createOrganization;
     if (typeof createPermission === "string") {
-      await this.authz.require(ctx, userId, createPermission);
+      await this.authz.require(ctx, userId, createPermission as PermissionArg<P>);
     }
     const slug = options?.slug ?? generateSlug(name);
     if (!slug) {
@@ -697,7 +705,7 @@ export class Tenants {
     permission: string,
     organizationId: string
   ): Promise<boolean> {
-    return await this.authz.can(ctx, userId, permission, orgScope(organizationId));
+    return await this.authz.can(ctx, userId, permission as PermissionArg<P>, orgScope(organizationId));
   }
 
   async canAny(
@@ -707,11 +715,11 @@ export class Tenants {
     organizationId: string
   ): Promise<boolean> {
     if (this.authz.canAny) {
-      return await this.authz.canAny(ctx, userId, permissions, orgScope(organizationId));
+      return await this.authz.canAny(ctx, userId, permissions as PermissionArg<P>[], orgScope(organizationId));
     }
     // Fallback: check each permission individually
     for (const perm of permissions) {
-      if (await this.authz.can(ctx, userId, perm, orgScope(organizationId))) {
+      if (await this.authz.can(ctx, userId, perm as PermissionArg<P>, orgScope(organizationId))) {
         return true;
       }
     }
@@ -724,7 +732,7 @@ export class Tenants {
     permission: string,
     organizationId: string
   ): Promise<void> {
-    await this.authz.require(ctx, userId, permission, orgScope(organizationId));
+    await this.authz.require(ctx, userId, permission as PermissionArg<P>, orgScope(organizationId));
   }
 
   async getUserPermissions(ctx: QueryCtx, userId: string, organizationId: string) {
@@ -770,7 +778,7 @@ export class Tenants {
     return await this.authz.grantPermission(
       ctx,
       targetUserId,
-      permission,
+      permission as PermissionArg<P>,
       validatedScope,
       options?.reason,
       options?.expiresAt,
@@ -791,7 +799,7 @@ export class Tenants {
     return await this.authz.denyPermission(
       ctx,
       targetUserId,
-      permission,
+      permission as PermissionArg<P>,
       validatedScope,
       options?.reason,
       options?.expiresAt,
@@ -808,14 +816,16 @@ export class Tenants {
     await this.authzRequireOperation(ctx, userId, "getAuditLog", orgScope(organizationId));
     const scope = orgScope(organizationId);
     const callerLimit = options?.limit ?? 50;
-    const result = await this.authz.getAuditLog(ctx, { ...options, limit: callerLimit, scope });
-    // If authz honored the scope filter, return directly.
-    // If it returned unscoped results (older authz), filter client-side.
+    // authz.getAuditLog does not accept a scope filter — fetch a larger window
+    // and filter client-side by entry.details.scope (where authz stores the scope).
+    const fetchLimit = Math.max(callerLimit * 4, 200);
+    const result = await this.authz.getAuditLog(ctx, { ...options, limit: fetchLimit });
     if (Array.isArray(result)) {
-      const matchesScope = (entry: { scope?: { type?: string; id?: string } }) =>
-        entry.scope?.type === scope.type && entry.scope?.id === scope.id;
-      const allMatch = result.length === 0 || result.every(matchesScope);
-      return allMatch ? result.slice(0, callerLimit) : result.filter(matchesScope).slice(0, callerLimit);
+      const matchesScope = (entry: { details?: unknown }) => {
+        const details = entry.details as { scope?: { type?: string; id?: string } } | undefined;
+        return details?.scope?.type === scope.type && details?.scope?.id === scope.id;
+      };
+      return result.filter(matchesScope).slice(0, callerLimit);
     }
     return result;
   }
@@ -831,6 +841,41 @@ export class Tenants {
     if (this.authz.recomputeUser) {
       await this.authz.recomputeUser(ctx, targetUserId);
     }
+  }
+
+  /**
+   * Re-materialize permissions for every user holding the given role.
+   * Requires `@djpanda/convex-authz` >= 2.3.0 (`authz.syncRole`).
+   * Must be invoked from a Convex action — pages through assignments
+   * and runs one mutation per user. Call after editing role definitions.
+   */
+  async syncRole(
+    ctx: any,
+    role: string
+  ): Promise<{ usersProcessed: number }> {
+    if (!this.authz.syncRole) {
+      throw new Error(
+        "authz.syncRole requires @djpanda/convex-authz >= 2.3.0"
+      );
+    }
+    return await this.authz.syncRole(ctx, role);
+  }
+
+  /**
+   * Re-materialize permissions for every user holding any role in the catalog.
+   * Requires `@djpanda/convex-authz` >= 2.3.0 (`authz.syncRoles`).
+   * Must be invoked from a Convex action. Convenience wrapper around
+   * `syncRole` across every configured role.
+   */
+  async syncRoles(
+    ctx: any
+  ): Promise<{ rolesProcessed: number; usersProcessed: number }> {
+    if (!this.authz.syncRoles) {
+      throw new Error(
+        "authz.syncRoles requires @djpanda/convex-authz >= 2.3.0"
+      );
+    }
+    return await this.authz.syncRoles(ctx);
   }
 
   async listInvitations(

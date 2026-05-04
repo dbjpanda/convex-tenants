@@ -247,7 +247,7 @@ describe("Tenants", () => {
   });
 
   describe("getAuditLog", () => {
-    it("forwards scope to authz.getAuditLog", async () => {
+    it("requests an oversized window from authz.getAuditLog (no scope arg supported)", async () => {
       authz.require.mockResolvedValue(undefined);
       authz.getAuditLog.mockResolvedValue([]);
 
@@ -256,19 +256,19 @@ describe("Tenants", () => {
 
       expect(authz.getAuditLog).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({
-          scope: { type: "organization", id: "org_1" },
-          limit: 10,
-        }),
+        expect.objectContaining({ limit: expect.any(Number) }),
       );
+      const call = authz.getAuditLog.mock.calls[0]?.[1] as { limit: number; scope?: unknown };
+      expect(call.limit).toBeGreaterThanOrEqual(10);
+      expect(call.scope).toBeUndefined();
     });
 
-    it("filters client-side when authz returns unscoped results", async () => {
+    it("filters client-side by entry.details.scope (where authz stores scope)", async () => {
       authz.require.mockResolvedValue(undefined);
       authz.getAuditLog.mockResolvedValue([
-        { action: "role_assigned", scope: { type: "organization", id: "org_1" } },
-        { action: "role_assigned", scope: { type: "organization", id: "org_OTHER" } },
-        { action: "role_revoked", scope: { type: "organization", id: "org_1" } },
+        { action: "role_assigned", details: { scope: { type: "organization", id: "org_1" } } },
+        { action: "role_assigned", details: { scope: { type: "organization", id: "org_OTHER" } } },
+        { action: "role_revoked", details: { scope: { type: "organization", id: "org_1" } } },
       ]);
 
       const tenants = new Tenants(component, { authz });
@@ -276,8 +276,8 @@ describe("Tenants", () => {
 
       expect(result).toHaveLength(2);
       expect(result).toEqual([
-        { action: "role_assigned", scope: { type: "organization", id: "org_1" } },
-        { action: "role_revoked", scope: { type: "organization", id: "org_1" } },
+        { action: "role_assigned", details: { scope: { type: "organization", id: "org_1" } } },
+        { action: "role_revoked", details: { scope: { type: "organization", id: "org_1" } } },
       ]);
     });
   });

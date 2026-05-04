@@ -55,16 +55,10 @@ const roles = defineRoles(permissions, TENANTS_ROLES, {
 export const authz = new Authz(components.authz, { permissions, roles, tenantId: "my-app" });
 
 // IMPORTANT: After editing the `roles` definition above and redeploying,
-// existing users still carry the OLD materialized permissions in
-// `effectivePermissions`. Run `authz.syncRoles(ctx)` once from a Convex
-// action (e.g. an internalAction triggered manually or via a deploy hook)
-// to rebuild every user's permissions from the new role definition:
+// existing users still carry the OLD materialized permissions. Re-materialize
+// them by running the prebuilt action exposed by makeTenantsAPI:
 //
-//   import { internalAction } from "./_generated/server";
-//   export const resyncRoles = internalAction({
-//     args: {},
-//     handler: async (ctx) => await authz.syncRoles(ctx),
-//   });
-//   // then: npx convex run authz:resyncRoles
+//   npx convex run tenants:syncRoles
+//   npx convex run tenants:syncRole '{"role":"member"}'  # per-role variant
 //
-// Per-role version: `authz.syncRole(ctx, "member")`. Both are idempotent.
+// Both are idempotent. Requires @djpanda/convex-authz >= 2.3.0.

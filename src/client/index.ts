@@ -15,6 +15,14 @@ export {
   TENANTS_REQUIRED_PERMISSIONS,
 } from "./authz.js";
 
+// Re-export authz utility types so consumers don't need a second import
+// when they want to type their own AuthzClient<P, R> annotations.
+export type {
+  PermissionDefinition,
+  RoleDefinition,
+  PermissionArg,
+} from "@djpanda/convex-authz";
+
 // Core API: Tenants class, makeTenantsAPI, types, helpers
 export type { ComponentApi } from "../component/_generated/component.js";
 export type {

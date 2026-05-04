@@ -87,7 +87,7 @@ Contains a full working integration: `convex/convex.config.ts` registers tenants
 
 Tenants depends on `@djpanda/convex-authz` as a peer. The `Tenants` class accepts an `Authz` instance (see `src/client/authz.ts` for the structural `AuthzClient` interface) and uses optional method probing (`if (this.authz.recomputeUser)`) to stay forward-compatible.
 
-**Default roles & post-deploy sync.** `TENANTS_ROLES` (in `src/client/authz.ts`) defines the built-in `owner` / `admin` / `member` roles. Whenever those defaults change — or when a consumer extends them via `defineRoles(permissions, TENANTS_ROLES, {...})` and redeploys — existing users still carry the OLD materialized permissions in `effectivePermissions`. Consumers MUST run `authz.syncRoles(ctx)` once from an action after such a change, or existing members will see stale permissions. See `example/convex/authz.ts` for the recommended pattern.
+**Default roles & post-deploy sync.** `TENANTS_ROLES` (in `src/client/authz.ts`) defines the built-in `owner` / `admin` / `member` roles. Whenever those defaults change — or when a consumer extends them via `defineRoles(permissions, TENANTS_ROLES, {...})` and redeploys — existing users still carry the OLD materialized permissions in `effectivePermissions`. `makeTenantsAPI` exposes this as a prebuilt action so consumers can run `npx convex run tenants:syncRoles` (or `tenants:syncRole '{"role":"member"}'` for a single role) after deploying role changes — no hand-written `internalAction` wrapper needed. Both are idempotent.
 
 ## ESLint
 
