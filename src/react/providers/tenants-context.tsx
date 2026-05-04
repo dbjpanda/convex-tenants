@@ -25,6 +25,7 @@ export interface Member {
   userId: string;
   organizationId: string;
   role: string;
+  status?: "active" | "suspended";
   user?: {
     name?: string;
     email?: string;
@@ -43,7 +44,7 @@ export interface Invitation {
   inviterId: string;
   message?: string;
   expiresAt: number;
-  status: "pending" | "accepted" | "cancelled" | "expired";
+  status: "pending" | "accepted" | "declined" | "cancelled" | "expired";
   isExpired: boolean;
 }
 

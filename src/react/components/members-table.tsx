@@ -40,7 +40,7 @@ import type { Member } from "../hooks/use-members.js";
 import type { Invitation } from "../hooks/use-invitations.js";
 import type { Team } from "../hooks/use-teams.js";
 
-export type FilterValue = "all" | "members" | "invitations";
+export type FilterValue = "all" | "active" | "suspended" | "pending";
 
 export interface MembersTableProps {
   /**
@@ -148,6 +148,7 @@ interface UnifiedMember {
   email: string;
   name: string;
   role: string;
+  status: "active" | "suspended";
   teams: Array<{ _id: string; name: string }>;
   userId: string;
 }
@@ -160,7 +161,7 @@ interface UnifiedInvitation {
   role: string;
   teamId: string | null;
   expiresAt: number;
-  status: "pending" | "accepted" | "cancelled" | "expired";
+  status: "pending" | "accepted" | "declined" | "cancelled" | "expired";
   isExpired: boolean;
 }
 
@@ -245,52 +246,71 @@ export function MembersTable({
     }
   };
 
+  // Only show pending, non-expired invitations — accepted/cancelled/expired
+  // invitations are just audit trails; the member record is the source of truth.
+  const pendingInvitations = useMemo(
+    () => invitations.filter((inv) => inv.status === "pending" && !inv.isExpired),
+    [invitations]
+  );
+
   // Counts
-  const membersCount = members.length;
-  const invitationsCount = invitations.length;
-  const totalCount = membersCount + invitationsCount;
+  const activeMembers = useMemo(() => members.filter((m) => m.status !== "suspended"), [members]);
+  const suspendedMembers = useMemo(() => members.filter((m) => m.status === "suspended"), [members]);
+  const activeCount = activeMembers.length;
+  const suspendedCount = suspendedMembers.length;
+  const pendingCount = pendingInvitations.length;
+  const totalCount = activeCount + suspendedCount + pendingCount;
 
   const description = useMemo(() => {
-    if (filter === "all")
-      return `${totalCount} people (${membersCount} members, ${invitationsCount} pending)`;
-    if (filter === "members")
-      return `${membersCount} active member${membersCount !== 1 ? "s" : ""}`;
-    return `${invitationsCount} pending invitation${invitationsCount !== 1 ? "s" : ""}`;
-  }, [filter, totalCount, membersCount, invitationsCount]);
+    const parts: string[] = [];
+    if (activeCount > 0) parts.push(`${activeCount} active`);
+    if (suspendedCount > 0) parts.push(`${suspendedCount} suspended`);
+    if (pendingCount > 0) parts.push(`${pendingCount} pending`);
 
-  // Unified data for "all" filter (memoized to avoid rebuilding on every render)
-  const unifiedData: UnifiedData[] = useMemo(
-    () =>
-      filter === "all"
-        ? [
-          ...members.map(
-            (member): UnifiedMember => ({
-              type: "member",
-              _id: member._id,
-              email: member.user?.email || "",
-              name: member.user?.name || member.user?.email || "Unknown",
-              role: member.role,
-              teams: member.teams || [],
-              userId: member.userId,
-            })
-          ),
-          ...invitations.map(
-            (invitation): UnifiedInvitation => ({
-              type: "invitation",
-              _id: invitation._id,
-              email: invitation.inviteeIdentifier, // Use inviteeIdentifier as email display
-              name: null,
-              role: invitation.role,
-              teamId: invitation.teamId,
-              expiresAt: invitation.expiresAt,
-              status: invitation.status,
-              isExpired: invitation.isExpired,
-            })
-          ),
-        ]
-        : [],
-    [filter, members, invitations]
-  );
+    if (filter === "all")
+      return `${totalCount} people${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`;
+    if (filter === "active")
+      return `${activeCount} active member${activeCount !== 1 ? "s" : ""}`;
+    if (filter === "suspended")
+      return `${suspendedCount} suspended member${suspendedCount !== 1 ? "s" : ""}`;
+    return `${pendingCount} pending invitation${pendingCount !== 1 ? "s" : ""}`;
+  }, [filter, totalCount, activeCount, suspendedCount, pendingCount]);
+
+  const toUnifiedMember = (member: Member): UnifiedMember => ({
+    type: "member",
+    _id: member._id,
+    email: member.user?.email || "",
+    name: member.user?.name || member.user?.email || "Unknown",
+    role: member.role,
+    status: member.status ?? "active",
+    teams: member.teams || [],
+    userId: member.userId,
+  });
+
+  const toUnifiedInvitation = (invitation: Invitation): UnifiedInvitation => ({
+    type: "invitation",
+    _id: invitation._id,
+    email: invitation.inviteeIdentifier,
+    name: null,
+    role: invitation.role,
+    teamId: invitation.teamId,
+    expiresAt: invitation.expiresAt,
+    status: invitation.status,
+    isExpired: invitation.isExpired,
+  });
+
+  // Unified data for the current filter
+  const unifiedData: UnifiedData[] = useMemo(() => {
+    if (filter === "all")
+      return [
+        ...members.map(toUnifiedMember),
+        ...pendingInvitations.map(toUnifiedInvitation),
+      ];
+    if (filter === "active") return activeMembers.map(toUnifiedMember);
+    if (filter === "suspended") return suspendedMembers.map(toUnifiedMember);
+    if (filter === "pending") return pendingInvitations.map(toUnifiedInvitation);
+    return [];
+  }, [filter, members, activeMembers, suspendedMembers, pendingInvitations]);
 
   const handleRemoveMember = async (memberUserId: string) => {
     try {
@@ -346,6 +366,8 @@ export function MembersTable({
   const getStatusBadge = (status: string, isExpired: boolean) => {
     if (status === "pending" && !isExpired)
       return <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-400">Pending</Badge>;
+    if (status === "declined")
+      return <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-400">Declined</Badge>;
     if (status === "cancelled")
       return <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">Cancelled</Badge>;
     if (status === "accepted")
@@ -426,7 +448,11 @@ export function MembersTable({
         </div>
       </TableCell>
       <TableCell className="py-3">
-        <Badge className="border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">Active</Badge>
+        {item.status === "suspended" ? (
+          <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">Suspended</Badge>
+        ) : (
+          <Badge className="border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">Active</Badge>
+        )}
       </TableCell>
       <TableCell className="py-3">
         {isOwner ? (
@@ -586,8 +612,13 @@ export function MembersTable({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
-            <SelectItem value="members">Members Only</SelectItem>
-            <SelectItem value="invitations">Invitations Only</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            {suspendedCount > 0 && (
+              <SelectItem value="suspended">Suspended</SelectItem>
+            )}
+            {pendingCount > 0 && (
+              <SelectItem value="pending">Pending</SelectItem>
+            )}
           </SelectContent>
         </Select>
         <span className="text-sm text-muted-foreground">{description}</span>
@@ -608,57 +639,21 @@ export function MembersTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filter === "all" &&
-              unifiedData.map((item) =>
-                item.type === "member"
-                  ? renderMemberRow(item)
-                  : renderInvitationRow(item)
-              )}
-
-            {filter === "members" &&
-              members.map((member) =>
-                renderMemberRow({
-                  type: "member",
-                  _id: member._id,
-                  email: member.user?.email || "",
-                  name: member.user?.name || member.user?.email || "Unknown User",
-                  role: member.role,
-                  teams: member.teams || [],
-                  userId: member.userId,
-                })
-              )}
-
-            {filter === "invitations" &&
-              invitations.map((invitation) =>
-                renderInvitationRow({
-                  type: "invitation",
-                  _id: invitation._id,
-                  email: invitation.inviteeIdentifier, // Use inviteeIdentifier as email display
-                  name: null,
-                  role: invitation.role,
-                  teamId: invitation.teamId,
-                  expiresAt: invitation.expiresAt,
-                  status: invitation.status,
-                  isExpired: invitation.isExpired,
-                })
-              )}
+            {unifiedData.map((item) =>
+              item.type === "member"
+                ? renderMemberRow(item)
+                : renderInvitationRow(item)
+            )}
           </TableBody>
         </Table>
 
-        {/* Empty states */}
-        {filter === "all" && unifiedData.length === 0 && (
+        {/* Empty state */}
+        {unifiedData.length === 0 && (
           <div className="p-8 text-center text-muted-foreground">
-            No members or invitations found
-          </div>
-        )}
-        {filter === "members" && members.length === 0 && (
-          <div className="p-8 text-center text-muted-foreground">
-            No members found
-          </div>
-        )}
-        {filter === "invitations" && invitations.length === 0 && (
-          <div className="p-8 text-center text-muted-foreground">
-            No pending invitations
+            {filter === "all" && "No members or invitations found"}
+            {filter === "active" && "No active members"}
+            {filter === "suspended" && "No suspended members"}
+            {filter === "pending" && "No pending invitations"}
           </div>
         )}
       </div>

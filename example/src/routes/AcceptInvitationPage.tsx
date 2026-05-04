@@ -14,23 +14,27 @@ export function AcceptInvitationPage() {
     organizationName,
     isLoading,
     isAccepting,
+    isDeclining,
     accepted,
+    declined,
     error,
     acceptInvitation,
+    declineInvitation,
   } = useAcceptInvitation({
     invitationId,
     getInvitationQuery: api.tenants.getInvitation as any,
     acceptInvitationMutation: api.tenants.acceptInvitation as any,
+    declineInvitationMutation: api.tenants.declineInvitation as any,
   });
 
   useEffect(() => {
-    if (accepted) {
+    if (accepted || declined) {
       const timer = setTimeout(() => {
         navigate({ to: "/" });
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [accepted, navigate]);
+  }, [accepted, declined, navigate]);
 
   const handleClose = () => {
     navigate({ to: "/" });
@@ -43,10 +47,12 @@ export function AcceptInvitationPage() {
       isLoading={isLoading}
       isAuthenticated={isAuthenticated}
       isAccepting={isAccepting}
+      isDeclining={isDeclining}
       accepted={accepted}
+      declined={declined}
       error={error}
       onAccept={acceptInvitation}
-      onDecline={handleClose}
+      onDecline={declineInvitation}
       onNavigateToLogin={handleClose}
       onNavigateHome={handleClose}
     />

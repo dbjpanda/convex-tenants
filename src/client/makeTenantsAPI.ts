@@ -1539,6 +1539,15 @@ export function makeTenantsAPI(
       },
     }),
 
+    declineInvitation: mutationGeneric({
+      args: { invitationId: v.string() },
+      returns: v.null(),
+      handler: async (ctx, args) => {
+        const userId = await requireAuth(ctx);
+        await tenants.declineInvitation(ctx, args.invitationId, userId);
+      },
+    }),
+
     checkPermission: queryGeneric({
       args: { organizationId: v.string(), permission: v.string() },
       returns: v.object({ allowed: v.boolean(), reason: v.string() }),

@@ -79,9 +79,22 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           organizationId: string;
-          status?: "pending" | "accepted" | "cancelled" | "expired" | "all";
+          status?:
+            | "pending"
+            | "accepted"
+            | "declined"
+            | "cancelled"
+            | "expired"
+            | "all";
         },
         number,
+        Name
+      >;
+      declineInvitation: FunctionReference<
+        "mutation",
+        "internal",
+        { decliningUserId?: string; invitationId: string },
+        null,
         Name
       >;
       getInvitation: FunctionReference<
@@ -101,7 +114,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           organizationId: string;
           organizationName: string;
           role: string;
-          status: "pending" | "accepted" | "cancelled" | "expired";
+          status: "pending" | "accepted" | "declined" | "cancelled" | "expired";
           teamId: null | string;
         },
         Name
@@ -158,7 +171,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           };
           sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt";
           sortOrder?: "asc" | "desc";
-          status?: "pending" | "accepted" | "cancelled" | "expired";
+          status?:
+            | "pending"
+            | "accepted"
+            | "declined"
+            | "cancelled"
+            | "expired";
         },
         | Array<{
             _creationTime: number;
@@ -172,7 +190,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             message?: string;
             organizationId: string;
             role: string;
-            status: "pending" | "accepted" | "cancelled" | "expired";
+            status:
+              | "pending"
+              | "accepted"
+              | "declined"
+              | "cancelled"
+              | "expired";
             teamId: null | string;
           }>
         | {
@@ -190,7 +213,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               message?: string;
               organizationId: string;
               role: string;
-              status: "pending" | "accepted" | "cancelled" | "expired";
+              status:
+                | "pending"
+                | "accepted"
+                | "declined"
+                | "cancelled"
+                | "expired";
               teamId: null | string;
             }>;
             pageStatus?: "SplitRecommended" | "SplitRequired" | null;

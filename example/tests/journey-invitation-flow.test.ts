@@ -268,4 +268,85 @@ describe("User Journey: Invitation Flow", () => {
     });
     expect(finalInvitation?.status).toBe("accepted");
   });
+
+  test("Journey 5: Invite → decline → re-invite → accept", async () => {
+    const t = initConvexTest();
+    const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+    const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+    // Step 1: Alice creates org
+    const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+      name: "Decline Flow Corp",
+    });
+
+    // Step 2: Alice invites Bob as member
+    const { invitationId: firstInvId } = await asAlice.mutation(
+      api.testHelpers.strictInviteMember,
+      {
+        organizationId: orgId,
+        inviteeIdentifier: "bob@test.com",
+        identifierType: "email",
+        role: "member",
+      }
+    );
+
+    // Step 3: Bob declines the invitation
+    await asBob.mutation(api.testHelpers.strictDeclineInvitation, {
+      invitationId: firstInvId,
+    });
+
+    // Verify: invitation is declined
+    const declinedInv = await asAlice.query(api.testHelpers.strictGetInvitation, {
+      invitationId: firstInvId,
+    });
+    expect(declinedInv?.status).toBe("declined");
+
+    // Verify: Bob is NOT a member
+    const membersAfterDecline = await asAlice.query(api.testHelpers.strictListMembers, {
+      organizationId: orgId,
+    });
+    expect(membersAfterDecline.find((m: any) => m.userId === "bob")).toBeUndefined();
+
+    // Step 4: Alice re-invites Bob (as admin this time)
+    const { invitationId: secondInvId } = await asAlice.mutation(
+      api.testHelpers.strictInviteMember,
+      {
+        organizationId: orgId,
+        inviteeIdentifier: "bob@test.com",
+        identifierType: "email",
+        role: "admin",
+      }
+    );
+    expect(secondInvId).toBeDefined();
+    expect(secondInvId).not.toBe(firstInvId);
+
+    // Step 5: Bob accepts the second invitation
+    await asBob.mutation(api.testHelpers.strictAcceptInvitation, {
+      invitationId: secondInvId,
+    });
+
+    // Verify: Bob is now a member with admin role
+    const membersAfterAccept = await asAlice.query(api.testHelpers.strictListMembers, {
+      organizationId: orgId,
+    });
+    const bob = membersAfterAccept.find((m: any) => m.userId === "bob");
+    expect(bob).toBeDefined();
+    expect(bob.role).toBe("admin");
+
+    // Verify: first invitation still declined, second accepted
+    const inv1 = await asAlice.query(api.testHelpers.strictGetInvitation, {
+      invitationId: firstInvId,
+    });
+    const inv2 = await asAlice.query(api.testHelpers.strictGetInvitation, {
+      invitationId: secondInvId,
+    });
+    expect(inv1?.status).toBe("declined");
+    expect(inv2?.status).toBe("accepted");
+
+    // Verify: Bob (now admin) can list members
+    const bobsView = await asBob.query(api.testHelpers.strictListMembers, {
+      organizationId: orgId,
+    });
+    expect(bobsView.length).toBeGreaterThanOrEqual(2);
+  });
 });

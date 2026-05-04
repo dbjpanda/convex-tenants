@@ -62,7 +62,11 @@ export interface TenantsAPI {
   listMembers: FunctionReference<
     "query",
     "public",
-    { organizationId: string; paginationOpts?: { numItems: number; cursor: string | null } },
+    {
+      organizationId: string;
+      status?: "active" | "suspended" | "all";
+      paginationOpts?: { numItems: number; cursor: string | null };
+    },
     Member[] | { page: Member[]; isDone: boolean; continueCursor: string }
   >;
   removeMember: FunctionReference<
@@ -298,7 +302,9 @@ export function TenantsProvider({
   // Organization-scoped queries (skip if no org or feature disabled; no paginationOpts => array result)
   const membersRaw = useQuery(
     api.listMembers,
-    membersEnabled && currentOrganization ? { organizationId: currentOrganization._id } : "skip"
+    membersEnabled && currentOrganization
+      ? { organizationId: currentOrganization._id, status: "all" }
+      : "skip"
   );
   const members = useMemo(
     () => {

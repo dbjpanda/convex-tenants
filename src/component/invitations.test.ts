@@ -849,4 +849,422 @@ describe("invitations", () => {
       expect(result.scanned).toBeGreaterThanOrEqual(2);
     });
   });
+
+  describe("declineInvitation", () => {
+    it("should decline a pending invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await t.mutation(api.invitations.declineInvitation, {
+        invitationId,
+        decliningUserId: "user_456",
+      });
+
+      const invitation = await t.query(api.invitations.getInvitation, {
+        invitationId,
+      });
+      expect(invitation?.status).toBe("declined");
+    });
+
+    it("should throw when declining a non-existent invitation", async () => {
+      const t = createTestInstance();
+
+      await expect(
+        t.mutation(api.invitations.declineInvitation, {
+          invitationId: "nonexistent_id",
+        })
+      ).rejects.toThrow();
+    });
+
+    it("should throw when declining an already accepted invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await t.mutation(api.invitations.acceptInvitation, {
+        invitationId,
+        acceptingUserId: "user_456",
+        acceptingUserIdentifier: "newuser@example.com",
+      });
+
+      await expect(
+        t.mutation(api.invitations.declineInvitation, {
+          invitationId,
+          decliningUserId: "user_456",
+        })
+      ).rejects.toThrow(/already been accepted/);
+    });
+
+    it("should throw when declining an already declined invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await t.mutation(api.invitations.declineInvitation, {
+        invitationId,
+        decliningUserId: "user_456",
+      });
+
+      await expect(
+        t.mutation(api.invitations.declineInvitation, {
+          invitationId,
+          decliningUserId: "user_456",
+        })
+      ).rejects.toThrow(/already been declined/);
+    });
+
+    it("should throw when declining a cancelled invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await t.mutation(api.invitations.cancelInvitation, {
+        userId: "user_123",
+        invitationId,
+      });
+
+      await expect(
+        t.mutation(api.invitations.declineInvitation, {
+          invitationId,
+          decliningUserId: "user_456",
+        })
+      ).rejects.toThrow(/already been cancelled/);
+    });
+
+    it("should throw when declining an expired invitation", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+        expiresAt: Date.now() - 1000, // already expired
+      });
+
+      await expect(
+        t.mutation(api.invitations.declineInvitation, {
+          invitationId,
+          decliningUserId: "user_456",
+        })
+      ).rejects.toThrow(/expired/);
+    });
+
+    it("declined invitation should not appear in pending list", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await t.mutation(api.invitations.declineInvitation, {
+        invitationId,
+        decliningUserId: "user_456",
+      });
+
+      const pending = await t.query(api.invitations.listInvitations, {
+        organizationId: orgId,
+        status: "pending",
+      });
+      expect(pending).toHaveLength(0);
+
+      // But should appear when listing declined
+      const declined = await t.query(api.invitations.listInvitations, {
+        organizationId: orgId,
+        status: "declined",
+      });
+      expect(declined).toHaveLength(1);
+      expect((declined as any[])[0].status).toBe("declined");
+    });
+
+    it("should allow re-inviting after decline", async () => {
+      const t = createTestInstance();
+
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await t.mutation(api.invitations.declineInvitation, {
+        invitationId,
+        decliningUserId: "user_456",
+      });
+
+      // Re-invite the same person — should succeed since the old invite is declined, not pending
+      const result = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "admin",
+      });
+
+      expect(result.invitationId).toBeDefined();
+      expect(result.inviteeIdentifier).toBe("newuser@example.com");
+    });
+  });
+
+  describe("edge cases", () => {
+    it("resendInvitation throws for declined invitation", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+      await t.mutation(api.invitations.declineInvitation, {
+        invitationId,
+        decliningUserId: "user_456",
+      });
+      await expect(
+        t.mutation(api.invitations.resendInvitation, { userId: "user_123", invitationId })
+      ).rejects.toThrow(/Cannot resend declined invitation/);
+    });
+
+    it("acceptInvitation throws for declined invitation", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "newuser@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+      await t.mutation(api.invitations.declineInvitation, {
+        invitationId,
+        decliningUserId: "user_456",
+      });
+      await expect(
+        t.mutation(api.invitations.acceptInvitation, {
+          invitationId,
+          acceptingUserId: "user_456",
+          acceptingUserIdentifier: "newuser@example.com",
+        })
+      ).rejects.toThrow(/already been declined/);
+    });
+
+    it("inviting an existing member creates invitation but accept throws ALREADY_EXISTS", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+      await t.mutation(api.members.addMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        memberUserId: "user_456",
+        role: "member",
+      });
+      // Invitation creation succeeds (component doesn't check membership)
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "existing@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+      expect(invitationId).toBeDefined();
+
+      // But accepting throws because user is already a member
+      await expect(
+        t.mutation(api.invitations.acceptInvitation, {
+          invitationId,
+          acceptingUserId: "user_456",
+          acceptingUserIdentifier: "existing@example.com",
+        })
+      ).rejects.toThrow(/already a member/);
+    });
+
+    it("case-insensitive email dedup prevents duplicate pending invitations", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+      await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "bob@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+      // Same email, different case — should be rejected as duplicate
+      await expect(
+        t.mutation(api.invitations.inviteMember, {
+          userId: "user_123",
+          organizationId: orgId,
+          inviteeIdentifier: "Bob@EXAMPLE.COM",
+          identifierType: "email",
+          role: "member",
+        })
+      ).rejects.toThrow(/pending invitation already exists/);
+    });
+
+    it("bulk invite succeeds for previously declined emails", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+      // First invite then decline
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "declined@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+      await t.mutation(api.invitations.declineInvitation, {
+        invitationId,
+        decliningUserId: "user_456",
+      });
+
+      // Bulk invite should succeed for this email since the old one is declined
+      const result = await t.mutation(api.invitations.bulkInviteMembers, {
+        userId: "user_123",
+        organizationId: orgId,
+        invitations: [
+          { inviteeIdentifier: "declined@example.com", role: "admin" },
+          { inviteeIdentifier: "fresh@example.com", role: "member" },
+        ],
+      });
+      expect(result.success).toHaveLength(2);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("removed member can rejoin via invitation", async () => {
+      const t = createTestInstance();
+      const orgId = await t.mutation(api.organizations.createOrganization, {
+        userId: "user_123",
+        name: "Test Org",
+        slug: "test-org",
+      });
+      // Add and then remove member
+      await t.mutation(api.members.addMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        memberUserId: "user_456",
+        role: "member",
+      });
+      await t.mutation(api.members.removeMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        memberUserId: "user_456",
+      });
+
+      // Invite the removed member
+      const { invitationId } = await t.mutation(api.invitations.inviteMember, {
+        userId: "user_123",
+        organizationId: orgId,
+        inviteeIdentifier: "rejoiner@example.com",
+        identifierType: "email",
+        role: "admin",
+      });
+
+      // Accept — should succeed since they're no longer a member
+      await t.mutation(api.invitations.acceptInvitation, {
+        invitationId,
+        acceptingUserId: "user_456",
+        acceptingUserIdentifier: "rejoiner@example.com",
+      });
+
+      // Verify they're back with the new role
+      const members = await t.query(api.members.listOrganizationMembers, {
+        organizationId: orgId,
+      });
+      const rejoined = (members as any[]).find((m: any) => m.userId === "user_456");
+      expect(rejoined).toBeDefined();
+      expect(rejoined.role).toBe("admin");
+    });
+  });
 });

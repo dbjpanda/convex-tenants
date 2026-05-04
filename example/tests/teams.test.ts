@@ -273,7 +273,7 @@ describe("makeTenantsAPI - teams", () => {
   });
 
   describe("list teams vs list team members by role", () => {
-    test("member cannot list teams (teams:list denied) and cannot list team members (teams:listMembers denied)", async () => {
+    test("member can list teams and team members (default permission map grants teams:list and teams:listMembers)", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
       const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
@@ -291,13 +291,14 @@ describe("makeTenantsAPI - teams", () => {
         name: "Engineering",
       });
 
-      // Bob (member role) has teams: [] → gets empty list (queries return empty on permission denied)
+      // Bob (member role) has teams: ["list", "listMembers"] → can see teams
       const teams = await asBob.query(api.testHelpers.strictListTeams, { organizationId: orgId });
-      expect(teams).toEqual([]);
+      expect(teams).toHaveLength(1);
+      expect(teams[0].name).toBe("Engineering");
 
-      // Bob (member role) does not have teams:listMembers → gets empty list
+      // Bob can also query team members (permission granted, team has no explicit members yet)
       const teamMembers = await asBob.query(api.testHelpers.strictListTeamMembers, { teamId });
-      expect(teamMembers).toEqual([]);
+      expect(teamMembers).toHaveLength(0);
     });
   });
 });

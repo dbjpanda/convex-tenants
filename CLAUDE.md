@@ -83,6 +83,12 @@ Contains a full working integration: `convex/convex.config.ts` registers tenants
 - Roles are flexible strings defined by the consuming app in their `authz.ts`, not hardcoded enums
 - The `permissionMap` pattern maps operations to permission strings, allowing consumers to override which permission is checked for each action
 
+## Authz Integration (peer ^2.3.0)
+
+Tenants depends on `@djpanda/convex-authz` as a peer. The `Tenants` class accepts an `Authz` instance (see `src/client/authz.ts` for the structural `AuthzClient` interface) and uses optional method probing (`if (this.authz.recomputeUser)`) to stay forward-compatible.
+
+**Default roles & post-deploy sync.** `TENANTS_ROLES` (in `src/client/authz.ts`) defines the built-in `owner` / `admin` / `member` roles. Whenever those defaults change — or when a consumer extends them via `defineRoles(permissions, TENANTS_ROLES, {...})` and redeploys — existing users still carry the OLD materialized permissions in `effectivePermissions`. Consumers MUST run `authz.syncRoles(ctx)` once from an action after such a change, or existing members will see stale permissions. See `example/convex/authz.ts` for the recommended pattern.
+
 ## ESLint
 
 Three separate ESLint configurations in `eslint.config.js`:

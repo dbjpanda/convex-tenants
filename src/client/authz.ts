@@ -93,6 +93,21 @@ export interface AuthzClient {
 
   /** Rebuild effective permissions/roles for a user (after schema/role changes). */
   recomputeUser?(ctx: any, userId: string): Promise<void>;
+
+  /**
+   * Re-materialize permissions for every user holding the given role.
+   * Requires an ActionCtx — pages through assignments and runs one mutation per user.
+   * Call after editing `defineRoles(...)` and redeploying so existing members
+   * see the updated permission set. Available in @djpanda/convex-authz >= 2.3.0.
+   */
+  syncRole?(ctx: any, role: string): Promise<{ usersProcessed: number }>;
+
+  /**
+   * Re-materialize permissions for every user holding any role in the catalog.
+   * Convenience wrapper that iterates `syncRole` across all configured roles.
+   * Available in @djpanda/convex-authz >= 2.3.0.
+   */
+  syncRoles?(ctx: any): Promise<{ rolesProcessed: number; usersProcessed: number }>;
 }
 
 // ============================================================================
@@ -269,8 +284,8 @@ export const TENANTS_ROLES = defineRoles(TENANTS_PERMISSIONS, {
   },
   member: {
     organizations: ["read"],
-    members: [], // can't list org members (see other members in the organization)
-    teams: [], // can't list teams; listMembers not granted — cannot list team members
+    members: ["list"],
+    teams: ["list", "listMembers"],
     invitations: ["list"],
   },
 });

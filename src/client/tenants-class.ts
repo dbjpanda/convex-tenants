@@ -837,7 +837,7 @@ export class Tenants {
     ctx: QueryCtx,
     organizationId: string,
     options?: {
-      status?: "pending" | "accepted" | "cancelled" | "expired";
+      status?: "pending" | "accepted" | "declined" | "cancelled" | "expired";
       sortBy?: "inviteeIdentifier" | "expiresAt" | "createdAt";
       sortOrder?: "asc" | "desc";
       paginationOpts?: { numItems: number; cursor: string | null };
@@ -852,7 +852,7 @@ export class Tenants {
     });
   }
 
-  async countInvitations(ctx: QueryCtx, organizationId: string, options?: { status?: "pending" | "accepted" | "cancelled" | "expired" | "all" }): Promise<number> {
+  async countInvitations(ctx: QueryCtx, organizationId: string, options?: { status?: "pending" | "accepted" | "declined" | "cancelled" | "expired" | "all" }): Promise<number> {
     return await ctx.runQuery(this.component.invitations.countInvitations, { organizationId, ...(options?.status ? { status: options.status } : {}) } as { organizationId: string });
   }
 
@@ -964,5 +964,12 @@ export class Tenants {
     if (!invitation) throw new Error("Invitation not found");
     await this.authzRequireOperation(ctx, userId, "cancelInvitation", orgScope(invitation.organizationId));
     await ctx.runMutation(this.component.invitations.cancelInvitation, { userId, invitationId });
+  }
+
+  async declineInvitation(ctx: MutationCtx, invitationId: string, decliningUserId?: string): Promise<void> {
+    await ctx.runMutation(this.component.invitations.declineInvitation, {
+      invitationId,
+      decliningUserId,
+    });
   }
 }

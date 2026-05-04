@@ -10,6 +10,7 @@ export interface Member {
   organizationId: string;
   userId: string;
   role: string;
+  status?: "active" | "suspended";
   // User data from bridge (optional, if enriched)
   user?: {
     name?: string;

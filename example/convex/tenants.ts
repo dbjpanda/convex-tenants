@@ -57,6 +57,7 @@ export const {
   acceptInvitation,
   resendInvitation,
   cancelInvitation,
+  declineInvitation,
   // Authorization
   checkPermission,
   getUserPermissions,

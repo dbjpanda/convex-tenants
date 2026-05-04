@@ -572,7 +572,7 @@ describe("makeTenantsAPI - invitations", () => {
       expect(invitation).not.toHaveProperty("inviteeIdentifier");
     });
 
-    test("checkMemberPermission for another user without members:list permission throws", async () => {
+    test("checkMemberPermission for another user succeeds with default members:list permission", async () => {
       const t = initConvexTest();
       const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
       const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
@@ -580,20 +580,19 @@ describe("makeTenantsAPI - invitations", () => {
       const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
         name: "CheckPerm Other Org",
       });
-      // Bob joins as a plain member (lacks members:list in default role map)
+      // Bob joins as a plain member (has members:list in default role map)
       await asAlice.mutation(api.testHelpers.strictAddMember, {
         organizationId: orgId,
         memberUserId: "bob",
         role: "member",
       });
 
-      await expect(
-        asBob.query(api.testHelpers.strictCheckMemberPermission, {
-          organizationId: orgId,
-          userId: "alice",
-          minRole: "member",
-        })
-      ).rejects.toThrow(/members:list permission required/);
+      const result = await asBob.query(api.testHelpers.strictCheckMemberPermission, {
+        organizationId: orgId,
+        userId: "alice",
+        minRole: "member",
+      });
+      expect(result.hasPermission).toBe(true);
     });
 
     test("checkMemberPermission for self succeeds without members:list", async () => {
@@ -712,6 +711,105 @@ describe("makeTenantsAPI - invitations", () => {
       await expect(
         asBob.mutation(api.testHelpers.strictAcceptInvitation, { invitationId })
       ).rejects.toThrow(/Invitation identifier does not match/);
+    });
+  });
+
+  describe("declineInvitation", () => {
+    test("authenticated user can decline an invitation", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Decline Test Org",
+      });
+
+      const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        inviteeIdentifier: "bob@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await asBob.mutation(api.testHelpers.strictDeclineInvitation, { invitationId });
+
+      const invitation = await asAlice.query(api.testHelpers.strictGetInvitation, { invitationId });
+      expect(invitation?.status).toBe("declined");
+    });
+
+    test("declining already cancelled invitation throws", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Decline Cancelled Org",
+      });
+
+      const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        inviteeIdentifier: "bob@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictCancelInvitation, { invitationId });
+
+      await expect(
+        asBob.mutation(api.testHelpers.strictDeclineInvitation, { invitationId })
+      ).rejects.toThrow(/already been cancelled/);
+    });
+
+    test("re-invite after decline succeeds", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Re-invite Org",
+      });
+
+      const { invitationId } = await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        inviteeIdentifier: "bob@example.com",
+        identifierType: "email",
+        role: "member",
+      });
+
+      await asBob.mutation(api.testHelpers.strictDeclineInvitation, { invitationId });
+
+      // Re-invite same person — should work since old invite is declined, not pending
+      const result = await asAlice.mutation(api.testHelpers.strictInviteMember, {
+        organizationId: orgId,
+        inviteeIdentifier: "bob@example.com",
+        identifierType: "email",
+        role: "admin",
+      });
+      expect(result.invitationId).toBeDefined();
+      expect(result.inviteeIdentifier).toBe("bob@example.com");
+    });
+
+    test("member role can call listMembers and see results", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+      const asBob = t.withIdentity({ subject: "bob", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Member List Org",
+      });
+
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+
+      // Bob (member role) should be able to list members
+      const members = await asBob.query(api.testHelpers.strictListMembers, { organizationId: orgId });
+      expect(members.length).toBeGreaterThanOrEqual(2); // alice + bob
+      const userIds = members.map((m: any) => m.userId);
+      expect(userIds).toContain("alice");
+      expect(userIds).toContain("bob");
     });
   });
 });

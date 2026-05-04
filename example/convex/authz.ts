@@ -53,3 +53,18 @@ const roles = defineRoles(permissions, TENANTS_ROLES, {
 // tenantId is required in authz v2 — use a constant for single-app setups,
 // or pass the current organization/customer ID for multi-tenant isolation.
 export const authz = new Authz(components.authz, { permissions, roles, tenantId: "my-app" });
+
+// IMPORTANT: After editing the `roles` definition above and redeploying,
+// existing users still carry the OLD materialized permissions in
+// `effectivePermissions`. Run `authz.syncRoles(ctx)` once from a Convex
+// action (e.g. an internalAction triggered manually or via a deploy hook)
+// to rebuild every user's permissions from the new role definition:
+//
+//   import { internalAction } from "./_generated/server";
+//   export const resyncRoles = internalAction({
+//     args: {},
+//     handler: async (ctx) => await authz.syncRoles(ctx),
+//   });
+//   // then: npx convex run authz:resyncRoles
+//
+// Per-role version: `authz.syncRole(ctx, "member")`. Both are idempotent.

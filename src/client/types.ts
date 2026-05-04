@@ -75,7 +75,7 @@ export interface Invitation {
   inviterId: string;
   inviterName?: string;
   message?: string;
-  status: "pending" | "accepted" | "cancelled" | "expired";
+  status: "pending" | "accepted" | "declined" | "cancelled" | "expired";
   expiresAt: number;
   isExpired: boolean;
 }

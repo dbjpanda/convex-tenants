@@ -23,6 +23,7 @@ const invitationShape = v.object({
   status: v.union(
     v.literal("pending"),
     v.literal("accepted"),
+    v.literal("declined"),
     v.literal("cancelled"),
     v.literal("expired")
   ),
@@ -33,7 +34,7 @@ const invitationShape = v.object({
 export const listInvitations = query({
   args: {
     organizationId: v.string(),
-    status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled"), v.literal("expired"))),
+    status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("declined"), v.literal("cancelled"), v.literal("expired"))),
     sortBy: v.optional(v.union(v.literal("inviteeIdentifier"), v.literal("expiresAt"), v.literal("createdAt"))),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     paginationOpts: v.optional(paginationOptsValidator),
@@ -129,7 +130,7 @@ export const listInvitations = query({
 export const countInvitations = query({
   args: {
     organizationId: v.string(),
-    status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("cancelled"), v.literal("expired"), v.literal("all"))),
+    status: v.optional(v.union(v.literal("pending"), v.literal("accepted"), v.literal("declined"), v.literal("cancelled"), v.literal("expired"), v.literal("all"))),
   },
   returns: v.number(),
   handler: async (ctx, args) => {
@@ -172,6 +173,7 @@ export const getInvitation = query({
       status: v.union(
         v.literal("pending"),
         v.literal("accepted"),
+        v.literal("declined"),
         v.literal("cancelled"),
         v.literal("expired")
       ),
@@ -492,6 +494,28 @@ export const cancelInvitation = mutation({
       });
     }
     await ctx.db.patch(invitationId, { status: "cancelled" });
+    return null;
+  },
+});
+
+export const declineInvitation = mutation({
+  args: { invitationId: v.string(), decliningUserId: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const invitationId = args.invitationId as Id<"invitations">;
+    const invitation = await ctx.db.get(invitationId);
+    if (!invitation) throw new ConvexError({ code: "NOT_FOUND", message: "Invitation not found" });
+    if (invitation.status !== "pending") {
+      throw new ConvexError({
+        code: "INVALID_STATE",
+        message: `Invitation has already been ${invitation.status}`,
+      });
+    }
+    if (isInvitationExpired(invitation)) {
+      await ctx.db.patch(invitationId, { status: "expired" });
+      throw new ConvexError({ code: "EXPIRED", message: "Invitation has expired" });
+    }
+    await ctx.db.patch(invitationId, { status: "declined" });
     return null;
   },
 });

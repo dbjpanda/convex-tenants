@@ -34,9 +34,19 @@ export interface AcceptInvitationProps {
   isAccepting?: boolean;
 
   /**
+   * Whether the invitation is being declined
+   */
+  isDeclining?: boolean;
+
+  /**
    * Whether the invitation was accepted
    */
   accepted?: boolean;
+
+  /**
+   * Whether the invitation was declined
+   */
+  declined?: boolean;
 
   /**
    * Error message if any
@@ -51,7 +61,7 @@ export interface AcceptInvitationProps {
   /**
    * Callback when declining the invitation
    */
-  onDecline: () => void;
+  onDecline: () => void | Promise<void>;
 
   /**
    * Callback when navigating to login
@@ -112,7 +122,9 @@ export function AcceptInvitation({
   isLoading = false,
   isAuthenticated = false,
   isAccepting = false,
+  isDeclining = false,
   accepted = false,
+  declined = false,
   error,
   onAccept,
   onDecline,
@@ -167,7 +179,7 @@ export function AcceptInvitation({
     );
   }
 
-  // Success state
+  // Accepted success state
   if (accepted) {
     return (
       <div className={cn("min-h-screen flex items-center justify-center p-4", className)}>
@@ -179,6 +191,25 @@ export function AcceptInvitation({
             </div>
             <CardDescription>
               You've successfully joined {organizationName || "the organization"}. Redirecting to dashboard...
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-center py-4">
+            <span className="text-muted-foreground">{LoadingIcon}</span>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Declined success state
+  if (declined) {
+    return (
+      <div className={cn("min-h-screen flex items-center justify-center p-4", className)}>
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Invitation Declined</CardTitle>
+            <CardDescription>
+              You've declined the invitation to {organizationName || "the organization"}. Redirecting...
             </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center py-4">
@@ -279,7 +310,7 @@ export function AcceptInvitation({
         <CardContent className="space-y-4">
           {orgDetails}
           <div className="space-y-2">
-            <Button onClick={onAccept} disabled={isAccepting} className="w-full">
+            <Button onClick={onAccept} disabled={isAccepting || isDeclining} className="w-full">
               {isAccepting ? (
                 <span className="flex items-center justify-center gap-2">
                   {LoadingIcon}
@@ -292,10 +323,17 @@ export function AcceptInvitation({
             <Button
               variant="ghost"
               onClick={onDecline}
-              disabled={isAccepting}
+              disabled={isAccepting || isDeclining}
               className="w-full"
             >
-              Decline
+              {isDeclining ? (
+                <span className="flex items-center justify-center gap-2">
+                  {LoadingIcon}
+                  Declining...
+                </span>
+              ) : (
+                "Decline"
+              )}
             </Button>
           </div>
         </CardContent>

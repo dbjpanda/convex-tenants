@@ -15,7 +15,7 @@ export interface Invitation {
   teamId: string | null;
   inviterId: string;
   message?: string;
-  status: "pending" | "accepted" | "cancelled" | "expired";
+  status: "pending" | "accepted" | "declined" | "cancelled" | "expired";
   expiresAt: number;
   isExpired: boolean;
 }
@@ -252,6 +252,17 @@ export interface UseAcceptInvitationOptions {
     { invitationId: string },
     null
   >;
+
+  /**
+   * Mutation function reference to decline an invitation
+   * Example: api.tenants.declineInvitation
+   */
+  declineInvitationMutation?: FunctionReference<
+    "mutation",
+    "public",
+    { invitationId: string },
+    null
+  >;
 }
 
 export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
@@ -260,11 +271,14 @@ export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
     getInvitationQuery,
     getOrganizationQuery,
     acceptInvitationMutation,
+    declineInvitationMutation,
   } = options;
 
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
+  const [declined, setDeclined] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isDeclining, setIsDeclining] = useState(false);
   const acceptingRef = useRef(false);
 
   const invitation = useQuery(getInvitationQuery, { invitationId });
@@ -276,6 +290,9 @@ export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
   );
 
   const acceptMutation = useMutation(acceptInvitationMutation);
+  const declineMutation = declineInvitationMutation
+    ? useMutation(declineInvitationMutation)
+    : null;
 
   const acceptInvitation = useCallback(async () => {
     if (acceptingRef.current) {
@@ -295,6 +312,20 @@ export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
     }
   }, [invitationId, acceptMutation]);
 
+  const declineInvitation = useCallback(async () => {
+    if (!declineMutation) return;
+    try {
+      setIsDeclining(true);
+      setError(null);
+      await declineMutation({ invitationId });
+      setDeclined(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to decline invitation");
+    } finally {
+      setIsDeclining(false);
+    }
+  }, [invitationId, declineMutation]);
+
   const resetError = useCallback(() => {
     setError(null);
     acceptingRef.current = false;
@@ -306,9 +337,12 @@ export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
     organizationName: invitation?.organizationName,
     isLoading,
     isAccepting,
+    isDeclining,
     accepted,
+    declined,
     error,
     acceptInvitation,
+    declineInvitation,
     resetError,
   };
 }

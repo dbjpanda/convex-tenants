@@ -172,6 +172,7 @@ export const strictInviteMember = strictApi.inviteMember;
 export const strictAcceptInvitation = strictApi.acceptInvitation;
 export const strictResendInvitation = strictApi.resendInvitation;
 export const strictCancelInvitation = strictApi.cancelInvitation;
+export const strictDeclineInvitation = strictApi.declineInvitation;
 
 // Authorization
 export const strictCheckPermission = strictApi.checkPermission;

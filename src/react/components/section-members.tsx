@@ -127,6 +127,7 @@ export function MembersSection({
     userId: m.userId,
     organizationId: m.organizationId,
     role: m.role,
+    status: (m.status as "active" | "suspended") ?? "active",
     user: m.user || {
       name: m.userId,
       email: undefined,
@@ -134,7 +135,7 @@ export function MembersSection({
     teams: m.teams || [],
   })), [members]);
 
-  // Transform invitations for the table
+  // Transform invitations for the table (pass all; MembersTable filters to pending)
   const transformedInvitations: Invitation[] = useMemo(() => invitations.map((inv) => ({
     _id: inv._id,
     _creationTime: inv._creationTime,
@@ -145,9 +146,14 @@ export function MembersSection({
     teamId: inv.teamId ?? null,
     inviterId: inv.inviterId,
     expiresAt: inv.expiresAt,
-    status: inv.status as "pending" | "accepted" | "cancelled" | "expired",
+    status: inv.status as "pending" | "accepted" | "declined" | "cancelled" | "expired",
     isExpired: inv.isExpired ?? inv.status === "expired",
   })), [invitations]);
+
+  const pendingInvitationCount = useMemo(
+    () => transformedInvitations.filter((inv) => inv.status === "pending" && !inv.isExpired).length,
+    [transformedInvitations]
+  );
 
   // Transform teams
   const transformedTeams: Team[] = useMemo(() => teams.map((t) => ({
@@ -188,9 +194,11 @@ export function MembersSection({
               <Skeleton className="mt-1 h-4 w-48" />
             ) : (
               <CardDescription>
-                {members.length} member{members.length !== 1 ? "s" : ""},{" "}
-                {invitations.length} pending invitation
-                {invitations.length !== 1 ? "s" : ""}
+                {members.length} member{members.length !== 1 ? "s" : ""}
+                {pendingInvitationCount > 0 && (
+                  <>, {pendingInvitationCount} pending invitation
+                  {pendingInvitationCount !== 1 ? "s" : ""}</>
+                )}
               </CardDescription>
             )}
           </div>
