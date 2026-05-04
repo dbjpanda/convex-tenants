@@ -42,7 +42,7 @@ export function BulkInviteSection() {
     try {
       const res = await bulkInvite({
         organizationId: currentOrganization._id,
-        invitations: emails.map((email) => ({ email, role })),
+        invitations: emails.map((email) => ({ inviteeIdentifier: email, role })),
       }) as { success?: unknown[]; errors?: unknown[] };
       setResult({
         success: res.success?.length ?? 0,

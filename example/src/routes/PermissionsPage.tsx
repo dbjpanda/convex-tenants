@@ -161,24 +161,34 @@ function PermissionsPanel({ orgId, members }: { orgId?: string; members: any[] }
           </div>
         </div>
 
-        {/* Effective permissions */}
+        {/* Effective permissions — authz returns Array<{effect, permission, scopeKey, sources}>. */}
         <div>
           <p className="mb-2 text-sm font-medium text-muted-foreground">
             Effective Permissions
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {myPerms?.permissions && myPerms.permissions.length > 0 ? (
-              myPerms.permissions.map((p: string) => (
+            {myPerms === undefined ? (
+              <span className="text-sm text-muted-foreground">Loading...</span>
+            ) : Array.isArray(myPerms) && myPerms.length > 0 ? (
+              myPerms.map((p: { permission: string; effect: string }) => (
                 <span
-                  key={p}
-                  className="inline-flex items-center rounded bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  key={p.permission}
+                  className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${
+                    p.effect === "deny"
+                      ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      : "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  }`}
                 >
-                  <Check className="mr-1 size-3" />
-                  {p}
+                  {p.effect === "deny" ? (
+                    <X className="mr-1 size-3" />
+                  ) : (
+                    <Check className="mr-1 size-3" />
+                  )}
+                  {p.permission}
                 </span>
               ))
             ) : (
-              <span className="text-sm text-muted-foreground">Loading...</span>
+              <span className="text-sm text-muted-foreground">No permissions assigned</span>
             )}
           </div>
         </div>
