@@ -257,7 +257,7 @@ export interface UseAcceptInvitationOptions {
    * Mutation function reference to decline an invitation
    * Example: api.tenants.declineInvitation
    */
-  declineInvitationMutation?: FunctionReference<
+  declineInvitationMutation: FunctionReference<
     "mutation",
     "public",
     { invitationId: string },
@@ -290,9 +290,7 @@ export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
   );
 
   const acceptMutation = useMutation(acceptInvitationMutation);
-  const declineMutation = declineInvitationMutation
-    ? useMutation(declineInvitationMutation)
-    : null;
+  const declineMutation = useMutation(declineInvitationMutation);
 
   const acceptInvitation = useCallback(async () => {
     if (acceptingRef.current) {
@@ -313,7 +311,6 @@ export function useAcceptInvitation(options: UseAcceptInvitationOptions) {
   }, [invitationId, acceptMutation]);
 
   const declineInvitation = useCallback(async () => {
-    if (!declineMutation) return;
     try {
       setIsDeclining(true);
       setError(null);

@@ -281,5 +281,68 @@ describe("makeTenantsAPI - members", () => {
       });
       expect(nextPage.page.length).toBeGreaterThanOrEqual(1);
     });
+
+    /**
+     * Regression pin for the tenants-provider.tsx bug fixed in commit dd802aa.
+     *
+     * Before the fix, TenantsProvider invoked `api.listMembers({ organizationId })`
+     * with NO status arg. The server defaults `status` to "active", so suspended
+     * members never reached the React layer — making the new "Suspended" tab
+     * in MembersTable silently dead code in production. The fix passes
+     * `status: "all"` from the provider and partitions active/suspended/pending
+     * client-side.
+     *
+     * This test pins BOTH halves of the contract the provider depends on:
+     *   1. Default (no status arg) returns ONLY active members. If anyone
+     *      changes the server default to be "all", the provider's explicit
+     *      `status: "all"` becomes a no-op AND every other caller relying on
+     *      the active-only default silently changes meaning — both regressions
+     *      worth catching.
+     *   2. `status: "all"` returns active + suspended together, which is what
+     *      the provider now relies on to populate the Suspended filter tab.
+     */
+    test("listMembers default vs status:'all' contract (provider regression dd802aa)", async () => {
+      const t = initConvexTest();
+      const asAlice = t.withIdentity({ subject: "alice", issuer: "https://test.com" });
+
+      const orgId = await asAlice.mutation(api.testHelpers.strictCreateOrganization, {
+        name: "Provider Status Contract Org",
+      });
+      await asAlice.mutation(api.testHelpers.strictAddMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+        role: "member",
+      });
+      await asAlice.mutation(api.testHelpers.strictSuspendMember, {
+        organizationId: orgId,
+        memberUserId: "bob",
+      });
+
+      // (1) No status arg: server default of "active" hides suspended members.
+      const defaulted = await asAlice.query(api.testHelpers.strictListMembers, {
+        organizationId: orgId,
+      });
+      expect(Array.isArray(defaulted)).toBe(true);
+      const defaultedList = defaulted as Array<{ userId: string; status?: string }>;
+      expect(defaultedList).toHaveLength(1);
+      expect(defaultedList[0].userId).toBe("alice");
+      expect(defaultedList.find((m) => m.userId === "bob")).toBeUndefined();
+      expect(
+        defaultedList.every((m) => (m.status ?? "active") === "active")
+      ).toBe(true);
+
+      // (2) status: "all" — what the provider now passes — must include both
+      // active and suspended members so the MembersTable filter tabs work.
+      const all = await asAlice.query(api.testHelpers.strictListMembers, {
+        organizationId: orgId,
+        status: "all",
+      });
+      const allList = all as Array<{ userId: string; status?: string }>;
+      expect(allList).toHaveLength(2);
+      const userIds = allList.map((m) => m.userId).sort();
+      expect(userIds).toEqual(["alice", "bob"]);
+      const bob = allList.find((m) => m.userId === "bob");
+      expect(bob?.status).toBe("suspended");
+    });
   });
 });
