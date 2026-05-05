@@ -9,7 +9,7 @@
   "bugs": {
     "url": "https://github.com/dbjpanda/convex-tenants/issues"
   },
-  "version": "0.4.1",
+  "version": "0.4.2",
   "license": "MIT",
   "author": "djpanda",
   "keywords": [
@@ -63,11 +63,7 @@
       "@convex-dev/component-source": "./src/react/index.ts",
       "default": "./dist/react/index.js"
     },
-    "./test": {
-      "types": "./dist/test.d.ts",
-      "import": "./dist/test.js",
-      "default": "./dist/test.js"
-    },
+    "./test": "./src/test.ts",
     "./_generated/component.js": {
       "types": "./dist/component/_generated/component.d.ts"
     },

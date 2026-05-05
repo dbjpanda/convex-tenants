@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+### Fixed
+- **`@djpanda/convex-tenants/test` helper was broken for downstream consumers** ([#2](https://github.com/dbjpanda/convex-tenants/issues/2)). The export resolved to `dist/test.js` which globs `./component/**/*.ts`, but `dist/component/` only contains the built `.js` files — so the glob matched nothing and `convex-test` failed with `Could not find module for: "organizations"`. Changed the `./test` export to point at `./src/test.ts` directly (matching the pattern that already worked in `@djpanda/convex-authz`). Consumers using Vitest may still need `server.deps.inline: ["@djpanda/convex-tenants"]` to apply the `import.meta.glob` Vite transform.
+
 ## 0.4.1
 
 ### Fixed
