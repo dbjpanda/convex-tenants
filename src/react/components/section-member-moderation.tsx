@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { Shield, UserX, UserCheck, Loader2 } from "lucide-react";
@@ -34,9 +34,14 @@ export function MemberModerationSection() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkRemoving, setBulkRemoving] = useState(false);
 
-  useEffect(() => {
+  // Reset selection when the active org changes — uses the React-docs
+  // "compare during render" pattern instead of useEffect+setState, which
+  // avoids the cascading-render warning from react-hooks/set-state-in-effect.
+  const [prevOrgId, setPrevOrgId] = useState(currentOrganization?._id);
+  if (prevOrgId !== currentOrganization?._id) {
+    setPrevOrgId(currentOrganization?._id);
     setSelectedIds(new Set());
-  }, [currentOrganization?._id]);
+  }
 
   if (!currentOrganization || !a.suspendMember || !a.unsuspendMember || !membersWithStatus?.length) return null;
 

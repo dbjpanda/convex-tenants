@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+### Fixed
+- **CI lint failures** post-0.4.0: refactored two `useEffect`+`setState` patterns in `org-settings-panel.tsx` and `section-member-moderation.tsx` to use the React-docs "compare during render" pattern. Eliminates the `react-hooks/set-state-in-effect` errors without changing behavior.
+- **Vercel preview deploys** were failing on `npm install` due to an unresolved peer-dep range across the eslint v10 ecosystem. Added a project-level `.npmrc` setting `legacy-peer-deps=true` so all `npm install` runs (Vercel previews, contributor checkouts, CI) match what the publish workflow already does.
+
 ## 0.4.0
 
 ### Fixed

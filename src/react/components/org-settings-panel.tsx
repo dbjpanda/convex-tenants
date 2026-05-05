@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import {
@@ -68,7 +68,16 @@ export function OrgSettingsPanel() {
   const [transferring, setTransferring] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
 
-  useEffect(() => {
+  // Re-sync local form state with the current org. Uses the React-docs
+  // "compare during render" pattern instead of useEffect+setState to avoid
+  // the cascading-render warning from react-hooks/set-state-in-effect.
+  // Tracks both id (covers org switch) and the editable fields (covers
+  // remote updates that race with local edits).
+  type SyncKey = string;
+  const syncKey: SyncKey = `${currentOrganization?._id ?? ""}|${currentOrganization?.name ?? ""}|${currentOrganization?.slug ?? ""}|${currentOrganization?.status ?? ""}`;
+  const [prevSyncKey, setPrevSyncKey] = useState<SyncKey>(syncKey);
+  if (prevSyncKey !== syncKey) {
+    setPrevSyncKey(syncKey);
     setName(currentOrganization?.name ?? "");
     setSlug(currentOrganization?.slug ?? "");
     setStatus(currentOrganization?.status ?? "active");
@@ -77,7 +86,7 @@ export function OrgSettingsPanel() {
     setLeaveOpen(false);
     setTransferOpen(false);
     setTransferTargetUserId("");
-  }, [currentOrganization?._id, currentOrganization?.name, currentOrganization?.slug, currentOrganization?.status]);
+  }
 
   const handleSave = async () => {
     if (!currentOrganization) return;
