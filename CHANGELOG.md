@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.0
+
+### Fixed
+- **Bulk invite was completely broken.** `BulkInviteSection` sent `{email, role}` but the `bulkInviteMembers` mutation validator requires `{inviteeIdentifier, role}`. Every bulk invite threw an `ArgumentValidationError`. Fixed the field name.
+- **Permissions page "Effective Permissions" stuck on Loading…** indefinitely. The component read `myPerms?.permissions` but `authz.getUserPermissions` returns an array directly (`Array<{effect, permission, scopeKey, sources}>`), not an object with a `permissions` key. Now reads the array shape correctly and color-codes by `effect` (red for `deny`, green for `allow`). Loading state is also correctly distinguished from empty state.
+- **Direct-URL navigation to `/audit`, `/permissions`, `/settings` showed "Access Restricted"** before `currentRole` resolved. Now waits for `isOrganizationsLoading` to clear before checking the role gate. Sidebar admin nav stays visible during the brief loading window.
+- **Audit log entries from `suspendMember` / `unsuspendMember`** now appear in the org-scoped audit log. The class writes a parallel `attribute_set` / `attribute_removed` audit event via authz, with the org id encoded into the attribute key (`tenants:org:${id}:suspended`). The members table `status` column remains the source of truth for queries — this is purely for auditability.
+
+### Added
+- **UI permission gating.** `TeamsSection` and `NestedTeamsSection` now hide create/delete actions when `currentRole` is not owner/admin (matches the pattern `MembersSection` already used). Backend authz remains the source of truth — defense in depth, not the only gate.
+- **Toast for mutation errors.** Example app replaces the `window.alert(...)` `onToast` handler with a small `Toaster` component (no external deps). Auto-dismiss: 3s for success, 6s for error.
+- **`AuthzClient<P>` is now generic** over the permission definition. `Tenants<P>` and `makeTenantsAPI<P>` thread the same generic. Recovers authz v2.1+'s `PermissionArg<P>` typo protection at the boundary. `PermissionDefinition`, `RoleDefinition`, `PermissionArg` re-exported from the package entry point.
+- **`syncRole` and `syncRoles` Convex actions** exposed via `makeTenantsAPI`. Run `npx convex run tenants:syncRoles` after editing role definitions to re-materialize permissions for existing members. No more hand-written `internalAction` wrapper required.
+- **Audit log scope filter** in `Tenants.getAuditLog` now matches both role/permission events (via `details.scope`) and attribute events (via `details.attribute.key` prefix). Required by the C1 suspend audit work above.
+- **8 manual QA test plans** under `tests/manual/` covering invitations, members status filter, audit log, teams CRUD, organization lifecycle, permissions overrides, bulk operations, and team membership / nested teams.
+
+### Changed
+- **Peer dependency:** `@djpanda/convex-authz` bumped from `^2.3.0` to `^2.3.1` to require the `ConvexError` for permission denials. Permission failures now surface as structured `ConvexError` with `error.data.code === "FORBIDDEN"` instead of opaque "Server Error / Uncaught Error" stack traces.
+- **Dev dependency:** `@djpanda/convex-authz` switched from local `file:../authz` link to the published npm version. A sibling authz checkout is no longer required for local development.
+- **Dev-server hygiene:** chokidar watch glob widened from `'src/**/*.ts'` to `'src/**/*.{ts,tsx}'` so React-layer `.tsx` edits trigger dist rebuilds. `./react` package export gained the `@convex-dev/component-source` condition so Vite resolves to source during dev.
+- **`AuthzClient` interface** dropped the unused `R` (RoleDefinition) generic. Interface signature is now `AuthzClient<P>` where P is `PermissionDefinition`. Pre-1.0 internal change — not breaking for consumers using the default generic param.
+- **Hook contract change:** `useAcceptInvitation` requires `declineInvitationMutation` in options (was previously optional). This was already noted in 0.3.0's breaking section but is repeated here for consumers who skipped that release.
+
+### Internal
+- New regression test: `example/tests/members.test.ts` pins the `listMembers` provider→component contract that the suspended-members fix in 0.3.0 depended on.
+- Authz client dropped the unused `R` generic from `Tenants<P>` and `makeTenantsAPI<P>` signatures (interface tightening, no behavior change).
+
 ## 0.3.0
 
 ### Upgrade action required

@@ -9,7 +9,7 @@
   "bugs": {
     "url": "https://github.com/dbjpanda/convex-tenants/issues"
   },
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "author": "djpanda",
   "keywords": [
@@ -84,7 +84,7 @@
     }
   },
   "peerDependencies": {
-    "@djpanda/convex-authz": "^2.3.0",
+    "@djpanda/convex-authz": "^2.3.1",
     "clsx": "^2.0.0",
     "convex": "^1.35.1",
     "react": "^18.3.1 || ^19.0.0",
@@ -107,7 +107,7 @@
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^2.0.0",
-    "@djpanda/convex-authz": "file:../authz",
+    "@djpanda/convex-authz": "^2.3.1",
     "@edge-runtime/vm": "^5.0.0",
     "@eslint/eslintrc": "^3.3.5",
     "@eslint/js": "10.0.1",
