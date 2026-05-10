@@ -1,7 +1,7 @@
 {
   "name": "convex-tenants-example",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.5.0",
   "description": "Example app demonstrating @djpanda/convex-tenants with React UI components",
   "type": "module",
   "scripts": {
