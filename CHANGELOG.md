@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0
+
+### Fixed
+- **Cross-organization authz isolation** ([#11](https://github.com/dbjpanda/convex-tenants/issues/11)). `makeTenantsAPI` constructs a single `Tenants` at module scope and threaded one fixed `tenantId` through every authz call — so authz tables keyed on `tenantId` (`customRoles`, `userAttributes`, `permissionOverrides`, `relationships`, `auditLog`) collapsed onto one partition across every organization the consumer served. Tenants now routes every org-scoped authz call through `withTenant(organizationId)` so authz partitions data per-org as designed. Real cross-tenant privilege escalation surface for any consumer using authz custom roles or ABAC attributes through tenants. Severity 4/5; runtime `can()` was already scope-isolated via `effectivePermissions`, so vanilla role-only consumers were unaffected — but the docs invited the unsafe path.
+
+### Changed (BREAKING)
+- **`AuthzClient<P>` now requires `withTenant(tenantId): AuthzClient<P>`.** Compile-time enforcement of the structural fix — any consumer-supplied `Authz` implementation must expose `withTenant`. `@djpanda/convex-authz` has shipped this since v2.0.0; the existing peer-dep range `^2.3.1` already satisfies it. Custom `AuthzClient` mocks (e.g. in test code) must be updated.
+- **`Tenants.isTeamMember(ctx, teamId, userId)`** now performs a team lookup before checking the ReBAC relation, since relationships are partitioned by `withTenant(team.organizationId)`. Adds one DB read per call. Returns `false` for missing teams (previously delegated to authz's `hasRelation`).
+- **`Tenants.getAuditLog`** no longer fetches an oversized window and filters client-side. Authz's per-tenant partition delivers org-scoped entries directly; the `options` are passed through unchanged.
+- **`Tenants.syncRole` / `Tenants.syncRoles`** now iterate every organization (each is its own authz tenantId post-fix) via a new paginated internal query and call per-tenant authz sync. Sums of users/roles processed are aggregated across orgs. Existing `tenants:syncRole` / `tenants:syncRoles` actions exposed via `makeTenantsAPI` keep their public signatures.
+- **`Tenants.getUserRoles(ctx, userId)`** (no `organizationId`) now iterates the user's organizations and merges per-org results, since no single tenantId can answer "all roles" once the partition is per-org.
+- **Internal: added `listAllOrganizationIds`** paginated query at the component level for `syncRole` iteration.
+
+### Migration
+- **Existing data under a single fixed tenantId.** Consumers who already deployed against a prior `convex-tenants` version have authz rows (role assignments, overrides, audit entries, etc.) keyed under whatever constant `tenantId` they passed to `new Authz(...)`. Post-upgrade, those rows are invisible to per-org queries. Two options:
+  - **Re-key the rows** with a one-time data migration that rewrites every authz row's `tenantId` to the corresponding organizationId (derivable from the `scope` field on most tables, from `organizationId` on tenants relations).
+  - **Wipe and re-materialize.** Delete authz state and re-run the catalog sync per org via `npx convex run tenants:syncRoles` after re-creating member roles.
+- **Example app and consumers' `authz.ts`.** No code change required. The `tenantId` constant passed to `new Authz(...)` is now only used for the bare-instance pre-org-creation permission check (e.g. gating `createOrganization`). All other operations route via `withTenant(organizationId)` automatically. Docs updated in `docs/quick-start.md`.
+
+### Added
+- **Cross-organization authz isolation test** (`example/tests/cross-org-authz-isolation.test.ts`). Creates two orgs, adds the same user to both, queries authz directly under each org's `tenantId`. Pre-fix this test is RED — assignments land under the consumer's constant `"my-app"` and per-org queries return empty. Post-fix it's GREEN. Regression guard for the structural property the package now provides.
+- **`example/playwright.config.ts`** now reads `PLAYWRIGHT_BASE_URL` from env (default unchanged), and skips its built-in `webServer` auto-start when `PLAYWRIGHT_BASE_URL` is set externally. Useful for running tests against a manually-started dev server.
+
 ## 0.4.2
 
 ### Fixed

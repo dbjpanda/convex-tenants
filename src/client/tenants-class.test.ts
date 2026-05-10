@@ -9,8 +9,15 @@ function createMockCtx() {
   };
 }
 
-function createMockAuthz() {
-  return {
+// withTenant returns a self-reference so every assertion observes the same
+// spy instance regardless of which tenantId tenants routes through. Pass
+// overrides through this factory rather than spreading, so the rebinding
+// always points at the final composite object. The generic return type keeps
+// override fields visible to TypeScript (e.g. `authz.offboardUser`).
+function createMockAuthz<T extends Record<string, unknown> = Record<string, never>>(
+  overrides?: T
+) {
+  const base = {
     can: vi.fn().mockResolvedValue(true),
     require: vi.fn().mockResolvedValue(undefined),
     assignRole: vi.fn().mockResolvedValue("role-id"),
@@ -23,7 +30,11 @@ function createMockAuthz() {
     addRelation: vi.fn().mockResolvedValue("relation-id"),
     removeRelation: vi.fn().mockResolvedValue(true),
     hasRelation: vi.fn().mockResolvedValue(false),
+    withTenant: vi.fn(),
   };
+  const authz = Object.assign(base, overrides ?? ({} as T)) as typeof base & T;
+  base.withTenant.mockReturnValue(authz);
+  return authz;
 }
 
 function createMockComponent(): ComponentApi {
@@ -229,12 +240,19 @@ describe("Tenants", () => {
   });
 
   describe("isTeamMember", () => {
-    it("delegates to authz.hasRelation instead of component query", async () => {
+    it("looks up the team and queries authz.hasRelation under that org's tenantId", async () => {
       authz.hasRelation.mockResolvedValue(true);
+      // First runQuery is the team lookup needed to derive organizationId for
+      // withTenant routing; the team is in org_1.
+      (ctx.runQuery as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        _id: "team_1",
+        organizationId: "org_1",
+      });
 
       const tenants = new Tenants(component, { authz });
       const result = await tenants.isTeamMember(ctx as any, "team_1", "user_1");
 
+      expect(authz.withTenant).toHaveBeenCalledWith("org_1");
       expect(authz.hasRelation).toHaveBeenCalledWith(
         expect.anything(),
         { type: "user", id: "user_1" },
@@ -242,53 +260,54 @@ describe("Tenants", () => {
         { type: "team", id: "team_1" },
       );
       expect(result).toBe(true);
-      expect(ctx.runQuery).not.toHaveBeenCalled();
+    });
+
+    it("returns false when the team does not exist", async () => {
+      (ctx.runQuery as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+      const tenants = new Tenants(component, { authz });
+      expect(await tenants.isTeamMember(ctx as any, "team_missing", "user_1")).toBe(false);
+      expect(authz.hasRelation).not.toHaveBeenCalled();
     });
   });
 
   describe("getAuditLog", () => {
-    it("requests an oversized window from authz.getAuditLog (no scope arg supported)", async () => {
+    it("routes through withTenant(organizationId) and passes options through unchanged", async () => {
       authz.require.mockResolvedValue(undefined);
       authz.getAuditLog.mockResolvedValue([]);
 
       const tenants = new Tenants(component, { authz });
       await tenants.getAuditLog(ctx as any, "user_1", "org_1", { limit: 10 });
 
+      expect(authz.withTenant).toHaveBeenCalledWith("org_1");
       expect(authz.getAuditLog).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ limit: expect.any(Number) }),
+        { limit: 10 },
       );
-      const call = authz.getAuditLog.mock.calls[0]?.[1] as { limit: number; scope?: unknown };
-      expect(call.limit).toBeGreaterThanOrEqual(10);
-      expect(call.scope).toBeUndefined();
     });
 
-    it("filters client-side by entry.details.scope (where authz stores scope)", async () => {
+    it("returns authz's per-tenant result without client-side filtering", async () => {
       authz.require.mockResolvedValue(undefined);
-      authz.getAuditLog.mockResolvedValue([
+      // After withTenant routing, authz partitions the audit log by
+      // organizationId — every entry returned is already org-scoped.
+      const entries = [
         { action: "role_assigned", details: { scope: { type: "organization", id: "org_1" } } },
-        { action: "role_assigned", details: { scope: { type: "organization", id: "org_OTHER" } } },
         { action: "role_revoked", details: { scope: { type: "organization", id: "org_1" } } },
-      ]);
+      ];
+      authz.getAuditLog.mockResolvedValue(entries);
 
       const tenants = new Tenants(component, { authz });
       const result = await tenants.getAuditLog(ctx as any, "user_1", "org_1");
 
-      expect(result).toHaveLength(2);
-      expect(result).toEqual([
-        { action: "role_assigned", details: { scope: { type: "organization", id: "org_1" } } },
-        { action: "role_revoked", details: { scope: { type: "organization", id: "org_1" } } },
-      ]);
+      expect(result).toEqual(entries);
     });
   });
 
   describe("cleanupMemberAuthz fallback chain", () => {
     it("prefers offboardUser over revokeAllRoles for member cleanup", async () => {
-      const authzWithBoth = {
-        ...createMockAuthz(),
+      const authzWithBoth = createMockAuthz({
         offboardUser: vi.fn().mockResolvedValue({ rolesRevoked: 1, overridesRemoved: 0 }),
         revokeAllRoles: vi.fn().mockResolvedValue(1),
-      };
+      });
       const member = { _id: "m1", userId: "bob", role: "member", organizationId: "org_1", _creationTime: 0 };
       (ctx.runQuery as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(member)  // getMember
@@ -307,10 +326,9 @@ describe("Tenants", () => {
     });
 
     it("falls back to revokeAllRoles when offboardUser not available", async () => {
-      const authzWithRevokeAll = {
-        ...createMockAuthz(),
+      const authzWithRevokeAll = createMockAuthz({
         revokeAllRoles: vi.fn().mockResolvedValue(1),
-      };
+      });
       const member = { _id: "m1", userId: "bob", role: "member", organizationId: "org_1", _creationTime: 0 };
       (ctx.runQuery as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(member)
@@ -346,10 +364,9 @@ describe("Tenants", () => {
 
   describe("canAny", () => {
     it("delegates to authz.canAny with orgScope", async () => {
-      const authzWithCanAny = {
-        ...createMockAuthz(),
+      const authzWithCanAny = createMockAuthz({
         canAny: vi.fn().mockResolvedValue(true),
-      };
+      });
 
       const tenants = new Tenants(component, { authz: authzWithCanAny });
       const result = await tenants.canAny(
@@ -409,10 +426,9 @@ describe("Tenants", () => {
     });
 
     it("returns false for empty array when canAny available", async () => {
-      const authzWithCanAny = {
-        ...createMockAuthz(),
+      const authzWithCanAny = createMockAuthz({
         canAny: vi.fn().mockResolvedValue(false),
-      };
+      });
       const tenants = new Tenants(component, { authz: authzWithCanAny });
       const result = await tenants.canAny(ctx as any, "user_1", [], "org_1");
       // canAny delegates to authz even for empty array
@@ -423,10 +439,9 @@ describe("Tenants", () => {
 
   describe("hasRole", () => {
     it("delegates to authz.hasRole with orgScope when available", async () => {
-      const authzWithHasRole = {
-        ...createMockAuthz(),
+      const authzWithHasRole = createMockAuthz({
         hasRole: vi.fn().mockResolvedValue(true),
-      };
+      });
 
       const tenants = new Tenants(component, { authz: authzWithHasRole });
       const result = await tenants.hasRole(ctx as any, "user_1", "admin", "org_1");
@@ -439,10 +454,9 @@ describe("Tenants", () => {
     });
 
     it("returns false when authz.hasRole returns false", async () => {
-      const authzWithHasRole = {
-        ...createMockAuthz(),
+      const authzWithHasRole = createMockAuthz({
         hasRole: vi.fn().mockResolvedValue(false),
-      };
+      });
 
       const tenants = new Tenants(component, { authz: authzWithHasRole });
       const result = await tenants.hasRole(ctx as any, "user_1", "admin", "org_1");
@@ -505,10 +519,9 @@ describe("Tenants", () => {
 
   describe("recomputeUser", () => {
     it("calls authz.recomputeUser when available", async () => {
-      const authzWithRecompute = {
-        ...createMockAuthz(),
+      const authzWithRecompute = createMockAuthz({
         recomputeUser: vi.fn().mockResolvedValue(undefined),
-      };
+      });
       authzWithRecompute.require.mockResolvedValue(undefined);
 
       const tenants = new Tenants(component, { authz: authzWithRecompute });

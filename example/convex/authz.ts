@@ -49,9 +49,14 @@ const roles = defineRoles(permissions, TENANTS_ROLES, {
   // },
 });
 
-// Step 3: Create the Authz client
-// tenantId is required in authz v2 — use a constant for single-app setups,
-// or pass the current organization/customer ID for multi-tenant isolation.
+// Step 3: Create the Authz client.
+// `tenantId` is required by authz; pass any constant (e.g. your app name).
+// Multi-tenant isolation is handled by tenants — every org-scoped authz
+// operation is routed through `withTenant(organizationId)` so authz tables
+// (custom roles, user attributes, permission overrides, relationships,
+// audit log) partition correctly per organization. The constructor's
+// `tenantId` only governs the bare-instance pre-org-creation permission
+// check (e.g. gating `createOrganization`).
 export const authz = new Authz(components.authz, { permissions, roles, tenantId: "my-app" });
 
 // IMPORTANT: After editing the `roles` definition above and redeploying,

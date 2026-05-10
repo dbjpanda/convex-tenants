@@ -50,8 +50,11 @@ const roles = defineRoles(permissions, TENANTS_ROLES, {
 });
 
 // Step 3: Create the Authz client
-// tenantId is required — use a constant for single-app setups,
-// or pass the current org/customer ID for full multi-tenant isolation.
+// `tenantId` is required by authz. Pass any constant — your app name is fine.
+// Multi-tenant isolation is handled by tenants automatically: every authz
+// operation tied to an organization is routed through `withTenant(orgId)` so
+// authz partitions data per-org. There is no need (and no API) to vary the
+// constructor's `tenantId` per request when going through tenants.
 export const authz = new Authz(components.authz, { permissions, roles, tenantId: "my-app" });
 ```
 

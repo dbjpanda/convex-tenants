@@ -58,6 +58,19 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     };
   }
 
+  /**
+   * Return the authz client bound to a specific organization's tenantId.
+   *
+   * Every org-scoped authz operation routes through this so authz partitions
+   * data per organization. Without this, authz tables that key on `(tenantId,
+   * ...)` (custom roles, user attributes, permission overrides, relationships,
+   * audit log) collapse onto the single fixed tenantId the consumer passed
+   * to `new Authz(...)` — and leak across organizations.
+   */
+  private authzFor(organizationId: string): AuthzClient<P> {
+    return this.authz.withTenant(organizationId);
+  }
+
   private async authzRequireOperation(
     ctx: QueryCtx,
     userId: string,
@@ -66,7 +79,8 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
   ): Promise<void> {
     const permission = this.permissionMap[operation];
     if (permission === false) return;
-    await this.authz.require(ctx, userId, permission as PermissionArg<P>, scope);
+    // Every call site passes an org-scope, so scope.id is the organizationId.
+    await this.authzFor(scope.id).require(ctx, userId, permission as PermissionArg<P>, scope);
   }
 
   /** Require a permission for an operation (for use by API layer, e.g. listTeamMembers). */
@@ -111,17 +125,18 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     role: string,
     actorId?: string
   ): Promise<void> {
-    if (this.authz.offboardUser) {
-      await this.authz.offboardUser(ctx, memberUserId, {
+    const authz = this.authzFor(organizationId);
+    if (authz.offboardUser) {
+      await authz.offboardUser(ctx, memberUserId, {
         scope: orgScope(organizationId),
         actorId,
         removeOverrides: true,
         removeRelationships: false,
       });
-    } else if (this.authz.revokeAllRoles) {
-      await this.authz.revokeAllRoles(ctx, memberUserId, orgScope(organizationId), actorId);
+    } else if (authz.revokeAllRoles) {
+      await authz.revokeAllRoles(ctx, memberUserId, orgScope(organizationId), actorId);
     } else {
-      await this.authz.revokeRole(ctx, memberUserId, role, orgScope(organizationId), actorId);
+      await authz.revokeRole(ctx, memberUserId, role, orgScope(organizationId), actorId);
     }
   }
 
@@ -139,8 +154,9 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       this.component.teams.listUserTeamMemberships,
       { organizationId, userId }
     );
+    const authz = this.authzFor(organizationId);
     for (const { teamId } of memberships) {
-      await this.authz.removeRelation(
+      await authz.removeRelation(
         ctx,
         { type: "user", id: userId },
         "member",
@@ -182,6 +198,9 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
   ): Promise<string> {
     const createPermission = this.permissionMap.createOrganization;
     if (typeof createPermission === "string") {
+      // Pre-creation check — no organizationId exists yet, so this stays on
+      // the bare authz instance. Consumers gating org creation should grant
+      // this permission at the deployment-wide tenantId.
       await this.authz.require(ctx, userId, createPermission as PermissionArg<P>);
     }
     const slug = options?.slug ?? generateSlug(name);
@@ -198,7 +217,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       settings: options?.settings,
       creatorRole,
     });
-    await this.authz.assignRole(ctx, userId, creatorRole, orgScope(orgId), undefined, userId);
+    await this.authzFor(orgId).assignRole(ctx, userId, creatorRole, orgScope(orgId), undefined, userId);
     return orgId;
   }
 
@@ -243,9 +262,10 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       previousOwnerRole: previousRole,
     });
     const creatorRole = this.options.creatorRole ?? "owner";
-    await this.authz.revokeRole(ctx, userId, creatorRole, orgScope(organizationId));
-    await this.authz.assignRole(ctx, userId, previousRole, orgScope(organizationId), undefined, userId);
-    await this.authz.assignRole(ctx, newOwnerUserId, creatorRole, orgScope(organizationId), undefined, userId);
+    const authz = this.authzFor(organizationId);
+    await authz.revokeRole(ctx, userId, creatorRole, orgScope(organizationId));
+    await authz.assignRole(ctx, userId, previousRole, orgScope(organizationId), undefined, userId);
+    await authz.assignRole(ctx, newOwnerUserId, creatorRole, orgScope(organizationId), undefined, userId);
   }
 
   async deleteOrganization(
@@ -259,11 +279,12 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     const teamsResult = await this.listTeams(ctx, organizationId);
     const teams = Array.isArray(teamsResult) ? teamsResult : teamsResult.page;
     // Clean up all team relations
+    const authz = this.authzFor(organizationId);
     for (const team of teams) {
       const tmsResult = await this.listTeamMembers(ctx, team._id);
       const tms = Array.isArray(tmsResult) ? tmsResult : tmsResult.page;
       for (const tm of tms) {
-        await this.authz.removeRelation(
+        await authz.removeRelation(
           ctx,
           { type: "user", id: tm.userId },
           "member",
@@ -348,7 +369,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       memberUserId,
       role,
     });
-    await this.authz.assignRole(ctx, memberUserId, role, orgScope(organizationId), undefined, userId);
+    await this.authzFor(organizationId).assignRole(ctx, memberUserId, role, orgScope(organizationId), undefined, userId);
   }
 
   async removeMember(
@@ -385,10 +406,11 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       organizationId,
       members,
     });
+    const authz = this.authzFor(organizationId);
     for (const memberUserId of result.success) {
       const m = members.find((x) => x.memberUserId === memberUserId);
       if (m) {
-        await this.authz.assignRole(ctx, memberUserId, m.role, orgScope(organizationId), undefined, userId);
+        await authz.assignRole(ctx, memberUserId, m.role, orgScope(organizationId), undefined, userId);
       }
     }
     return result;
@@ -421,6 +443,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       organizationId,
       memberUserIds,
     });
+    const authz = this.authzFor(organizationId);
     for (const memberUserId of result.success) {
       const role = rolesByUser[memberUserId];
       if (role) {
@@ -428,7 +451,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       }
       const teamIds = teamMembershipsByUser[memberUserId] ?? [];
       for (const teamId of teamIds) {
-        await this.authz.removeRelation(
+        await authz.removeRelation(
           ctx,
           { type: "user", id: memberUserId },
           "member",
@@ -455,10 +478,11 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       memberUserId,
       role,
     });
+    const authz = this.authzFor(organizationId);
     if (previousRole) {
-      await this.authz.revokeRole(ctx, memberUserId, previousRole, orgScope(organizationId));
+      await authz.revokeRole(ctx, memberUserId, previousRole, orgScope(organizationId));
     }
-    await this.authz.assignRole(ctx, memberUserId, role, orgScope(organizationId), undefined, userId);
+    await authz.assignRole(ctx, memberUserId, role, orgScope(organizationId), undefined, userId);
   }
 
   async suspendMember(
@@ -476,8 +500,9 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     // Audit: emit `attribute_set` so suspension is observable in the audit log.
     // The members table's `status` column remains the source of truth for queries;
     // this is a parallel write purely for auditability.
-    if (this.authz.setAttribute) {
-      await this.authz.setAttribute(
+    const authz = this.authzFor(organizationId);
+    if (authz.setAttribute) {
+      await authz.setAttribute(
         ctx,
         memberUserId,
         `tenants:org:${organizationId}:suspended`,
@@ -500,8 +525,9 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       memberUserId,
     });
     // Audit: emit `attribute_removed` paired with the suspend write above.
-    if (this.authz.removeAttribute) {
-      await this.authz.removeAttribute(
+    const authz = this.authzFor(organizationId);
+    if (authz.removeAttribute) {
+      await authz.removeAttribute(
         ctx,
         memberUserId,
         `tenants:org:${organizationId}:suspended`,
@@ -612,8 +638,9 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     await this.authzRequireOperation(ctx, userId, "deleteTeam", orgScope(team.organizationId));
     const tmsResult = await this.listTeamMembers(ctx, teamId);
     const tms = Array.isArray(tmsResult) ? tmsResult : tmsResult.page;
+    const authz = this.authzFor(team.organizationId);
     for (const tm of tms) {
-      await this.authz.removeRelation(
+      await authz.removeRelation(
         ctx,
         { type: "user", id: tm.userId },
         "member",
@@ -656,7 +683,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       memberUserId,
       role: options?.role,
     });
-    await this.authz.addRelation(
+    await this.authzFor(team.organizationId).addRelation(
       ctx,
       { type: "user", id: memberUserId },
       "member",
@@ -696,7 +723,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       teamId,
       memberUserId,
     });
-    await this.authz.removeRelation(
+    await this.authzFor(team.organizationId).removeRelation(
       ctx,
       { type: "user", id: memberUserId },
       "member",
@@ -705,7 +732,12 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
   }
 
   async isTeamMember(ctx: QueryCtx, teamId: string, userId: string): Promise<boolean> {
-    return await this.authz.hasRelation(
+    // Look up team to find organizationId — relationships are partitioned by
+    // tenantId (= organizationId post-fix), so the read must hit the same
+    // tenant partition that addTeamMember wrote under.
+    const team = await this.getTeam(ctx, teamId);
+    if (!team) return false;
+    return await this.authzFor(team.organizationId).hasRelation(
       ctx,
       { type: "user", id: userId },
       "member",
@@ -719,7 +751,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     permission: string,
     organizationId: string
   ): Promise<boolean> {
-    return await this.authz.can(ctx, userId, permission as PermissionArg<P>, orgScope(organizationId));
+    return await this.authzFor(organizationId).can(ctx, userId, permission as PermissionArg<P>, orgScope(organizationId));
   }
 
   async canAny(
@@ -728,12 +760,13 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     permissions: string[],
     organizationId: string
   ): Promise<boolean> {
-    if (this.authz.canAny) {
-      return await this.authz.canAny(ctx, userId, permissions as PermissionArg<P>[], orgScope(organizationId));
+    const authz = this.authzFor(organizationId);
+    if (authz.canAny) {
+      return await authz.canAny(ctx, userId, permissions as PermissionArg<P>[], orgScope(organizationId));
     }
     // Fallback: check each permission individually
     for (const perm of permissions) {
-      if (await this.authz.can(ctx, userId, perm as PermissionArg<P>, orgScope(organizationId))) {
+      if (await authz.can(ctx, userId, perm as PermissionArg<P>, orgScope(organizationId))) {
         return true;
       }
     }
@@ -746,11 +779,11 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     permission: string,
     organizationId: string
   ): Promise<void> {
-    await this.authz.require(ctx, userId, permission as PermissionArg<P>, orgScope(organizationId));
+    await this.authzFor(organizationId).require(ctx, userId, permission as PermissionArg<P>, orgScope(organizationId));
   }
 
   async getUserPermissions(ctx: QueryCtx, userId: string, organizationId: string) {
-    return await this.authz.getUserPermissions(ctx, userId, orgScope(organizationId));
+    return await this.authzFor(organizationId).getUserPermissions(ctx, userId, orgScope(organizationId));
   }
 
   async getUserRoles(
@@ -758,11 +791,23 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     userId: string,
     organizationId?: string
   ) {
-    return await this.authz.getUserRoles(
-      ctx,
-      userId,
-      organizationId ? orgScope(organizationId) : undefined
-    );
+    if (organizationId) {
+      return await this.authzFor(organizationId).getUserRoles(
+        ctx,
+        userId,
+        orgScope(organizationId)
+      );
+    }
+    // No organizationId — return roles across every org the user belongs to.
+    // Each org has its own tenantId partition post-fix, so a single authz
+    // query can't see all of them.
+    const orgs = await this.listOrganizations(ctx, userId);
+    const all: any[] = [];
+    for (const org of orgs) {
+      const roles = await this.authzFor(org._id).getUserRoles(ctx, userId, orgScope(org._id));
+      if (Array.isArray(roles)) all.push(...roles);
+    }
+    return all;
   }
 
   async hasRole(
@@ -771,11 +816,12 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     role: string,
     organizationId: string
   ): Promise<boolean> {
-    if (this.authz.hasRole) {
-      return await this.authz.hasRole(ctx, userId, role, orgScope(organizationId));
+    const authz = this.authzFor(organizationId);
+    if (authz.hasRole) {
+      return await authz.hasRole(ctx, userId, role, orgScope(organizationId));
     }
     // Fallback: get all roles and check
-    const roles = await this.authz.getUserRoles(ctx, userId, orgScope(organizationId));
+    const roles = await authz.getUserRoles(ctx, userId, orgScope(organizationId));
     return Array.isArray(roles) && roles.some((r: any) => (typeof r === "string" ? r : r.role) === role);
   }
 
@@ -789,7 +835,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
   ): Promise<string> {
     await this.authzRequireOperation(ctx, userId, "grantPermission", orgScope(organizationId));
     const validatedScope = await this.resolvePermissionScope(ctx, organizationId, options?.scope);
-    return await this.authz.grantPermission(
+    return await this.authzFor(organizationId).grantPermission(
       ctx,
       targetUserId,
       permission as PermissionArg<P>,
@@ -810,7 +856,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
   ): Promise<string> {
     await this.authzRequireOperation(ctx, userId, "denyPermission", orgScope(organizationId));
     const validatedScope = await this.resolvePermissionScope(ctx, organizationId, options?.scope);
-    return await this.authz.denyPermission(
+    return await this.authzFor(organizationId).denyPermission(
       ctx,
       targetUserId,
       permission as PermissionArg<P>,
@@ -828,33 +874,9 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
     options?: { userId?: string; action?: string; limit?: number }
   ) {
     await this.authzRequireOperation(ctx, userId, "getAuditLog", orgScope(organizationId));
-    const scope = orgScope(organizationId);
-    const callerLimit = options?.limit ?? 50;
-    // authz.getAuditLog does not accept a scope filter — fetch a larger window
-    // and filter client-side by entry.details.scope (where authz stores the scope).
-    const fetchLimit = Math.max(callerLimit * 4, 200);
-    const result = await this.authz.getAuditLog(ctx, { ...options, limit: fetchLimit });
-    if (Array.isArray(result)) {
-      // Org-scoped tenants events store the scope in details.scope (role/permission
-      // events). Attribute events (e.g. our suspend/unsuspend audit) don't carry
-      // a scope — we encode the org id into the attribute key prefix instead
-      // (`tenants:org:${organizationId}:...`). Match either shape.
-      const orgKeyPrefix = `tenants:org:${organizationId}:`;
-      const matchesScope = (entry: { details?: unknown }) => {
-        const details = entry.details as
-          | { scope?: { type?: string; id?: string }; attribute?: { key?: string } }
-          | undefined;
-        if (details?.scope?.type === scope.type && details?.scope?.id === scope.id) {
-          return true;
-        }
-        if (details?.attribute?.key?.startsWith(orgKeyPrefix)) {
-          return true;
-        }
-        return false;
-      };
-      return result.filter(matchesScope).slice(0, callerLimit);
-    }
-    return result;
+    // Routing through authzFor partitions the audit log by organizationId at
+    // the authz layer, so the returned entries are already org-scoped.
+    return await this.authzFor(organizationId).getAuditLog(ctx, options);
   }
 
   async recomputeUser(
@@ -865,44 +887,81 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
   ): Promise<void> {
     // Require permissions:grant (admin-level operation)
     await this.authzRequireOperation(ctx, userId, "grantPermission", orgScope(organizationId));
-    if (this.authz.recomputeUser) {
-      await this.authz.recomputeUser(ctx, targetUserId);
+    const authz = this.authzFor(organizationId);
+    if (authz.recomputeUser) {
+      await authz.recomputeUser(ctx, targetUserId);
     }
   }
 
   /**
-   * Re-materialize permissions for every user holding the given role.
-   * Requires `@djpanda/convex-authz` >= 2.3.0 (`authz.syncRole`).
-   * Must be invoked from a Convex action — pages through assignments
-   * and runs one mutation per user. Call after editing role definitions.
+   * Re-materialize permissions for every user holding the given role
+   * across every organization in the deployment.
+   *
+   * Each organization is its own authz tenantId partition, so this
+   * iterates all orgs and runs `authz.syncRole` per-tenant. Sum of users
+   * processed across orgs is returned. Requires
+   * `@djpanda/convex-authz` >= 2.3.0. Must be invoked from a Convex action.
    */
   async syncRole(
     ctx: any,
     role: string
   ): Promise<{ usersProcessed: number }> {
     if (!this.authz.syncRole) {
-      throw new Error(
-        "authz.syncRole requires @djpanda/convex-authz >= 2.3.0"
-      );
+      throw new Error("authz.syncRole requires @djpanda/convex-authz >= 2.3.0");
     }
-    return await this.authz.syncRole(ctx, role);
+    let usersProcessed = 0;
+    let cursor: string | null = null;
+    while (true) {
+      const page: { page: string[]; isDone: boolean; continueCursor: string } =
+        await ctx.runQuery(this.component.organizations.listAllOrganizationIds, {
+          paginationOpts: { numItems: 100, cursor },
+        });
+      for (const orgId of page.page) {
+        const authz = this.authzFor(orgId);
+        if (authz.syncRole) {
+          const result = await authz.syncRole(ctx, role);
+          usersProcessed += result.usersProcessed;
+        }
+      }
+      if (page.isDone) break;
+      cursor = page.continueCursor;
+    }
+    return { usersProcessed };
   }
 
   /**
-   * Re-materialize permissions for every user holding any role in the catalog.
-   * Requires `@djpanda/convex-authz` >= 2.3.0 (`authz.syncRoles`).
-   * Must be invoked from a Convex action. Convenience wrapper around
-   * `syncRole` across every configured role.
+   * Re-materialize permissions for every user holding any role in the
+   * catalog, across every organization in the deployment.
+   *
+   * Iterates all orgs and runs `authz.syncRoles` per-tenant. Requires
+   * `@djpanda/convex-authz` >= 2.3.0. Must be invoked from a Convex action.
    */
   async syncRoles(
     ctx: any
   ): Promise<{ rolesProcessed: number; usersProcessed: number }> {
     if (!this.authz.syncRoles) {
-      throw new Error(
-        "authz.syncRoles requires @djpanda/convex-authz >= 2.3.0"
-      );
+      throw new Error("authz.syncRoles requires @djpanda/convex-authz >= 2.3.0");
     }
-    return await this.authz.syncRoles(ctx);
+    let rolesProcessed = 0;
+    let usersProcessed = 0;
+    let cursor: string | null = null;
+    while (true) {
+      const page: { page: string[]; isDone: boolean; continueCursor: string } =
+        await ctx.runQuery(this.component.organizations.listAllOrganizationIds, {
+          paginationOpts: { numItems: 100, cursor },
+        });
+      for (const orgId of page.page) {
+        const authz = this.authzFor(orgId);
+        if (authz.syncRoles) {
+          const result = await authz.syncRoles(ctx);
+          rolesProcessed += result.rolesProcessed;
+          usersProcessed += result.usersProcessed;
+        }
+      }
+      if (page.isDone) break;
+      cursor = page.continueCursor;
+    }
+    return { rolesProcessed, usersProcessed };
   }
 
   async listInvitations(
@@ -998,7 +1057,8 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
       skipIdentifierCheck: options?.skipIdentifierCheck,
     } as { invitationId: string; acceptingUserId: string; acceptingUserIdentifier?: string; skipIdentifierCheck?: boolean });
     if (invitation) {
-      await this.authz.assignRole(
+      const authz = this.authzFor(invitation.organizationId);
+      await authz.assignRole(
         ctx,
         acceptingUserId,
         invitation.role,
@@ -1007,7 +1067,7 @@ export class Tenants<P extends PermissionDefinition = PermissionDefinition> {
         invitation.inviterId
       );
       if (invitation.teamId) {
-        await this.authz.addRelation(
+        await authz.addRelation(
           ctx,
           { type: "user", id: acceptingUserId },
           "member",

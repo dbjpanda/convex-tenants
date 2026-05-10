@@ -106,6 +106,36 @@ export const listUserOrganizations = query({
   },
 });
 
+/**
+ * Paginated list of all organization IDs in the deployment.
+ *
+ * Used by `Tenants.syncRole` / `Tenants.syncRoles` to iterate every
+ * organization (each is its own authz tenantId partition) and call
+ * authz's per-tenant `syncRole` against each. Not part of the public
+ * API — consumers should use `listUserOrganizations`.
+ */
+export const listAllOrganizationIds = query({
+  args: {
+    paginationOpts: v.object({
+      numItems: v.number(),
+      cursor: v.union(v.string(), v.null()),
+    }),
+  },
+  returns: v.object({
+    page: v.array(v.string()),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const result = await ctx.db.query("organizations").paginate(args.paginationOpts);
+    return {
+      page: result.page.map((org) => org._id as string),
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
+  },
+});
+
 export const getOrganization = query({
   args: { organizationId: v.string() },
   returns: v.union(

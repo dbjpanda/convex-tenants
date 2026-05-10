@@ -193,6 +193,15 @@ export const getCallbackLogs = query({
   },
 });
 
+// Inspect authz role assignments for a (tenantId, userId) — used to verify
+// that tenants partitions authz writes by organizationId via withTenant().
+export const inspectAuthzRoles = query({
+  args: { tenantId: v.string(), userId: v.string() },
+  handler: async (ctx, { tenantId, userId }) => {
+    return await authz.withTenant(tenantId).getUserRoles(ctx, userId);
+  },
+});
+
 // ================================
 // API with validateInvitationCreate (rejects non-email identifiers)
 // ================================
@@ -351,6 +360,10 @@ export const directCreateOrganization = mutation({
 /**
  * Test helper: check if a ReBAC relation exists in the authz component.
  * Used by rebac-relations.test.ts to verify addRelation/removeRelation calls.
+ *
+ * tenants writes team-membership relations under the team's
+ * `withTenant(team.organizationId)` partition, so the helper resolves the
+ * team's organizationId and queries the matching tenantId.
  */
 export const hasAuthzRelation = query({
   args: {
@@ -361,7 +374,14 @@ export const hasAuthzRelation = query({
     objectId: v.string(),
   },
   handler: async (ctx, args) => {
-    return await authz.hasRelation(
+    let tenantAuthz = authz;
+    if (args.objectType === "team") {
+      const team = await ctx.runQuery(components.tenants.teams.getTeam, {
+        teamId: args.objectId,
+      });
+      if (team) tenantAuthz = authz.withTenant(team.organizationId);
+    }
+    return await tenantAuthz.hasRelation(
       ctx,
       { type: args.subjectType, id: args.subjectId },
       args.relation,

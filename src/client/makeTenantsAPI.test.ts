@@ -193,7 +193,9 @@ describe("makeTenantsAPI", () => {
 });
 
 function createMockAuthz() {
-  return {
+  // withTenant returns a self-reference so every assertion observes the same
+  // spy instance regardless of which tenantId tenants routes through.
+  const authz = {
     can: vi.fn().mockResolvedValue(true),
     require: vi.fn().mockResolvedValue(undefined),
     assignRole: vi.fn().mockResolvedValue("role-id"),
@@ -206,5 +208,8 @@ function createMockAuthz() {
     addRelation: vi.fn().mockResolvedValue("relation-id"),
     removeRelation: vi.fn().mockResolvedValue(true),
     hasRelation: vi.fn().mockResolvedValue(false),
+    withTenant: vi.fn(),
   };
+  authz.withTenant.mockReturnValue(authz);
+  return authz;
 }

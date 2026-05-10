@@ -33,6 +33,17 @@ export interface RelationEntity {
  * now on the `Authz` class directly instead of `component.rebac.*`.
  */
 export interface AuthzClient<P extends PermissionDefinition = PermissionDefinition> {
+  /**
+   * Return a new authz client bound to a different tenantId.
+   *
+   * Required for multi-tenant composition: tenants routes every org-scoped
+   * authz call through `withTenant(organizationId)` so authz tables (custom
+   * roles, user attributes, permission overrides, relationships, audit log)
+   * partition correctly across organizations even when the consumer holds
+   * a single module-scope `Authz` instance.
+   */
+  withTenant(tenantId: string): AuthzClient<P>;
+
   /** Check if a user has a permission (returns boolean). */
   can(ctx: any, userId: string, permission: PermissionArg<P>, scope?: { type: string; id: string }): Promise<boolean>;
 

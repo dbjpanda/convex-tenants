@@ -461,6 +461,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         },
         Name
       >;
+      listAllOrganizationIds: FunctionReference<
+        "query",
+        "internal",
+        { paginationOpts: { cursor: string | null; numItems: number } },
+        { continueCursor: string; isDone: boolean; page: Array<string> },
+        Name
+      >;
       listUserOrganizations: FunctionReference<
         "query",
         "internal",
